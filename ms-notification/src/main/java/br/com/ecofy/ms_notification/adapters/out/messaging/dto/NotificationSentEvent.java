@@ -1,6 +1,5 @@
 package br.com.ecofy.ms_notification.adapters.out.messaging.dto;
 
-p
 import br.com.ecofy.ms_notification.core.domain.Notification;
 
 import java.time.Instant;

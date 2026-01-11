@@ -9,7 +9,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-@ConfigurationProperties(prefix = "ecofy.notification")
+@ConfigurationProperties(prefix = "notification")
 public class NotificationProperties {
 
     private Topics topics = new Topics();

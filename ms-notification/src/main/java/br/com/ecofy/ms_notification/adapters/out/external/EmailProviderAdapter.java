@@ -5,16 +5,40 @@ import br.com.ecofy.ms_notification.core.port.out.EmailSenderPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
 @Component
 public class EmailProviderAdapter implements EmailSenderPort {
 
+    private static final String PROVIDER_NAME = "email-stub";
+
     @Override
     public SendResult sendEmail(ChannelAddress to, String subject, String body) {
-        log.info("[EmailProviderAdapter] SEND to={} subject={}", to.address(), subject);
-        // placeholder: integra depois com SES/SendGrid/Mailgun etc.
-        return new SendResult("email-stub", UUID.randomUUID().toString());
+        Objects.requireNonNull(to, "to must not be null");
+        Objects.requireNonNull(subject, "subject must not be null");
+        Objects.requireNonNull(body, "body must not be null");
+
+        String messageId = UUID.randomUUID().toString();
+
+        log.info(
+                "[EmailProviderAdapter] - [sendEmail] -> provider={} to={} subjectLen={} bodyLen={} messageId={}",
+                PROVIDER_NAME,
+                safeAddress(to.address()),
+                subject.length(),
+                body.length(),
+                messageId
+        );
+
+        return new SendResult(PROVIDER_NAME, messageId);
+    }
+
+    private static String safeAddress(String address) {
+        if (address == null || address.isBlank()) return "<empty>";
+        int at = address.indexOf('@');
+        if (at <= 1) return "***";
+        String domain = address.substring(at + 1);
+        return address.charAt(0) + "***@" + domain;
     }
 }

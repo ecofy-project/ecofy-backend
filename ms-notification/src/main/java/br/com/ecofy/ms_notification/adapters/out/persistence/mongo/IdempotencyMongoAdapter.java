@@ -5,10 +5,14 @@ import br.com.ecofy.ms_notification.adapters.out.persistence.repository.Idempote
 import br.com.ecofy.ms_notification.config.NotificationProperties;
 import br.com.ecofy.ms_notification.core.domain.valueobject.IdempotencyKey;
 import br.com.ecofy.ms_notification.core.port.out.IdempotencyPort;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
+import java.util.Objects;
 
+@Slf4j
 @Component
 public class IdempotencyMongoAdapter implements IdempotencyPort {
 
@@ -16,25 +20,50 @@ public class IdempotencyMongoAdapter implements IdempotencyPort {
     private final NotificationProperties props;
 
     public IdempotencyMongoAdapter(IdempotencyMongoRepository repo, NotificationProperties props) {
-        this.repo = repo;
-        this.props = props;
+        this.repo = Objects.requireNonNull(repo, "repo must not be null");
+        this.props = Objects.requireNonNull(props, "props must not be null");
+        Objects.requireNonNull(props.getIdempotency(), "props.idempotency must not be null");
+        Objects.requireNonNull(props.getIdempotency().getTtl(), "props.idempotency.ttl must not be null");
     }
 
     @Override
     public boolean tryAcquire(IdempotencyKey key) {
-
-        if (repo.existsById(key.value())) {
-            return false;
-        }
+        if (key == null) throw new IllegalArgumentException("key must not be null");
+        if (key.value() == null || key.value().isBlank()) throw new IllegalArgumentException("key.value must not be blank");
 
         var now = Instant.now();
+        var ttl = props.getIdempotency().getTtl();
+        var expiresAt = now.plus(ttl);
+
         var doc = IdempotencyKeyDocument.builder()
                 .key(key.value())
                 .createdAt(now)
-                .expiresAt(now.plus(props.getIdempotency().getTtl()))
+                .expiresAt(expiresAt)
                 .build();
 
-        repo.save(doc);
-        return true;
+        try {
+            repo.insert(doc);
+
+            log.debug(
+                    "[IdempotencyMongoAdapter] - [tryAcquire] -> acquired key={} expiresAt={}",
+                    key.value(),
+                    expiresAt
+            );
+
+            return true;
+        } catch (DuplicateKeyException ex) {
+            log.warn(
+                    "[IdempotencyMongoAdapter] - [tryAcquire] -> already acquired key={}",
+                    key.value()
+            );
+            return false;
+        } catch (Exception ex) {
+            log.error(
+                    "[IdempotencyMongoAdapter] - [tryAcquire] -> failed to acquire key={}",
+                    key.value(),
+                    ex
+            );
+            throw ex;
+        }
     }
 }

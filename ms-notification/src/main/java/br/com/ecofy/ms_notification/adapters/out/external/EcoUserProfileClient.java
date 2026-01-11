@@ -6,6 +6,7 @@ import br.com.ecofy.ms_notification.core.port.out.LoadUserContactInfoPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,27 +14,41 @@ import java.util.UUID;
 @Component
 public class EcoUserProfileClient implements LoadUserContactInfoPort {
 
-    private final NotificationProperties props;
+    private final NotificationProperties.Clients.UserProfile userProfileProps;
 
     public EcoUserProfileClient(NotificationProperties props) {
-        this.props = props;
+        Objects.requireNonNull(props, "props must not be null");
+        Objects.requireNonNull(props.getClients(), "props.clients must not be null");
+        this.userProfileProps = Objects.requireNonNull(
+                props.getClients().getUserProfile(),
+                "props.clients.userProfile must not be null"
+        );
     }
 
     @Override
     public Optional<UserContactInfo> load(UserId userId) {
+        Objects.requireNonNull(userId, "userId must not be null");
 
-        // Placeholder senior: não quebra build; pronto para trocar por WebClient/Feign.
-        if (!props.getClients().getUserProfile().isEnabled()) {
-            log.debug("[EcoUserProfileClient] stub mode enabled=false. Returning synthetic contacts.");
-            return Optional.of(new UserContactInfo(
-                    "user+" + userId.value() + "@example.com",
-                    "+5511999999999",
-                    "device-token-" + UUID.randomUUID()
-            ));
+        if (!userProfileProps.isEnabled()) {
+            log.debug(
+                    "[EcoUserProfileClient] - [load] -> client disabled. Returning synthetic contacts userId={}",
+                    userId.value()
+            );
+            return Optional.of(syntheticContacts(userId));
         }
 
-        // no futuro: chamar ms-users (ou serviço externo) e mapear contatos
-        log.warn("[EcoUserProfileClient] enabled=true but still stub. Returning empty.");
+        // TODO: Implementar integração real com ms-users (WebClient/Feign) e mapear resposta -> UserContactInfo
+        log.warn(
+                "[EcoUserProfileClient] - [load] -> client enabled but not implemented. Returning empty userId={}",
+                userId.value()
+        );
         return Optional.empty();
+    }
+
+    private static UserContactInfo syntheticContacts(UserId userId) {
+        String email = "user+" + userId.value() + "@example.com";
+        String phone = "+5511999999999";
+        String deviceToken = "device-token-" + UUID.randomUUID();
+        return new UserContactInfo(email, phone, deviceToken);
     }
 }

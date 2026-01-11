@@ -7,6 +7,8 @@ import br.com.ecofy.ms_notification.core.port.in.HandleDomainEventNotificationUs
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -21,27 +23,60 @@ public class InsightCreatedEventConsumer {
 
     @KafkaListener(
             id = "insightCreatedEventConsumer",
-            topics = "#{@notificationProperties.topics.insightCreated}",
+            topics = "${notification.topics.insight-created:eco.insight.created}",
             containerFactory = "insightCreatedKafkaListenerContainerFactory"
     )
-    public void consume(InsightCreatedEventMessage message) {
+    public void consume(
+            InsightCreatedEventMessage message,
+            @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+            @Header(name = KafkaHeaders.RECEIVED_PARTITION, required = false) Integer partition,
+            @Header(name = KafkaHeaders.OFFSET, required = false) Long offset
+    ) {
         Objects.requireNonNull(message, "message must not be null");
 
-        String eventId = (message.metadata() != null) ? message.metadata().eventId() : null;
-        var userId = message.userId();
+        final long startNs = System.nanoTime();
 
-        log.debug("[InsightCreatedEventConsumer] received insight.created userId={} eventId={}", userId, eventId);
+        final String eventId = message.metadata() != null ? message.metadata().eventId() : null;
+        final String userId = String.valueOf(message.userId());
+
+        log.info(
+                "[InsightCreatedEventConsumer] - [consume] -> status=received topic={} partition={} offset={} userId={} eventId={}",
+                safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId)
+        );
+
+        // Se você quiser detalhes mínimos de payload sem poluir INFO:
+         if (log.isDebugEnabled()) {
+             log.debug("[InsightCreatedEventConsumer] - [consume] -> hasMetadata={}", message.metadata() != null);
+         }
 
         try {
-            HandleDomainEventCommand command = mapper.fromInsightCreated(message);
+            final HandleDomainEventCommand command = mapper.fromInsightCreated(message);
+            final String idempotencyKey = command != null ? command.idempotencyKey() : null;
+
             useCase.handle(command);
 
-            log.debug("[InsightCreatedEventConsumer] processed insight.created userId={} eventId={} idem={}",
-                    userId, eventId, command.idempotencyKey());
+            final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
+
+            log.info(
+                    "[InsightCreatedEventConsumer] - [consume] -> status=processed topic={} partition={} offset={} userId={} eventId={} idempotencyKey={} elapsedMs={}",
+                    safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId), safe(idempotencyKey), elapsedMs
+            );
         } catch (Exception ex) {
-            // Re-throw para que o ErrorHandler do container (retry/backoff/DLT) faça o trabalho correto.
-            log.error("[InsightCreatedEventConsumer] failed insight.created userId={} eventId={}", userId, eventId, ex);
+            final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
+
+            log.error(
+                    "[InsightCreatedEventConsumer] - [consume] -> status=failed topic={} partition={} offset={} userId={} eventId={} elapsedMs={}",
+                    safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId), elapsedMs, ex
+            );
+
             throw ex;
         }
+    }
+
+    /**
+     * Normaliza valores para logs: evita "null" literal e facilita leitura em observabilidade.
+     */
+    private static String safe(Object value) {
+        return value == null ? "-" : String.valueOf(value);
     }
 }

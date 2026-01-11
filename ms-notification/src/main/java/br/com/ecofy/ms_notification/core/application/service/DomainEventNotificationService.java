@@ -10,6 +10,7 @@ import br.com.ecofy.ms_notification.core.port.in.SendNotificationUseCase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -18,43 +19,88 @@ import java.util.UUID;
 @Service
 public class DomainEventNotificationService implements HandleDomainEventNotificationUseCase {
 
+    private static final NotificationChannel FALLBACK_CHANNEL = NotificationChannel.EMAIL;
+
     private final NotificationProperties props;
     private final SendNotificationUseCase sendNotificationUseCase;
 
-    public DomainEventNotificationService(NotificationProperties props,
-                                          SendNotificationUseCase sendNotificationUseCase) {
+    public DomainEventNotificationService(
+            NotificationProperties props,
+            SendNotificationUseCase sendNotificationUseCase
+    ) {
         this.props = Objects.requireNonNull(props, "props must not be null");
         this.sendNotificationUseCase = Objects.requireNonNull(sendNotificationUseCase, "sendNotificationUseCase must not be null");
+        Objects.requireNonNull(props.getTemplates(), "props.templates must not be null");
+        Objects.requireNonNull(props.getTemplates().getDefaultChannels(), "props.templates.defaultChannels must not be null");
     }
 
     @Override
     public void handle(HandleDomainEventCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
 
-        UUID userId = Objects.requireNonNull(command.userId(), "userId must not be null");
-        DomainEventType eventType = Objects.requireNonNull(command.eventType(), "eventType must not be null");
-        Map<String, Object> payload = command.payload() == null ? Map.of() : command.payload();
+        UUID userId = Objects.requireNonNull(command.userId(), "command.userId must not be null");
+        DomainEventType eventType = Objects.requireNonNull(command.eventType(), "command.eventType must not be null");
 
+        Map<String, Object> payload = safePayload(command.payload());
         NotificationChannel channel = resolveDefaultChannel(eventType);
 
-        log.debug("[DomainEventNotificationService] handle eventType={} userId={} channel={}",
-                eventType, userId, channel);
+        String idem = blankToNull(command.idempotencyKey());
 
-        sendNotificationUseCase.send(new SendNotificationCommand(
+        log.debug(
+                "[DomainEventNotificationService] - [handle] -> handling domain event userId={} eventType={} channel={} hasPayload={} hasIdempotencyKey={}",
+                userId,
+                eventType,
+                channel,
+                !payload.isEmpty(),
+                idem != null
+        );
+
+        var sendCmd = new SendNotificationCommand(
                 userId,
                 eventType,
                 channel,
                 null,
                 payload,
-                command.idempotencyKey()
-        ));
+                idem
+        );
+
+        sendNotificationUseCase.send(sendCmd);
     }
 
     private NotificationChannel resolveDefaultChannel(DomainEventType type) {
-        String raw = props.getTemplates().getDefaultChannels().getOrDefault(type.name(), "EMAIL");
-        try {
-            return NotificationChannel.valueOf(raw);
-        } catch (Exception e) {
-            return NotificationChannel.EMAIL;
+        String raw = props.getTemplates().getDefaultChannels().get(type.name());
+
+        if (raw == null || raw.isBlank()) {
+            log.debug(
+                    "[DomainEventNotificationService] - [resolveDefaultChannel] -> no default channel configured for eventType={}, using fallback={}",
+                    type,
+                    FALLBACK_CHANNEL
+            );
+            return FALLBACK_CHANNEL;
         }
+
+        String normalized = raw.trim().toUpperCase();
+
+        try {
+            return NotificationChannel.valueOf(normalized);
+        } catch (Exception ex) {
+            log.warn(
+                    "[DomainEventNotificationService] - [resolveDefaultChannel] -> invalid default channel configured eventType={} configured={} fallback={}",
+                    type,
+                    raw,
+                    FALLBACK_CHANNEL
+            );
+            return FALLBACK_CHANNEL;
+        }
+    }
+
+    private static Map<String, Object> safePayload(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) return Map.of();
+        // cópia defensiva: evita que mutações externas afetem o comando
+        return Map.copyOf(new HashMap<>(payload));
+    }
+
+    private static String blankToNull(String v) {
+        return (v == null || v.isBlank()) ? null : v.trim();
     }
 }
