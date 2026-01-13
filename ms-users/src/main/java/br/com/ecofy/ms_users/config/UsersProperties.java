@@ -21,7 +21,7 @@ public record UsersProperties(
 
     public record ExternalAuth(
             String baseUrl,
-            String connectTimeout,
-            String readTimeout
+            Duration connectTimeout,
+            Duration readTimeout
     ) {}
 }

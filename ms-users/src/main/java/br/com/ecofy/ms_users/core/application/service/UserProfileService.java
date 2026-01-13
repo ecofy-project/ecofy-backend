@@ -20,7 +20,6 @@ import br.com.ecofy.ms_users.core.port.out.IdempotencyPort;
 import br.com.ecofy.ms_users.core.port.out.LoadUserProfilePort;
 import br.com.ecofy.ms_users.core.port.out.PublishUserEventPort;
 import br.com.ecofy.ms_users.core.port.out.SaveUserProfilePort;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -29,104 +28,221 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class UserProfileService implements
         CreateUserProfileUseCase,
         UpdateUserProfileUseCase,
         GetUserProfileUseCase {
 
+    private static final String OP_CREATE = "users.createProfile";
+    private static final String OP_UPDATE = "users.updateProfile";
+
     private final SaveUserProfilePort savePort;
     private final LoadUserProfilePort loadPort;
     private final PublishUserEventPort publishUserEventPort;
     private final IdempotencyPort idempotencyPort;
-    private final UsersProperties props;
+    private final UsersProperties.Idempotency idempotencyProps;
+
+    public UserProfileService(SaveUserProfilePort savePort,
+                              LoadUserProfilePort loadPort,
+                              PublishUserEventPort publishUserEventPort,
+                              IdempotencyPort idempotencyPort,
+                              UsersProperties props) {
+        this.savePort = Objects.requireNonNull(savePort, "savePort must not be null");
+        this.loadPort = Objects.requireNonNull(loadPort, "loadPort must not be null");
+        this.publishUserEventPort = Objects.requireNonNull(publishUserEventPort, "publishUserEventPort must not be null");
+        this.idempotencyPort = Objects.requireNonNull(idempotencyPort, "idempotencyPort must not be null");
+        Objects.requireNonNull(props, "props must not be null");
+        this.idempotencyProps = Objects.requireNonNull(props.idempotency(), "props.idempotency must not be null");
+    }
 
     @Override
     public UserProfileResult create(CreateUserProfileCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
         validateCreate(command);
 
-        String op = "users.createProfile";
-        String reqHash = sha256(command.userId() + "|" + command.externalAuthId() + "|" + command.email() + "|" + command.phone());
+        UUID userId = command.userId();
+        String externalAuthId = command.externalAuthId();
+        String email = blankToNull(command.email());
+        String phone = blankToNull(command.phone());
 
-        boolean first = idempotencyPort.registerOnce(op, command.idempotencyKey(), reqHash, props.idempotency().ttl());
+        String reqHash = sha256(stableHashInput(
+                userId,
+                externalAuthId,
+                blankToNull(command.fullName()),
+                email,
+                phone
+        ));
+
+        boolean first = idempotencyPort.registerOnce(
+                OP_CREATE,
+                command.idempotencyKey(),
+                reqHash,
+                idempotencyProps.ttl()
+        );
+
         if (!first) {
-            throw new IdempotencyViolationException("Idempotency key already used for operation=" + op);
+            log.info("[UserProfileService] - [create] -> idempotency violation op={} userId={}", OP_CREATE, userId);
+            throw new IdempotencyViolationException("Idempotency key already used for operation=" + OP_CREATE);
         }
 
-        var existing = loadPort.findById(command.userId());
+        Optional<EcoUserProfile> existing = loadPort.findById(userId);
         if (existing.isPresent()) {
-            // idempotência tratou, mas retorno coerente
-            return toResult(existing.get());
+            // Idempotência já garantiu que este request não será processado 2x; retornar o estado atual é ok.
+            EcoUserProfile cur = existing.get();
+            log.info("[UserProfileService] - [create] -> already exists userId={} status={}", userId, cur.getStatus());
+            return toResult(cur);
         }
+
+        Instant now = Instant.now();
 
         EcoUserProfile profile = EcoUserProfile.builder()
-                .id(UserId.of(command.userId()))
-                .externalAuthId(ExternalAuthId.of(command.externalAuthId()))
-                .fullName(command.fullName())
-                .email(command.email() != null ? EmailAddress.of(command.email()) : null)
-                .phone(command.phone() != null ? PhoneNumber.of(command.phone()) : null)
+                .id(UserId.of(userId))
+                .externalAuthId(ExternalAuthId.of(externalAuthId))
+                .fullName(blankToNull(command.fullName()))
+                .email(email != null ? EmailAddress.of(email) : null)
+                .phone(phone != null ? PhoneNumber.of(phone) : null)
                 .status(UserStatus.PENDING)
-                .createdAt(Instant.now())
-                .updatedAt(Instant.now())
+                .createdAt(now)
+                .updatedAt(now)
                 .build();
 
-        var saved = savePort.save(profile);
+        EcoUserProfile saved = savePort.save(profile);
+
+        // Evento: payload já no shape de API/Result (mantendo seu contrato atual)
         publishUserEventPort.publishUserProfileCreated(saved.getId().value().toString(), toResult(saved));
+
+        log.info(
+                "[UserProfileService] - [create] -> userId={} status={} hasEmail={} hasPhone={}",
+                saved.getId().value(),
+                saved.getStatus(),
+                saved.getEmail() != null,
+                saved.getPhone() != null
+        );
+
         return toResult(saved);
     }
 
     @Override
     public UserProfileResult update(UpdateUserProfileCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
+        validateUpdate(command);
 
-        String op = "users.updateProfile";
-        String reqHash = sha256(command.userId() + "|" + command.fullName() + "|" + command.email() + "|" + command.phone() + "|" + command.status());
+        UUID userId = command.userId();
 
-        boolean first = idempotencyPort.registerOnce(op, command.idempotencyKey(), reqHash, props.idempotency().ttl());
+        String reqHash = sha256(stableHashInput(
+                userId,
+                blankToNull(command.fullName()),
+                blankToNull(command.email()),
+                blankToNull(command.phone()),
+                blankToNull(command.status())
+        ));
+
+        boolean first = idempotencyPort.registerOnce(
+                OP_UPDATE,
+                command.idempotencyKey(),
+                reqHash,
+                idempotencyProps.ttl()
+        );
+
         if (!first) {
-            throw new IdempotencyViolationException("Idempotency key already used for operation=" + op);
+            log.info("[UserProfileService] - [update] -> idempotency violation op={} userId={}", OP_UPDATE, userId);
+            throw new IdempotencyViolationException("Idempotency key already used for operation=" + OP_UPDATE);
         }
 
-        EcoUserProfile current = loadPort.findById(command.userId())
-                .orElseThrow(() -> new UserProfileNotFoundException(command.userId()));
+        EcoUserProfile current = loadPort.findById(userId)
+                .orElseThrow(() -> new UserProfileNotFoundException(userId));
 
-        UserStatus status = current.getStatus();
-        if (command.status() != null && !command.status().isBlank()) {
-            try {
-                status = UserStatus.valueOf(command.status());
-            } catch (IllegalArgumentException e) {
-                throw new BusinessValidationException("Invalid status: " + command.status());
-            }
-        }
+        UserStatus newStatus = resolveStatus(command.status(), current.getStatus());
 
-        var updated = current.toBuilder()
-                .fullName(command.fullName() != null ? command.fullName() : current.getFullName())
+        EcoUserProfile updated = current.toBuilder()
+                .fullName(firstNonBlank(command.fullName(), current.getFullName()))
                 .email(command.email() != null ? EmailAddress.of(command.email()) : current.getEmail())
                 .phone(command.phone() != null ? PhoneNumber.of(command.phone()) : current.getPhone())
-                .status(status)
+                .status(newStatus)
                 .updatedAt(Instant.now())
                 .build();
 
-        var saved = savePort.save(updated);
+        EcoUserProfile saved = savePort.save(updated);
+
         publishUserEventPort.publishUserProfileUpdated(saved.getId().value().toString(), toResult(saved));
+
+        log.info(
+                "[UserProfileService] - [update] -> userId={} status={} changedName={} changedEmail={} changedPhone={}",
+                saved.getId().value(),
+                saved.getStatus(),
+                command.fullName() != null,
+                command.email() != null,
+                command.phone() != null
+        );
+
         return toResult(saved);
     }
 
     @Override
     public UserProfileResult getById(UUID userId) {
-        var profile = loadPort.findById(userId).orElseThrow(() -> new UserProfileNotFoundException(userId));
+        Objects.requireNonNull(userId, "userId must not be null");
+        EcoUserProfile profile = loadPort.findById(userId)
+                .orElseThrow(() -> new UserProfileNotFoundException(userId));
+
+        log.debug("[UserProfileService] - [getById] -> userId={} status={}", userId, profile.getStatus());
         return toResult(profile);
     }
 
     private static void validateCreate(CreateUserProfileCommand c) {
+        if (c == null) throw new BusinessValidationException("command must not be null");
         if (c.userId() == null) throw new BusinessValidationException("userId is required");
-        if (c.externalAuthId() == null || c.externalAuthId().isBlank()) throw new BusinessValidationException("externalAuthId is required");
-        if (c.idempotencyKey() == null || c.idempotencyKey().isBlank()) throw new BusinessValidationException("idempotencyKey is required");
+        if (c.externalAuthId() == null || c.externalAuthId().isBlank())
+            throw new BusinessValidationException("externalAuthId is required");
+        if (c.idempotencyKey() == null || c.idempotencyKey().isBlank())
+            throw new BusinessValidationException("idempotencyKey is required");
+    }
+
+    private static void validateUpdate(UpdateUserProfileCommand c) {
+        if (c == null) throw new BusinessValidationException("command must not be null");
+        if (c.userId() == null) throw new BusinessValidationException("userId is required");
+        if (c.idempotencyKey() == null || c.idempotencyKey().isBlank())
+            throw new BusinessValidationException("idempotencyKey is required");
+
+        // Pelo menos 1 campo mutável deve ser enviado (evita no-op com idempotency burn)
+        boolean hasAnyUpdate =
+                (c.fullName() != null) ||
+                        (c.email() != null) ||
+                        (c.phone() != null) ||
+                        (c.status() != null && !c.status().isBlank());
+
+        if (!hasAnyUpdate) throw new BusinessValidationException("at least one field must be provided to update");
+    }
+
+    private static UserStatus resolveStatus(String raw, UserStatus fallback) {
+        if (raw == null || raw.isBlank()) return fallback != null ? fallback : UserStatus.PENDING;
+        try {
+            return UserStatus.valueOf(raw.trim());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessValidationException("Invalid status: " + raw);
+        }
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        String p = blankToNull(preferred);
+        return p != null ? p : fallback;
+    }
+
+    private static String blankToNull(String v) {
+        if (v == null) return null;
+        String t = v.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String stableHashInput(Object... parts) {
+        // input estável p/ idempotência (evita NPE e mantém ordem)
+        StringBuilder sb = new StringBuilder();
+        for (Object p : parts) {
+            sb.append(p == null ? "<null>" : p.toString()).append('|');
+        }
+        return sb.toString();
     }
 
     private static UserProfileResult toResult(EcoUserProfile p) {

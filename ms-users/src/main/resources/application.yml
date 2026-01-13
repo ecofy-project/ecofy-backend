@@ -1,0 +1,258 @@
+# BASE / DEV (default profile)
+
+server:
+  port: 8087
+  servlet:
+    context-path: /
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: >
+      text/html,text/xml,text/plain,text/css,
+      text/javascript,application/javascript,
+      application/json,application/xml
+    min-response-size: 1024
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: ms-users
+
+  main:
+    allow-bean-definition-overriding: false
+    keep-alive: true
+    web-application-type: servlet
+    threads:
+      virtual:
+        enabled: true
+
+  jackson:
+    time-zone: UTC
+
+  sql:
+    init:
+      mode: never
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ecofy_users}
+    username: ${DB_USER:ecofy_users}
+    password: ${DB_PASS:ecofy_users}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: MsUsersHikariPool
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN:2}
+      idle-timeout: 300000        # 5 min
+      max-lifetime: 1800000       # 30 min
+      connection-timeout: 30000   # 30s
+      leak-detection-threshold: 0
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    show-sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    default-schema: ${DB_SCHEMA:ecofy_users}
+    locations: classpath:db/migration
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    client-id: ms-users
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # REMOVER a linha abaixo (não configure JsonDeserializer por YAML)
+      # value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:10}
+      # REMOVER o bloco abaixo (não configure spring.json.* por YAML)
+      # properties:
+      #   spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:br.com.ecofy.ms_users.adapters.in.kafka.dto}
+      #   spring.json.use.type.headers: false
+
+    producer:
+      acks: all
+      retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+
+    listener:
+      ack-mode: record
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+
+# Business properties for ms-users
+ecofy:
+  users:
+    security:
+      permit-all: ${USR_SECURITY_PERMIT_ALL:true} # dev default: true
+    topics:
+      auth-user-created: ${USR_TOPIC_AUTH_USER_CREATED:auth.user.created}
+      eco-user-event: ${USR_TOPIC_ECO_USER_EVENT:eco.user.event}
+    idempotency:
+      ttl: ${USR_IDEMPOTENCY_TTL:PT24H}
+    external-auth:
+      base-url: ${AUTH_MS_BASE_URL:http://localhost:8081}
+      connect-timeout: ${AUTH_MS_CONNECT_TIMEOUT:2s}
+      read-timeout: ${AUTH_MS_READ_TIMEOUT:3s}
+
+# Actuator / Observability
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  health:
+    db:
+      enabled: true
+    kafka:
+      enabled: true
+
+# Springdoc OpenAPI / Swagger
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+
+# Logging (dev/base)
+logging:
+  level:
+    root: INFO
+    br.com.ecofy.ms_users: DEBUG
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# PROFILE: test
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  datasource:
+    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_users_test}
+    username: ${DB_USER_TEST:ecofy_users_test}
+    password: ${DB_PASS_TEST:change_me_test}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+  flyway:
+    enabled: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:9093}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-users-test}
+
+logging:
+  level:
+    root: WARN
+    br.com.ecofy.ms_users: INFO
+
+ecofy:
+  users:
+    security:
+      permit-all: true
+    idempotency:
+      ttl: PT1M
+
+# PROFILE: prod
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/ecofy_users}
+    username: ${DB_USER:ecofy_users}
+    password: ${DB_PASS:change_me}
+    hikari:
+      pool-name: MsUsersHikariPool
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    default-schema: ${DB_SCHEMA:ecofy_users}
+    locations: classpath:db/migration
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      # SASL/SSL via env if needed:
+      # sasl.mechanism: PLAIN
+      # sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/.well-known/jwks.json}
+
+logging:
+  level:
+    root: INFO
+    br.com.ecofy.ms_users: INFO
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+
+ecofy:
+  users:
+    security:
+      permit-all: false
+    topics:
+      auth-user-created: ${USR_TOPIC_AUTH_USER_CREATED:auth.user.created}
+      eco-user-event: ${USR_TOPIC_ECO_USER_EVENT:eco.user.event}
+    idempotency:
+      ttl: ${USR_IDEMPOTENCY_TTL:PT24H}
+    external-auth:
+      base-url: ${AUTH_MS_BASE_URL:https://auth.ecofy.com}
+      connect-timeout: ${AUTH_MS_CONNECT_TIMEOUT:2s}
+      read-timeout: ${AUTH_MS_READ_TIMEOUT:3s}

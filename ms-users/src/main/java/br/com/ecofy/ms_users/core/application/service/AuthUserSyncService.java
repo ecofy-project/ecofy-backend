@@ -8,53 +8,134 @@ import br.com.ecofy.ms_users.core.domain.valueobject.PhoneNumber;
 import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 import br.com.ecofy.ms_users.core.port.out.LoadUserProfilePort;
 import br.com.ecofy.ms_users.core.port.out.SaveUserProfilePort;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AuthUserSyncService {
 
     private final LoadUserProfilePort loadUserProfilePort;
     private final SaveUserProfilePort saveUserProfilePort;
 
-    public void onAuthUserCreated(UUID userId, String externalAuthId, String fullName, String email, String phone) {
-        var now = Instant.now();
+    public AuthUserSyncService(
+            LoadUserProfilePort loadUserProfilePort,
+            SaveUserProfilePort saveUserProfilePort
+    ) {
+        this.loadUserProfilePort = Objects.requireNonNull(loadUserProfilePort, "loadUserProfilePort must not be null");
+        this.saveUserProfilePort = Objects.requireNonNull(saveUserProfilePort, "saveUserProfilePort must not be null");
+    }
 
-        var existing = loadUserProfilePort.findById(userId);
-        if (existing.isPresent()) {
-            var cur = existing.get();
-            var updated = cur.toBuilder()
-                    .externalAuthId(externalAuthId != null ? ExternalAuthId.of(externalAuthId) : cur.getExternalAuthId())
-                    .fullName(fullName != null ? fullName : cur.getFullName())
-                    .email(email != null ? EmailAddress.of(email) : cur.getEmail())
-                    .phone(phone != null ? PhoneNumber.of(phone) : cur.getPhone())
-                    .status(cur.getStatus() != null ? cur.getStatus() : UserStatus.PENDING)
-                    .updatedAt(now)
-                    .build();
+    public void onAuthUserCreated(UUID userIdRaw,
+                                  String externalAuthIdRaw,
+                                  String fullNameRaw,
+                                  String emailRaw,
+                                  String phoneRaw) {
 
-            saveUserProfilePort.save(updated);
-            log.info("[AuthUserSyncService] synced existing userId={}", userId);
+        UUID userId = Objects.requireNonNull(userIdRaw, "userId must not be null");
+        Instant now = Instant.now();
+
+        ExternalAuthId externalAuthId = safeExternalAuthId(externalAuthIdRaw);
+        String fullName = blankToNull(fullNameRaw);
+        EmailAddress email = safeEmail(emailRaw);
+        PhoneNumber phone = safePhone(phoneRaw);
+
+        log.info(
+                "[AuthUserSyncService] - [onAuthUserCreated] -> userId={} hasExternalAuthId={} hasFullName={} hasEmail={} hasPhone={}",
+                userId,
+                externalAuthId != null,
+                fullName != null,
+                email != null,
+                phone != null
+        );
+
+        Optional<EcoUserProfile> existingOpt = loadUserProfilePort.findById(userId);
+
+        if (existingOpt.isPresent()) {
+            EcoUserProfile cur = existingOpt.get();
+            EcoUserProfile updated = mergeIntoExisting(cur, externalAuthId, fullName, email, phone, now);
+
+            EcoUserProfile saved = saveUserProfilePort.save(updated);
+
+            log.info(
+                    "[AuthUserSyncService] - [onAuthUserCreated] -> synced existing profile userId={} status={}",
+                    saved.getId().value(),
+                    saved.getStatus()
+            );
             return;
         }
 
-        EcoUserProfile profile = EcoUserProfile.builder()
+        if (externalAuthId == null) {
+            // Em evento "user created", externalAuthId normalmente é obrigatório.
+            // Se você preferir, substitua por exception de domínio.
+            log.warn(
+                    "[AuthUserSyncService] - [onAuthUserCreated] -> externalAuthId missing for new profile. userId={}",
+                    userId
+            );
+        }
+
+        EcoUserProfile created = EcoUserProfile.builder()
                 .id(UserId.of(userId))
-                .externalAuthId(ExternalAuthId.of(externalAuthId))
+                .externalAuthId(externalAuthId) // pode ser null se evento vier incompleto
                 .fullName(fullName)
-                .email(email != null ? EmailAddress.of(email) : null)
-                .phone(phone != null ? PhoneNumber.of(phone) : null)
+                .email(email)
+                .phone(phone)
                 .status(UserStatus.PENDING)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
 
-        saveUserProfilePort.save(profile);
-        log.info("[AuthUserSyncService] created profile from auth event userId={}", userId);
+        EcoUserProfile saved = saveUserProfilePort.save(created);
+
+        log.info(
+                "[AuthUserSyncService] - [onAuthUserCreated] -> created profile from auth event userId={} status={}",
+                saved.getId().value(),
+                saved.getStatus()
+        );
+    }
+
+    private static EcoUserProfile mergeIntoExisting(EcoUserProfile cur,
+                                                    ExternalAuthId externalAuthId,
+                                                    String fullName,
+                                                    EmailAddress email,
+                                                    PhoneNumber phone,
+                                                    Instant now) {
+
+        UserStatus status = cur.getStatus() != null ? cur.getStatus() : UserStatus.PENDING;
+
+        return cur.toBuilder()
+                .externalAuthId(externalAuthId != null ? externalAuthId : cur.getExternalAuthId())
+                .fullName(fullName != null ? fullName : cur.getFullName())
+                .email(email != null ? email : cur.getEmail())
+                .phone(phone != null ? phone : cur.getPhone())
+                .status(status)
+                .updatedAt(now)
+                .build();
+    }
+
+    private static ExternalAuthId safeExternalAuthId(String raw) {
+        String v = blankToNull(raw);
+        return v == null ? null : ExternalAuthId.of(v);
+    }
+
+    private static EmailAddress safeEmail(String raw) {
+        String v = blankToNull(raw);
+        return v == null ? null : EmailAddress.of(v);
+    }
+
+    private static PhoneNumber safePhone(String raw) {
+        String v = blankToNull(raw);
+        return v == null ? null : PhoneNumber.of(v);
+    }
+
+    private static String blankToNull(String v) {
+        if (v == null) return null;
+        String t = v.trim();
+        return t.isEmpty() ? null : t;
     }
 }
