@@ -21,5 +21,4 @@ public interface PublishAccessLogPort {
             Instant timestamp,
             Map<String, String> extraTags
     ) {}
-
 }

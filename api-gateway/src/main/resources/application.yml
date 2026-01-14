@@ -5,18 +5,6 @@ spring:
   application:
     name: api-gateway
 
-  # H2 em memória só pra agradar o JPA/DataSource
-  datasource:
-    url: jdbc:h2:mem:gatewaydb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
-
   cloud:
     config:
       enabled: false
@@ -24,32 +12,61 @@ spring:
         enabled: false
 
     gateway:
-      server:
-        webflux:
-          routes:
-            - id: ecofy-catalog
-              uri: http://localhost:8081   # ms-catalog
-              predicates:
-                - Path=/api/catalog/**
+      default-filters:
+        - RemoveRequestHeader=Cookie
+        - PreserveHostHeader
 
-            - id: ecofy-pricing
-              uri: http://localhost:8082   # ms-pricing
-              predicates:
-                - Path=/api/pricing/**
+      routes:
+        - id: ecofy-auth
+          uri: http://localhost:8081
+          predicates:
+            - Path=/auth/**
 
-            - id: ecofy-eco-ingestion
-              uri: http://localhost:8091   # ECO-ING
-              predicates:
-                - Path=/eco/ingestion/**
+        - id: ecofy-ingestion
+          uri: http://localhost:8082
+          predicates:
+            - Path=/ingestion/**
 
-            - id: ecofy-eco-users
-              uri: http://localhost:8096   # ECO-USR
-              predicates:
-                - Path=/eco/users/**
+        - id: ecofy-categorization
+          uri: http://localhost:8083
+          predicates:
+            - Path=/categorization/**
 
-          default-filters:
-            - RemoveRequestHeader=Cookie
-            - PreserveHostHeader
+        - id: ecofy-budgeting
+          uri: http://localhost:8084
+          predicates:
+            - Path=/budgeting/**
+
+        - id: ecofy-insights
+          uri: http://localhost:8085
+          predicates:
+            - Path=/insights/**
+
+        - id: ecofy-notification
+          uri: http://localhost:8086
+          predicates:
+            - Path=/notification/**
+
+        - id: ecofy-users
+          uri: http://localhost:8087
+          predicates:
+            - Path=/users/**
+
+# Logging de access (Kafka opcional)
+ecofy:
+  gateway:
+    logging:
+      enabled: true
+      topic-name: gateway.access.log
+      kafka:
+        enabled: false  # mude para true quando quiser publicar no Kafka
+
+# Config Kafka (somente necessário se ecofy.gateway.logging.kafka.enabled=true)
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 management:
   endpoints:
