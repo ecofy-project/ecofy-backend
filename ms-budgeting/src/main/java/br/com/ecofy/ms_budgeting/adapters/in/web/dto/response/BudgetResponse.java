@@ -1,4 +1,4 @@
-package br.com.ecofy.ms_budgeting.adapters.in.web.dto;
+package br.com.ecofy.ms_budgeting.adapters.in.web.dto.response;
 
 import br.com.ecofy.ms_budgeting.core.application.result.BudgetResult;
 
@@ -7,18 +7,31 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public record BudgetResponse(
+
         UUID id,
+
         UUID userId,
+
         UUID categoryId,
+
         String periodType,
+
         LocalDate periodStart,
+
         LocalDate periodEnd,
+
         String status,
+
         String currency,
+
         String limitAmount,
+
         Instant createdAt,
+
         Instant updatedAt
+
 ) {
+
     public static BudgetResponse from(BudgetResult r) {
         return new BudgetResponse(
                 r.id(),
@@ -34,4 +47,5 @@ public record BudgetResponse(
                 r.updatedAt()
         );
     }
+
 }

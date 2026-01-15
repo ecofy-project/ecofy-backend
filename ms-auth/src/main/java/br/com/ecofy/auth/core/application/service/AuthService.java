@@ -22,7 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-//Serviço responsável pelos fluxos de autenticação do MS Auth.
+// Serviço responsável pelos fluxos de autenticação (Password Grant) e renovação de sessão (Refresh Token Grant) no ms-auth.
 @Slf4j
 @Service
 public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase {
@@ -37,6 +37,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
     private final long accessTokenTtlSeconds;
     private final long refreshTokenTtlSeconds;
 
+    // Inicializa o serviço de autenticação com as portas necessárias e lê os TTLs de access/refresh a partir das propriedades JWT.
     public AuthService(LoadAuthUserByEmailPort loadAuthUserByEmailPort,
                        LoadClientApplicationByClientIdPort loadClientApplicationByClientIdPort,
                        PasswordHashingPort passwordHashingPort,
@@ -69,7 +70,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         );
     }
 
-    // PASSWORD GRANT (username/password)
+    // Autentica o usuário via Password Grant, emite access/refresh tokens, persiste o refresh token e publica evento de autenticação.
     @Override
     public AuthenticationResult authenticate(AuthenticationCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -145,7 +146,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         );
     }
 
-    // REFRESH TOKEN GRANT
+    // Renova a sessão via Refresh Token Grant validando token e client, emitindo novos tokens, persistindo o novo refresh e revogando o antigo.
     @Override
     public RefreshTokenResult refresh(RefreshTokenCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -245,8 +246,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         );
     }
 
-    // Helpers de domínio / regras de grant
-
+    // Valida se o client é ativo e permitido para o fluxo PASSWORD (grant + tipo de client).
     private void validateClientForPasswordGrant(ClientApplication client) {
 
         log.debug(
@@ -282,7 +282,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         }
     }
 
-
+    // Valida se o client é ativo e permitido para o fluxo REFRESH_TOKEN (grant type suportado).
     private void validateClientForRefreshGrant(ClientApplication client) {
         if (!client.isActive()) {
             log.warn(
@@ -301,6 +301,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         }
     }
 
+    // Monta os claims do access token com dados do usuário, client e (opcionalmente) escopo solicitado.
     private Map<String, Object> buildAccessTokenClaims(AuthUser user,
                                                        ClientApplication client,
                                                        String scope) {
@@ -322,6 +323,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         return claims;
     }
 
+    // Monta os claims mínimos do refresh token para vincular usuário e client.
     private Map<String, Object> buildRefreshTokenClaims(AuthUser user,
                                                         ClientApplication client) {
         Map<String, Object> claims = new HashMap<>();
@@ -330,6 +332,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         return claims;
     }
 
+    // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";

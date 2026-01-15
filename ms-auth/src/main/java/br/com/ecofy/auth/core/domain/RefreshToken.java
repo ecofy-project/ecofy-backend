@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-// Modelo de refresh token mantido no domínio (mesmo se ele for JWT).
+// Agregado do domínio que representa um refresh token (opaco ou JWT) associado a um usuário e a um client OAuth/OIDC.
 public class RefreshToken {
 
     /** Identificador interno do refresh token (UUID). */
@@ -29,10 +29,10 @@ public class RefreshToken {
     /** Instante de expiração do token. */
     private final Instant expiresAt;
 
-    /** Flag de revogação (logout, rotate, comprometimento, etc.). */
+    /** Flag de revogação (logout, rotação, comprometimento, etc.). */
     private boolean revoked;
 
-    /** Tipo do token – aqui deve ser sempre REFRESH. */
+    /** Tipo do token; neste agregado deve ser sempre REFRESH. */
     private final TokenType type;
 
     public RefreshToken(UUID id,
@@ -52,11 +52,12 @@ public class RefreshToken {
         this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
 
-        // Domínio mais explícito: este agregado representa refresh tokens.
+        // Este agregado representa exclusivamente refresh tokens.
         if (this.type != TokenType.REFRESH) {
             throw new IllegalArgumentException("RefreshToken.type must be REFRESH");
         }
 
+        // Valida coerência temporal.
         if (expiresAt.isBefore(issuedAt)) {
             throw new IllegalArgumentException("expiresAt must be greater than or equal to issuedAt");
         }
@@ -64,9 +65,7 @@ public class RefreshToken {
         this.revoked = revoked;
     }
 
-    /**
-     * Fábrica para criar um novo refresh token com TTL em segundos.
-     */
+    // Fábrica para criar um novo refresh token com TTL em segundos.
     public static RefreshToken create(AuthUserId userId,
                                       String clientId,
                                       String tokenValue,
@@ -133,13 +132,12 @@ public class RefreshToken {
         return !revoked && !isExpired();
     }
 
+    // Retorna o tempo restante até a expiração.
     public Duration timeToExpire() {
         return Duration.between(Instant.now(), expiresAt);
     }
 
-    /**
-     * Revoga o token. Operação idempotente.
-     */
+    // Revoga o token (operação idempotente).
     public void revoke() {
         if (this.revoked) {
             return;
@@ -147,7 +145,7 @@ public class RefreshToken {
         this.revoked = true;
     }
 
-    // Internals
+    // Normaliza/valida o valor do token (não nulo, trim e não vazio).
     private String normalizeTokenValue(String value) {
         Objects.requireNonNull(value, "tokenValue must not be null");
         String trimmed = value.trim();
@@ -157,6 +155,7 @@ public class RefreshToken {
         return trimmed;
     }
 
+    // Normaliza/valida o clientId (não nulo, trim e não vazio).
     private String normalizeClientId(String clientId) {
         Objects.requireNonNull(clientId, "clientId must not be null");
         String trimmed = clientId.trim();
@@ -166,12 +165,11 @@ public class RefreshToken {
         return trimmed;
     }
 
-    // equals / hashCode / toString
+    // Identidade baseada no UUID interno do token.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof RefreshToken that)) return false;
-        // identidade por id interno
         return Objects.equals(id, that.id);
     }
 
@@ -180,9 +178,7 @@ public class RefreshToken {
         return Objects.hash(id);
     }
 
-    /**
-     * Não exibe o tokenValue completo para evitar vazamento em logs.
-     */
+    // Não exibe tokenValue completo para evitar vazamento em logs.
     @Override
     public String toString() {
         String masked = tokenValue.length() > 12 ? tokenValue.substring(0, 12) + "..." : "***";

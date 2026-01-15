@@ -7,6 +7,7 @@ import java.time.Instant;
 public record UserRegisteredEvent(
 
         AuthUser user,
+
         Instant occurredAt
 
 ) {

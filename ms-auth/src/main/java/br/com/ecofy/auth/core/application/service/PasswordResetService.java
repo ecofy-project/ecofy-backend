@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 import java.util.UUID;
 
-//Serviço responsável pelo fluxo completo de:
+// Serviço responsável pelo fluxo de recuperação de senha: solicitar reset (gerar token e enviar e-mail) e efetivar reset (validar token e atualizar senha).
 @Slf4j
 @Service
 public class PasswordResetService implements RequestPasswordResetUseCase, ResetPasswordUseCase {
@@ -27,6 +27,7 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
     private final PasswordHashingPort passwordHashingPort;
     private final PublishAuthEventPort publishAuthEventPort;
 
+    // Inicializa o serviço com as portas necessárias para buscar usuário, armazenar token, enviar e-mail, salvar usuário e publicar eventos.
     public PasswordResetService(LoadAuthUserByEmailPort loadAuthUserByEmailPort,
                                 PasswordResetTokenStorePort passwordResetTokenStorePort,
                                 SendResetPasswordEmailPort sendResetPasswordEmailPort,
@@ -48,7 +49,7 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
                 Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
     }
 
-    // REQUEST RESET
+    // Gera e armazena um token de reset para o e-mail informado, envia o link por e-mail e publica o evento de solicitação de reset.
     @Override
     public void requestReset(RequestPasswordResetCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -96,7 +97,7 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
         );
     }
 
-    // RESET PASSWORD
+    // Consome o token de reset, gera o hash da nova senha, atualiza o usuário e persiste a alteração.
     @Override
     public void resetPassword(ResetPasswordCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -137,7 +138,7 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
         );
     }
 
-    // Utils
+    // Mascara tokens para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) return "***";
         return token.length() > 10 ? token.substring(0, 10) + "..." : "***";

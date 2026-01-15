@@ -42,7 +42,8 @@ public class RefreshTokenEntity {
     @Column(
             name = "type",
             nullable = false,
-            columnDefinition = "token_type" // enum do PostgreSQL
+            columnDefinition = "token_type"
     )
     private TokenType type;
+
 }

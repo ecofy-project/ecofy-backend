@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
+// Serviço responsável por registrar novos usuários, validar duplicidade de e-mail, persistir o usuário e disparar verificação/publicação de eventos.
 @Slf4j
 @Service
 public class RegisterUserService implements RegisterUserUseCase {
@@ -26,6 +27,7 @@ public class RegisterUserService implements RegisterUserUseCase {
     private final VerificationTokenStorePort verificationTokenStorePort;
     private final PublishAuthEventPort publishAuthEventPort;
 
+    // Inicializa o serviço com as portas necessárias para persistência, consulta, hashing, envio/armazenamento de token e publicação de eventos.
     public RegisterUserService(SaveAuthUserPort saveAuthUserPort,
                                LoadAuthUserByEmailPort loadAuthUserByEmailPort,
                                PasswordHashingPort passwordHashingPort,
@@ -41,6 +43,7 @@ public class RegisterUserService implements RegisterUserUseCase {
         this.publishAuthEventPort = Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
     }
 
+    // Registra um novo usuário (com roles/defaults), impede e-mail duplicado, persiste, opcionalmente auto-confirma e dispara e-mail/token e evento.
     @Override
     public AuthUser register(RegisterUserCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -131,6 +134,7 @@ public class RegisterUserService implements RegisterUserUseCase {
         return persisted;
     }
 
+    // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) return "***";
         return token.length() > 10

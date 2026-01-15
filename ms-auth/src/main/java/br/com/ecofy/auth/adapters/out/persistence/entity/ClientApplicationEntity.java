@@ -38,8 +38,8 @@ public class ClientApplicationEntity {
     @CollectionTable(
             name = "auth_client_grants",
             joinColumns = @JoinColumn(
-                    name = "client_id",              // coluna na tabela de grants
-                    referencedColumnName = "client_id" // coluna na tabela auth_client_applications
+                    name = "client_id",
+                    referencedColumnName = "client_id"
             )
     )
     @Enumerated(EnumType.STRING)

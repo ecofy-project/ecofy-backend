@@ -7,11 +7,17 @@ import java.util.UUID;
 public record CategorizedTransactionMessage (
 
         UUID transactionId,
+
         UUID userId,
+
         UUID categoryId,
+
         BigDecimal amount,
+
         String currency,
+
         LocalDate transactionDate,
+
         MessageMetadata metadata
 
 ) { }

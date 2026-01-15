@@ -2,6 +2,7 @@ package br.com.ecofy.auth.adapters.in.web;
 
 import br.com.ecofy.auth.adapters.in.web.dto.request.ClientApplicationRequest;
 import br.com.ecofy.auth.adapters.in.web.dto.response.ClientApplicationResponse;
+import br.com.ecofy.auth.adapters.in.web.mapper.ClientApplicationMapper;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
 import br.com.ecofy.auth.core.port.in.RegisterClientApplicationUseCase;

@@ -1,6 +1,7 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.AuthUserEntity;
+import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.AuthUserRepository;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
@@ -22,10 +23,12 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
 
     private final AuthUserRepository authUserRepository;
 
+    // Injeta o repositório JPA e garante que ele não seja nulo para operações de persistência/consulta.
     public AuthUserJpaAdapter(AuthUserRepository authUserRepository) {
         this.authUserRepository = Objects.requireNonNull(authUserRepository, "authUserRepository must not be null");
     }
 
+    // Persiste o usuário (cria ou atualiza), aplicando timestamps e retornando o domínio mapeado da entidade salva.
     @Override
     @Transactional
     public AuthUser save(AuthUser user) {
@@ -60,6 +63,7 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
         return PersistenceMapper.toDomain(saved, saved.getRoles(), saved.getPermissions());
     }
 
+    // Carrega um usuário por e-mail (case-insensitive) retornando Optional vazio quando não encontrado.
     @Override
     @Transactional(readOnly = true)
     public Optional<AuthUser> loadByEmail(EmailAddress email) {
@@ -75,6 +79,7 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
                 });
     }
 
+    // Carrega um usuário por id retornando Optional vazio quando não encontrado.
     @Override
     @Transactional(readOnly = true)
     public Optional<AuthUser> loadById(AuthUserId id) {
@@ -90,7 +95,7 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
                 });
     }
 
-    // Mapeamento domínio -> entidade
+    // Copia campos do domínio para a entidade e garante createdAt/updatedAt consistentes.
     private void mapDomainToEntity(AuthUser user, AuthUserEntity entity, Instant now) {
         entity.setEmail(user.email().value());
         entity.setPasswordHash(user.passwordHash().value());
@@ -108,4 +113,5 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
         entity.setUpdatedAt(now);
 
     }
+
 }

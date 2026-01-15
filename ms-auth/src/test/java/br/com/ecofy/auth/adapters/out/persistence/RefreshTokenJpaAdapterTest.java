@@ -1,6 +1,7 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.RefreshTokenEntity;
+import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.RefreshTokenRepository;
 import br.com.ecofy.auth.core.domain.RefreshToken;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;

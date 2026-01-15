@@ -1,6 +1,7 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.ClientApplicationEntity;
+import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.ClientApplicationRepository;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import org.junit.jupiter.api.Test;

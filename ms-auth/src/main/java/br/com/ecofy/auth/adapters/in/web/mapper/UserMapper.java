@@ -1,4 +1,4 @@
-package br.com.ecofy.auth.adapters.in.web;
+package br.com.ecofy.auth.adapters.in.web.mapper;
 
 import br.com.ecofy.auth.adapters.in.web.dto.response.UserResponse;
 import br.com.ecofy.auth.core.domain.AuthUser;
@@ -9,9 +9,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-final class UserMapper {
+public final class UserMapper {
 
-    static UserResponse toResponse(AuthUser user) {
+    public static UserResponse toResponse(AuthUser user) {
         Objects.requireNonNull(user, "user must not be null");
 
         Set<String> roles = user.roles().stream()

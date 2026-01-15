@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,10 +17,12 @@ import java.util.Map;
 @Configuration
 public class KafkaConfig {
 
+    public static final String AUTH_EVENTS_TOPIC = "auth.events";
+
     @Bean
     public ProducerFactory<String, Object> authEventProducerFactory(
             @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
-            ObjectMapper objectMapper
+            ObjectMapper jsonMapper
     ) {
         Map<String, Object> props = new HashMap<>();
 
@@ -28,16 +30,16 @@ public class KafkaConfig {
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
 
-        // Serializer de valor com ObjectMapper do contexto
-        JsonSerializer<Object> jsonSerializer = new JsonSerializer<>(objectMapper);
-        // Não adicionar type info no payload (melhora compatibilidade com outros consumers)
-        jsonSerializer.setAddTypeInfo(false);
+        // Serializer de valor (Spring Kafka 4 / Jackson 3)
+        JacksonJsonSerializer<Object> valueSerializer = new JacksonJsonSerializer<>(jsonMapper);
+        valueSerializer.setAddTypeInfo(false); // equivalente ao setAddTypeInfo(false) do antigo JsonSerializer
 
-        DefaultKafkaProducerFactory<String, Object> factory =
-                new DefaultKafkaProducerFactory<>(props);
-        factory.setValueSerializer(jsonSerializer);
-
-        return factory;
+        // Forma mais direta: injeta os serializers no factory
+        return new DefaultKafkaProducerFactory<>(
+                props,
+                new StringSerializer(),
+                valueSerializer
+        );
     }
 
     @Bean
@@ -45,7 +47,7 @@ public class KafkaConfig {
             ProducerFactory<String, Object> authEventProducerFactory
     ) {
         KafkaTemplate<String, Object> template = new KafkaTemplate<>(authEventProducerFactory);
-        template.setDefaultTopic("auth.events");
+        template.setDefaultTopic(AUTH_EVENTS_TOPIC);
         return template;
     }
 }

@@ -1,4 +1,4 @@
-package br.com.ecofy.auth.adapters.out.persistence;
+package br.com.ecofy.auth.adapters.out.persistence.mapper;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.*;
 import br.com.ecofy.auth.core.domain.*;
@@ -12,13 +12,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-final class PersistenceMapper {
+public final class PersistenceMapper {
 
+    // Impede instanciação, pois esta classe é apenas utilitária para mapeamento.
     private PersistenceMapper() {
         throw new AssertionError("PersistenceMapper is a utility class and should not be instantiated");
     }
 
-    // AuthUser
+    // Converte AuthUser (domínio) para AuthUserEntity (persistência/JPA).
     static AuthUserEntity toEntity(AuthUser user) {
         Objects.requireNonNull(user, "user must not be null");
 
@@ -41,7 +42,8 @@ final class PersistenceMapper {
         return entity;
     }
 
-    static AuthUser toDomain(
+    // Converte AuthUserEntity (persistência) + roles/perms carregadas para AuthUser (domínio).
+     public static AuthUser toDomain(
             AuthUserEntity e,
             Set<RoleEntity> roleEntities,
             Set<PermissionEntity> permEntities
@@ -82,7 +84,8 @@ final class PersistenceMapper {
         );
     }
 
-    static Role toDomain(RoleEntity e) {
+    // Converte RoleEntity (persistência) para Role (domínio), incluindo permissões associadas.
+    public static Role toDomain(RoleEntity e) {
         Objects.requireNonNull(e, "RoleEntity must not be null");
 
         Set<Permission> perms =
@@ -95,13 +98,14 @@ final class PersistenceMapper {
         return new Role(e.getName(), e.getDescription(), perms);
     }
 
+    // Converte PermissionEntity (persistência) para Permission (domínio).
     static Permission toDomain(PermissionEntity e) {
         Objects.requireNonNull(e, "PermissionEntity must not be null");
         return new Permission(e.getName(), e.getDescription(), e.getDomain());
     }
 
-    // ================== ClientApplication ==================
-    static ClientApplication toDomain(ClientApplicationEntity e) {
+    // Converte ClientApplicationEntity (persistência) para ClientApplication (domínio) normalizando sets.
+    public static ClientApplication toDomain(ClientApplicationEntity e) {
         Objects.requireNonNull(e, "ClientApplicationEntity must not be null");
 
         Set<GrantType> grantTypes = e.getGrantTypes() == null
@@ -142,7 +146,8 @@ final class PersistenceMapper {
         );
     }
 
-    static ClientApplicationEntity toEntity(ClientApplication c) {
+    // Converte ClientApplication (domínio) para ClientApplicationEntity (persistência/JPA).
+    public static ClientApplicationEntity toEntity(ClientApplication c) {
         Objects.requireNonNull(c, "clientApplication must not be null");
 
         return ClientApplicationEntity.builder()
@@ -161,8 +166,8 @@ final class PersistenceMapper {
                 .build();
     }
 
-    // RefreshToken
-    static RefreshToken toDomain(RefreshTokenEntity e) {
+    // Converte RefreshTokenEntity (persistência) para RefreshToken (domínio).
+    public static RefreshToken toDomain(RefreshTokenEntity e) {
         Objects.requireNonNull(e, "RefreshTokenEntity must not be null");
 
         return new RefreshToken(
@@ -177,7 +182,8 @@ final class PersistenceMapper {
         );
     }
 
-    static RefreshTokenEntity toEntity(RefreshToken t) {
+    // Converte RefreshToken (domínio) para RefreshTokenEntity (persistência/JPA).
+    public static RefreshTokenEntity toEntity(RefreshToken t) {
         Objects.requireNonNull(t, "refreshToken must not be null");
 
         return RefreshTokenEntity.builder()
@@ -192,8 +198,8 @@ final class PersistenceMapper {
                 .build();
     }
 
-    // JWK
-    static JwkKey toDomain(JwkKeyEntity e) {
+    // Converte JwkKeyEntity (persistência) para JwkKey (domínio) para leitura/uso de chaves públicas.
+    public static JwkKey toDomain(JwkKeyEntity e) {
         Objects.requireNonNull(e, "JwkKeyEntity must not be null");
 
         return new JwkKey(
@@ -205,4 +211,6 @@ final class PersistenceMapper {
                 e.isActive()
         );
     }
+
+
 }

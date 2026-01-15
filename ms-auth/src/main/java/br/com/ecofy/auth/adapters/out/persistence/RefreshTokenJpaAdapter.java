@@ -1,6 +1,7 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.RefreshTokenEntity;
+import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.RefreshTokenRepository;
 import br.com.ecofy.auth.core.domain.RefreshToken;
 import br.com.ecofy.auth.core.port.out.RefreshTokenStorePort;
@@ -17,11 +18,12 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
 
     private final RefreshTokenRepository repository;
 
+    // Injeta o repositório JPA e garante que ele não seja nulo para operações de refresh token.
     public RefreshTokenJpaAdapter(RefreshTokenRepository repository) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
     }
 
-    // SAVE
+    // Persiste o refresh token (create/update) no banco e retorna o objeto de domínio mapeado da entidade salva.
     @Override
     @Transactional
     public RefreshToken save(RefreshToken token) {
@@ -43,7 +45,7 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
         return PersistenceMapper.toDomain(saved);
     }
 
-    // FIND BY TOKEN VALUE
+    // Busca um refresh token pelo tokenValue e retorna Optional vazio quando não encontrado.
     @Override
     @Transactional(readOnly = true)
     public Optional<RefreshToken> findByTokenValue(String tokenValue) {
@@ -64,7 +66,7 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
                 });
     }
 
-    // REVOKE
+    // Revoga (marca como revoked=true) o refresh token identificado por tokenValue, se existir e ainda não estiver revogado.
     @Override
     @Transactional
     public void revoke(String tokenValue) {
@@ -95,4 +97,5 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
                 tokenValue
         ));
     }
+
 }

@@ -8,8 +8,11 @@ import java.time.Instant;
 public record UserAuthenticatedEvent(
 
         AuthUser user,
+
         ClientApplication client,
+
         String ipAddress,
+
         Instant occurredAt
 
 ) {

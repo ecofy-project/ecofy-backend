@@ -14,10 +14,12 @@ public class BCryptPasswordHashingAdapter implements PasswordHashingPort {
 
     private final PasswordEncoder passwordEncoder;
 
+    // Injeta o PasswordEncoder e garante que ele não seja nulo para gerar/verificar hashes com BCrypt.
     public BCryptPasswordHashingAdapter(PasswordEncoder passwordEncoder) {
         this.passwordEncoder = Objects.requireNonNull(passwordEncoder, "passwordEncoder must not be null");
     }
 
+    // Gera um PasswordHash a partir da senha em texto puro usando o PasswordEncoder configurado.
     @Override
     public PasswordHash hash(String rawPassword) {
         Objects.requireNonNull(rawPassword, "rawPassword must not be null");
@@ -35,6 +37,7 @@ public class BCryptPasswordHashingAdapter implements PasswordHashingPort {
         return new PasswordHash(encoded);
     }
 
+    // Compara a senha em texto puro com o hash informado e retorna true se forem compatíveis.
     @Override
     public boolean matches(String rawPassword, PasswordHash hash) {
         Objects.requireNonNull(rawPassword, "rawPassword must not be null");
@@ -49,4 +52,5 @@ public class BCryptPasswordHashingAdapter implements PasswordHashingPort {
 
         return matches;
     }
+
 }

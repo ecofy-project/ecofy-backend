@@ -227,13 +227,15 @@ public class AuthController {
 
     private HttpHeaders oauthNoStoreHeaders() {
         HttpHeaders headers = new HttpHeaders();
+        CacheControl.noStore()
+                .mustRevalidate()
+                .cachePrivate();
         headers.setCacheControl(
-                CacheControl.noStore()
-                        .mustRevalidate()
-                        .cachePrivate()
+                CacheControl
                         .maxAge(Duration.ZERO)
         );
         headers.add("Pragma", "no-cache");
         return headers;
     }
+
 }

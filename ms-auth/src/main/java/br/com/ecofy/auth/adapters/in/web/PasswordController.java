@@ -86,4 +86,5 @@ public class PasswordController {
 
         return ResponseEntity.noContent().build();
     }
+
 }

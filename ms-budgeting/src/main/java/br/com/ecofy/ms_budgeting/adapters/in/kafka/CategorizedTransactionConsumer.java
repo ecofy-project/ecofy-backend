@@ -69,4 +69,5 @@ public class CategorizedTransactionConsumer {
         if (h == null || h.value() == null) return null;
         return new String(h.value(), StandardCharsets.UTF_8);
     }
+
 }

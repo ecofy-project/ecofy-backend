@@ -7,7 +7,9 @@ import java.time.Instant;
 public record PasswordResetRequestedEvent(
 
         AuthUser user,
+
         String resetToken,
+
         Instant occurredAt
 
 ) {

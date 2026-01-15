@@ -7,7 +7,10 @@ import java.util.Objects;
 // Representação de uma chave pública exposta via JWKS no domínio.
 public class JwkKey {
 
+    // Constante do valor JWKS "use" para chaves de assinatura (sig).
     public static final String USE_SIGNING    = "sig";
+
+    // Constante do valor JWKS "use" para chaves de criptografia (enc).
     public static final String USE_ENCRYPTION = "enc";
 
     private final String keyId;
@@ -17,6 +20,7 @@ public class JwkKey {
     private final Instant createdAt;
     private final boolean active;
 
+    // Constrói a chave de domínio validando obrigatórios e normalizando algoritmo e uso.
     public JwkKey(String keyId,
                   String publicKeyPem,
                   String algorithm,
@@ -32,61 +36,59 @@ public class JwkKey {
         this.active = active;
     }
 
-    // Getters
+    // Retorna o identificador (kid) da chave no JWKS.
     public String keyId() {
         return keyId;
     }
 
+    // Retorna a chave pública em PEM (para persistência e publicação/transformação em JWK).
     public String publicKeyPem() {
         return publicKeyPem;
     }
 
+    // Retorna o algoritmo associado à chave (ex.: RS256) já normalizado.
     public String algorithm() {
         return algorithm;
     }
 
+    // Retorna o uso da chave ("sig" ou "enc") já normalizado.
     public String use() {
         return use;
     }
 
+    // Retorna o instante de criação da chave para auditoria e rotação.
     public Instant createdAt() {
         return createdAt;
     }
 
+    // Indica se a chave está ativa para uso/publicação no JWKS.
     public boolean active() {
         return active;
     }
 
-    // Helpers de domínio
-
-    /**
-     * Indica se a chave é usada para assinatura de tokens ("sig").
-     */
+    // Indica se a chave é destinada a assinatura de tokens ("sig").
     public boolean isSigningKey() {
         return USE_SIGNING.equalsIgnoreCase(use);
     }
 
-    /**
-     * Indica se a chave é usada para criptografia ("enc").
-     */
+    // Indica se a chave é destinada a criptografia ("enc").
     public boolean isEncryptionKey() {
         return USE_ENCRYPTION.equalsIgnoreCase(use);
     }
 
-    // Internals
+    // Normaliza e valida o algoritmo (trim, não-vazio e upper-case por convenção).
     private String normalizeAlgorithm(String algorithm) {
         Objects.requireNonNull(algorithm, "algorithm must not be null");
         String trimmed = algorithm.trim();
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("algorithm must not be blank");
         }
-        // Convenção: algoritmos em maiúsculas (RS256, ES256, etc.)
         return trimmed.toUpperCase(Locale.ROOT);
     }
 
+    // Normaliza e valida o uso da chave, aplicando default seguro ("sig") quando ausente.
     private String normalizeUse(String use) {
         if (use == null || use.isBlank()) {
-            // default seguro: assinatura de tokens
             return USE_SIGNING;
         }
         String normalized = use.trim().toLowerCase(Locale.ROOT);
@@ -96,20 +98,21 @@ public class JwkKey {
         return normalized;
     }
 
-    // equals / hashCode / toString
+    // Compara chaves por keyId, assumindo unicidade do kid no contexto do JWKS.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof JwkKey jwkKey)) return false;
-        // keyId é único no contexto de JWKS, suficiente para igualdade
         return Objects.equals(keyId, jwkKey.keyId);
     }
 
+    // Gera hashCode consistente com equals, usando apenas keyId.
     @Override
     public int hashCode() {
         return Objects.hash(keyId);
     }
 
+    // Fornece representação textual útil para logs/diagnóstico sem expor o PEM.
     @Override
     public String toString() {
         return "JwkKey{" +

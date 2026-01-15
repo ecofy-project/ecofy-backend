@@ -38,6 +38,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
     // Usado apenas em DEV para guardar o par gerado em memória
     private RSAPublicKey devPublicKey;
 
+    // Carrega as chaves/configurações e prepara o header/signer para assinar JWTs via Nimbus.
     public JwtNimbusTokenProviderAdapter(JwtProperties jwtProperties, ResourceLoader resourceLoader) {
         this.jwtProperties = Objects.requireNonNull(jwtProperties, "jwtProperties must not be null");
 
@@ -57,27 +58,19 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         );
     }
 
-    // ACCESS / REFRESH (contrato atual da porta)
-
+    // Gera um Access Token (JWT) com subject/claims informados e tempo de vida (TTL) configurado.
     @Override
     public JwtToken generateAccessToken(String subject, Map<String, Object> claims, long ttlSeconds) {
         return generateToken(subject, claims, ttlSeconds, TokenType.ACCESS);
     }
 
+    // Gera um Refresh Token (JWT) com subject/claims informados e tempo de vida (TTL) configurado.
     @Override
     public JwtToken generateRefreshToken(String subject, Map<String, Object> claims, long ttlSeconds) {
         return generateToken(subject, claims, ttlSeconds, TokenType.REFRESH);
     }
 
-    // VERIFICATION / PASSWORD_RESET (uso dos enums restantes)
-
-    /**
-     * Gera um JWT específico para fluxo de verificação de e-mail.
-     * Usa TokenType.VERIFICATION.
-     *
-     * OBS: este método ainda não faz parte do contrato da porta,
-     * mas pode ser exposto futuramente em JwtTokenProviderPort.
-     */
+    // Gera um token de verificação de e-mail (JWT) adicionando um claim de propósito e usando TokenType.VERIFICATION.
     public JwtToken generateVerificationToken(String subject,
                                               Map<String, Object> claims,
                                               long ttlSeconds) {
@@ -94,10 +87,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         return generateToken(subject, claims, ttlSeconds, TokenType.VERIFICATION);
     }
 
-    /**
-     * Gera um JWT específico para fluxo de reset de senha.
-     * Usa TokenType.PASSWORD_RESET.
-     */
+    // Gera um token de reset de senha (JWT) adicionando um claim de propósito e usando TokenType.PASSWORD_RESET.
     public JwtToken generatePasswordResetToken(String subject,
                                                Map<String, Object> claims,
                                                long ttlSeconds) {
@@ -114,7 +104,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         return generateToken(subject, claims, ttlSeconds, TokenType.PASSWORD_RESET);
     }
 
-    // Núcleo de geração de token
+    // Centraliza a geração do JWT (claims padrão + claims extras) e assina com RSA, retornando JwtToken serializado.
     private JwtToken generateToken(String subject,
                                    Map<String, Object> claims,
                                    long ttlSeconds,
@@ -165,7 +155,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         return new JwtToken(serialized, exp, type);
     }
 
-    // Validação / parsing
+    // Valida se o token é parseável e se ainda não expirou (a assinatura é validada pelo Resource Server).
     @Override
     public boolean isValid(String token) {
         try {
@@ -193,6 +183,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         }
     }
 
+    // Faz o parsing do JWT e retorna o mapa de claims (lança exceção se o token for inválido).
     @Override
     public Map<String, Object> parseClaims(String token) {
         try {
@@ -217,6 +208,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         }
     }
 
+    // Resolve o TokenType a partir do claim "typ", tolerando ausência ou valores desconhecidos.
     private TokenType resolveTokenType(JWTClaimsSet claimsSet) {
         Object raw = claimsSet.getClaim("typ");
         if (raw == null) {
@@ -233,18 +225,13 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         }
     }
 
-    // Chaves / JWK
-
+    // Cria o assinador RSA (RS256) usado para assinar os tokens gerados.
     private JWSSigner createSigner(RSAPrivateKey privateKey) {
         log.debug("[JwtNimbusTokenProviderAdapter] - [createSigner] -> Criando RSASSASigner");
         return new RSASSASigner(privateKey);
     }
 
-    /**
-     * MODO DEV: gera um par de chaves RSA em memória.
-     *
-     * O código de PROD que lê arquivos PEM permanece comentado logo abaixo.
-     */
+    // Em DEV, gera um par RSA em memória e retorna a chave privada, guardando a pública para reutilização.
     private RSAPrivateKey loadPrivateKey(ResourceLoader resourceLoader, String location) {
         Objects.requireNonNull(location, "private key location must not be null");
 
@@ -270,43 +257,11 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         }
 
         /*
-        // MODO PROD
-        log.debug(
-                "[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> Carregando chave privada location={}",
-                location
-        );
-        try {
-            Resource resource = resourceLoader.getResource(location);
-            try (InputStream is = resource.getInputStream()) {
-                String pem = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-                String sanitized = pem
-                        .replace("-----BEGIN PRIVATE KEY-----", "")
-                        .replace("-----END PRIVATE KEY-----", "")
-                        .replaceAll("\\s", "");
-
-                byte[] decoded = Base64.getDecoder().decode(sanitized);
-                PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decoded);
-                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-                RSAPrivateKey key = (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
-
-                log.debug("[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> Chave privada carregada com sucesso");
-                return key;
-            }
-        } catch (Exception e) {
-            log.error(
-                    "[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> Falha ao carregar chave privada location={} error={}",
-                    location, e.getMessage(), e
-            );
-            throw new IllegalStateException("Could not load private key from " + location, e);
-        }
-        */
+         * (PROD) Carrega a private key PEM a partir do ResourceLoader (código mantido comentado).
+         */
     }
 
-    /**
-     * MODO DEV: reutiliza a public key gerada junto com a private.
-     *
-     * O código de PROD que lê arquivos PEM permanece comentado logo abaixo.
-     */
+    // Em DEV, reutiliza a chave pública gerada junto da privada (ou gera outra em memória se necessário).
     private RSAPublicKey loadPublicKey(ResourceLoader resourceLoader, String location) {
         Objects.requireNonNull(location, "public key location must not be null");
 
@@ -337,42 +292,11 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         }
 
         /*
-        //  MODO PROD
-        log.debug(
-                "[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> Carregando chave pública location={}",
-                location
-        );
-        try {
-            Resource resource = resourceLoader.getResource(location);
-            try (InputStream is = resource.getInputStream()) {
-                String pem = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-                String sanitized = pem
-                        .replace("-----BEGIN PUBLIC KEY-----", "")
-                        .replace("-----END PUBLIC KEY-----", "")
-                        .replaceAll("\\s", "");
-
-                byte[] decoded = Base64.getDecoder().decode(sanitized);
-                X509EncodedKeySpec keySpec = new X509EncodedKeySpec(decoded);
-                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-                RSAPublicKey key = (RSAPublicKey) keyFactory.generatePublic(keySpec);
-
-                log.debug("[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> Chave pública carregada com sucesso");
-                return key;
-            }
-        } catch (Exception e) {
-            log.error(
-                    "[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> Falha ao carregar chave pública location={} error={}",
-                    location, e.getMessage(), e
-            );
-            throw new IllegalStateException("Could not load public key from " + location, e);
-        }
-        */
+         * (PROD) Carrega a public key PEM a partir do ResourceLoader (código mantido comentado).
+         */
     }
 
-    /**
-     * Monta um JWK (JSON Web Key) a partir da chave pública carregada.
-     * Normalmente usado pelo serviço que expõe o endpoint /.well-known/jwks.json.
-     */
+    // Converte a chave pública carregada em um JWK (RSA) para publicação no endpoint de JWKS.
     public RSAKey toRsaJwk() {
         log.debug(
                 "[JwtNimbusTokenProviderAdapter] - [toRsaJwk] -> Gerando JWK keyId={}",
@@ -383,4 +307,5 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
                 .algorithm(JWSAlgorithm.RS256)
                 .build();
     }
+
 }

@@ -1,12 +1,20 @@
 package br.com.ecofy.auth.core.domain;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
-// Papel de autorização do sistema, representando um conjunto de {@link Permission}.
+// Role (papel) de autorização do sistema. Um Role agrupa um conjunto de permissões ({@link Permission}).
 public final class Role {
 
-    private final String name; // ex.: ROLE_ADMIN, ROLE_USER
+    // Nome do role (ex.: ROLE_ADMIN, ROLE_USER).
+    private final String name;
+
+    // Descrição opcional do role (uso administrativo/visual).
     private final String description;
+
+    // Conjunto de permissões concedidas por este role.
     private final Set<Permission> permissions;
 
     public Role(String name, String description, Set<Permission> permissions) {
@@ -32,39 +40,26 @@ public final class Role {
 
     // Regras de domínio
 
-    /**
-     * Verifica se o role contém exatamente uma permissão com esse nome.
-     * (sem considerar wildcards).
-     */
+    // Verifica se o role contém uma permissão exatamente igual ao nome informado (não considera wildcards).
     public boolean hasExactPermission(String permissionName) {
         Objects.requireNonNull(permissionName, "permissionName must not be null");
         return permissions.stream()
                 .anyMatch(p -> p.name().equals(permissionName));
     }
 
-    /**
-     * Verifica se o role concede uma permissão que implique a permissão solicitada.
-     * Usa a lógica de wildcard de {@link Permission#implies(Permission)}.
-     */
+    // Verifica se o role concede uma permissão que implique a permissão solicitada (considera wildcards).
     public boolean hasPermission(String permissionName) {
         Objects.requireNonNull(permissionName, "permissionName must not be null");
-        Permission required = new Permission(permissionName, null, "*");
-        return implies(required);
+        return implies(new Permission(permissionName, null, "*"));
     }
 
-    /**
-     * Verifica se o role implica a permissão informada, considerando wildcards
-     * como "transactions:*" ou "*" na permissão armazenada.
-     */
+    // Verifica se o role implica a permissão informada, usando a regra de {@link Permission#implies(Permission)}.
     public boolean implies(Permission permission) {
         Objects.requireNonNull(permission, "permission must not be null");
         return permissions.stream().anyMatch(p -> p.implies(permission));
     }
 
-    /**
-     * Retorna um novo Role com a permissão adicionada.
-     * Não modifica o atual (imutabilidade lógica da API).
-     */
+    // Retorna uma nova instância de Role com a permissão adicionada (não altera o objeto atual).
     public Role withPermission(Permission permission) {
         Objects.requireNonNull(permission, "permission must not be null");
         Set<Permission> newPerms = new HashSet<>(this.permissions);
@@ -72,9 +67,7 @@ public final class Role {
         return new Role(this.name, this.description, newPerms);
     }
 
-    /**
-     * Retorna um novo Role sem a permissão informada.
-     */
+    // Retorna uma nova instância de Role sem a permissão informada (não altera o objeto atual).
     public Role withoutPermission(Permission permission) {
         Objects.requireNonNull(permission, "permission must not be null");
         Set<Permission> newPerms = new HashSet<>(this.permissions);
@@ -82,8 +75,7 @@ public final class Role {
         return new Role(this.name, this.description, newPerms);
     }
 
-    // Internals
-
+    // Normaliza/valida o nome do role.
     private String normalizeName(String rawName) {
         Objects.requireNonNull(rawName, "name must not be null");
         String trimmed = rawName.trim();
@@ -91,7 +83,7 @@ public final class Role {
             throw new IllegalArgumentException("name must not be blank");
         }
 
-        // Se quiser forçar o prefixo ROLE_, descomenta:
+        // Convenção opcional: forçar prefixo ROLE_:
         // if (!trimmed.startsWith("ROLE_")) {
         //     trimmed = "ROLE_" + trimmed;
         // }
@@ -99,9 +91,7 @@ public final class Role {
         return trimmed;
     }
 
-    // equals / hashCode / toString
-
-    // equals/hashCode por name (mantém comportamento atual)
+    // equals/hashCode por name (identidade lógica do role).
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -114,6 +104,7 @@ public final class Role {
         return name.hashCode();
     }
 
+    // toString seguro e objetivo (não lista permissões para evitar logs extensos).
     @Override
     public String toString() {
         return "Role{" +

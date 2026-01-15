@@ -13,18 +13,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-// Serviço responsável por montar o JWKS exposto em:
+// Serviço responsável por montar o JWKS (JSON Web Key Set) para exposição no endpoint /.well-known/jwks.json.
 @Slf4j
 @Service
 public class JwksService implements GetJwksUseCase {
 
     private final JwksRepositoryPort jwksRepositoryPort;
 
+    // Injeta o repositório de JWKS e garante que ele não seja nulo para consulta das chaves ativas.
     public JwksService(JwksRepositoryPort jwksRepositoryPort) {
         this.jwksRepositoryPort =
                 Objects.requireNonNull(jwksRepositoryPort, "jwksRepositoryPort must not be null");
     }
 
+    // Carrega as chaves de assinatura ativas e retorna um JWKS no formato {"keys": [...]} ou lança erro se não houver chaves.
     @Override
     public Map<String, Object> getJwks() {
         log.debug("[JwksService] - [getJwks] -> Buscando chaves ativas…");
@@ -58,6 +60,7 @@ public class JwksService implements GetJwksUseCase {
         return response;
     }
 
+    // Converte uma chave de domínio (JwkKey) em um entry de JWK contendo os metadados públicos do JWKS.
     private Map<String, Object> convertToJwkEntry(JwkKey key) {
         Map<String, Object> m = new LinkedHashMap<>();
 

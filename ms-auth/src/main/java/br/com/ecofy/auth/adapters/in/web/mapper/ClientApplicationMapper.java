@@ -1,4 +1,4 @@
-package br.com.ecofy.auth.adapters.in.web;
+package br.com.ecofy.auth.adapters.in.web.mapper;
 
 import br.com.ecofy.auth.adapters.in.web.dto.response.ClientApplicationResponse;
 import br.com.ecofy.auth.core.domain.ClientApplication;
@@ -11,9 +11,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-final class ClientApplicationMapper {
+public final class ClientApplicationMapper {
 
-    static ClientApplicationResponse toResponse(ClientApplication client) {
+    public static ClientApplicationResponse toResponse(ClientApplication client) {
         Objects.requireNonNull(client, "client must not be null");
 
         String id = client.id() != null
@@ -68,4 +68,5 @@ final class ClientApplicationMapper {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableSet());
     }
+
 }

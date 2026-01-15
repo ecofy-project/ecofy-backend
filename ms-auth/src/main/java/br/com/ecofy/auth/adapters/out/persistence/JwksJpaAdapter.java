@@ -1,5 +1,6 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
+import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.JwkKeyRepository;
 import br.com.ecofy.auth.core.domain.JwkKey;
 import br.com.ecofy.auth.core.port.out.JwksRepositoryPort;
@@ -17,10 +18,12 @@ public class JwksJpaAdapter implements JwksRepositoryPort {
 
     private final JwkKeyRepository repository;
 
+    // Injeta o repositório JPA responsável por consultar as chaves JWK no banco.
     public JwksJpaAdapter(JwkKeyRepository repository) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
     }
 
+    // Busca no banco as chaves JWK ativas, mapeia para o domínio e retorna uma lista imutável.
     @Override
     @Transactional(readOnly = true)
     public List<JwkKey> findActiveSigningKeys() {
@@ -44,4 +47,6 @@ public class JwksJpaAdapter implements JwksRepositoryPort {
 
         return List.copyOf(keys);
     }
+
 }
+

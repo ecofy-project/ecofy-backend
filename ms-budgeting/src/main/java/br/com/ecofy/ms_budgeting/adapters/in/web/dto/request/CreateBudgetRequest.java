@@ -1,4 +1,4 @@
-package br.com.ecofy.ms_budgeting.adapters.in.web.dto;
+package br.com.ecofy.ms_budgeting.adapters.in.web.dto.request;
 
 
 import br.com.ecofy.ms_budgeting.core.domain.enums.BudgetPeriodType;
@@ -15,17 +15,23 @@ public record CreateBudgetRequest(
 
         @NotNull
         UUID userId,
+
         @NotNull
         UUID categoryId,
+
         @NotNull
         BudgetPeriodType periodType,
+
         @NotNull
         LocalDate periodStart,
+
         @NotNull
         LocalDate periodEnd,
+
         @NotNull
         @DecimalMin(value = "0.01")
         BigDecimal limitAmount,
+
         @NotBlank
         String currency,
         BudgetStatus status

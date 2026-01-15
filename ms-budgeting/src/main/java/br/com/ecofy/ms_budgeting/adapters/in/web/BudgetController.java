@@ -1,9 +1,9 @@
 package br.com.ecofy.ms_budgeting.adapters.in.web;
 
-import br.com.ecofy.ms_budgeting.adapters.in.web.dto.BudgetOverviewResponse;
-import br.com.ecofy.ms_budgeting.adapters.in.web.dto.BudgetResponse;
-import br.com.ecofy.ms_budgeting.adapters.in.web.dto.CreateBudgetRequest;
-import br.com.ecofy.ms_budgeting.adapters.in.web.dto.UpdateBudgetRequest;
+import br.com.ecofy.ms_budgeting.adapters.in.web.dto.response.BudgetOverviewResponse;
+import br.com.ecofy.ms_budgeting.adapters.in.web.dto.response.BudgetResponse;
+import br.com.ecofy.ms_budgeting.adapters.in.web.dto.request.CreateBudgetRequest;
+import br.com.ecofy.ms_budgeting.adapters.in.web.dto.request.UpdateBudgetRequest;
 import br.com.ecofy.ms_budgeting.core.application.command.CreateBudgetCommand;
 import br.com.ecofy.ms_budgeting.core.application.command.DeleteBudgetCommand;
 import br.com.ecofy.ms_budgeting.core.application.command.UpdateBudgetCommand;

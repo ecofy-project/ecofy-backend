@@ -1,5 +1,6 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
+import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.ClientApplicationRepository;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.port.out.LoadClientApplicationByClientIdPort;
@@ -18,11 +19,12 @@ public class ClientApplicationJpaAdapter implements SaveClientApplicationPort, L
 
     private final ClientApplicationRepository repository;
 
+    // Injeta o repositório JPA e garante que ele não seja nulo para operações de persistência/consulta.
     public ClientApplicationJpaAdapter(ClientApplicationRepository repository) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
     }
 
-    // SAVE
+    // Salva a aplicação cliente (cria/atualiza), garantindo timestamps e retornando o domínio mapeado.
     @Override
     @Transactional
     public ClientApplication save(ClientApplication clientApplication) {
@@ -38,12 +40,14 @@ public class ClientApplicationJpaAdapter implements SaveClientApplicationPort, L
 
         var entity = PersistenceMapper.toEntity(clientApplication);
 
+        // Define createdAt apenas na criação do registro.
         if (entity.getCreatedAt() == null) {
             log.debug("[ClientApplicationJpaAdapter] - [save] -> Criando novo registro clientId={}",
                     entity.getClientId());
             entity.setCreatedAt(now);
         }
 
+        // Atualiza updatedAt em toda gravação.
         entity.setUpdatedAt(now);
 
         var saved = repository.save(entity);
@@ -57,7 +61,7 @@ public class ClientApplicationJpaAdapter implements SaveClientApplicationPort, L
         return PersistenceMapper.toDomain(saved);
     }
 
-    // LOAD BY CLIENT ID
+    // Busca uma aplicação cliente pelo clientId e retorna Optional vazio quando não encontrada.
     @Override
     @Transactional(readOnly = true)
     public Optional<ClientApplication> loadByClientId(String clientId) {
@@ -79,4 +83,5 @@ public class ClientApplicationJpaAdapter implements SaveClientApplicationPort, L
                 );
 
     }
+
 }

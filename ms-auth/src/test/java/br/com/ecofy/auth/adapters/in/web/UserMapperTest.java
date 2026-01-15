@@ -1,6 +1,7 @@
 package br.com.ecofy.auth.adapters.in.web;
 
 import br.com.ecofy.auth.adapters.in.web.dto.response.UserResponse;
+import br.com.ecofy.auth.adapters.in.web.mapper.UserMapper;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.Permission;
 import br.com.ecofy.auth.core.domain.Role;

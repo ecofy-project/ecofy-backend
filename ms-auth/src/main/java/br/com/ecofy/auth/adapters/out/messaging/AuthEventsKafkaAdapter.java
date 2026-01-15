@@ -25,11 +25,12 @@ public class AuthEventsKafkaAdapter implements PublishAuthEventPort {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
+    // Injeta o KafkaTemplate e garante que ele não seja nulo para publicação de eventos.
     public AuthEventsKafkaAdapter(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate must not be null");
     }
 
-    // PUBLISHERS
+    // Publica o evento de usuário registrado no tópico correspondente usando o userId como key.
     @Override
     public void publish(UserRegisteredEvent event) {
         Objects.requireNonNull(event, "event must not be null");
@@ -41,6 +42,7 @@ public class AuthEventsKafkaAdapter implements PublishAuthEventPort {
         sendEvent(TOPIC_USER_REGISTERED, key, event);
     }
 
+    // Publica o evento de e-mail confirmado no tópico correspondente usando o userId como key.
     @Override
     public void publish(UserEmailConfirmedEvent event) {
         Objects.requireNonNull(event, "event must not be null");
@@ -52,6 +54,7 @@ public class AuthEventsKafkaAdapter implements PublishAuthEventPort {
         sendEvent(TOPIC_USER_EMAIL_CONFIRMED, key, event);
     }
 
+    // Publica o evento de autenticação realizada no tópico correspondente usando o userId como key.
     @Override
     public void publish(UserAuthenticatedEvent event) {
         Objects.requireNonNull(event, "event must not be null");
@@ -63,6 +66,7 @@ public class AuthEventsKafkaAdapter implements PublishAuthEventPort {
         sendEvent(TOPIC_USER_AUTHENTICATED, key, event);
     }
 
+    // Publica o evento de solicitação de reset de senha no tópico correspondente usando o userId como key.
     @Override
     public void publish(PasswordResetRequestedEvent event) {
         Objects.requireNonNull(event, "event must not be null");
@@ -74,7 +78,7 @@ public class AuthEventsKafkaAdapter implements PublishAuthEventPort {
         sendEvent(TOPIC_PASSWORD_RESET_REQUESTED, key, event);
     }
 
-    // HELPER – usando CompletableFuture direto
+    // Envia o payload para o Kafka de forma assíncrona e registra sucesso (partition/offset) ou erro no log.
     private void sendEvent(String topic, String key, Object payload) {
 
         CompletableFuture<SendResult<String, Object>> future =
@@ -96,4 +100,5 @@ public class AuthEventsKafkaAdapter implements PublishAuthEventPort {
             );
         });
     }
+
 }

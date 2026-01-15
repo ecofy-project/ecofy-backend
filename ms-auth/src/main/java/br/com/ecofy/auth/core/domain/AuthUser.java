@@ -8,7 +8,7 @@ import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import java.time.Instant;
 import java.util.*;
 
-// raix de agregado do usuario de autenticacao
+// Raiz de agregado do usuário de autenticação, concentrando estado e regras de negócio de identidade, senha, status e permissões.
 public class AuthUser {
 
     private final AuthUserId id;
@@ -39,6 +39,7 @@ public class AuthUser {
 
     private int failedLoginAttempts;
 
+    // Reconstrói o agregado AuthUser a partir de dados persistidos, garantindo invariantes básicas do domínio.
     public AuthUser(AuthUserId id,
                     EmailAddress email,
                     PasswordHash passwordHash,
@@ -72,7 +73,7 @@ public class AuthUser {
         this.failedLoginAttempts = Math.max(failedLoginAttempts, 0);
     }
 
-    // Factories
+    // Cria um novo usuário em estado pendente, com timestamps iniciais e roles informadas (ou vazias).
     public static AuthUser newPendingUser(EmailAddress email,
                                           PasswordHash passwordHash,
                                           String firstName,
@@ -100,70 +101,84 @@ public class AuthUser {
         );
     }
 
-    // Getters (imutáveis / de leitura)
+    // Retorna o identificador do usuário no domínio.
     public AuthUserId id() {
         return id;
     }
 
+    // Retorna o e-mail do usuário (value object) para leitura/validação externa.
     public EmailAddress email() {
         return email;
     }
 
+    // Retorna o hash atual da senha para validação (nunca a senha em texto puro).
     public PasswordHash passwordHash() {
         return passwordHash;
     }
 
+    // Retorna o status atual do usuário (ativo, bloqueado, locked, etc.).
     public AuthUserStatus status() {
         return status;
     }
 
+    // Indica se o e-mail do usuário já foi confirmado.
     public boolean isEmailVerified() {
         return emailVerified;
     }
 
+    // Retorna o primeiro nome do usuário.
     public String firstName() {
         return firstName;
     }
 
+    // Retorna o sobrenome do usuário.
     public String lastName() {
         return lastName;
     }
 
+    // Retorna o locale efetivo do usuário (default pt-BR quando ausente).
     public String locale() {
         return locale;
     }
 
+    // Retorna a data/hora de criação do usuário (imutável).
     public Instant createdAt() {
         return createdAt;
     }
 
+    // Retorna a data/hora da última atualização do agregado.
     public Instant updatedAt() {
         return updatedAt;
     }
 
+    // Retorna a data/hora do último login bem-sucedido (ou null se nunca logou).
     public Instant lastLoginAt() {
         return lastLoginAt;
     }
 
+    // Retorna o contador atual de tentativas de login falhadas.
     public int failedLoginAttempts() {
         return failedLoginAttempts;
     }
 
+    // Retorna as roles do usuário como visão somente-leitura.
     public Set<Role> roles() {
         return Collections.unmodifiableSet(roles);
     }
 
+    // Retorna as permissões diretas do usuário (fora das roles) como visão somente-leitura.
     public Set<Permission> directPermissions() {
         return Collections.unmodifiableSet(directPermissions);
     }
 
-    // Regras de negócio
+    // Monta e retorna o nome completo a partir de firstName/lastName com normalização de espaços.
     public String fullName() {
         String first = Objects.toString(firstName, "").trim();
         String last = Objects.toString(lastName, "").trim();
         return (first + " " + last).trim();
     }
 
+    // Confirma o e-mail, atualiza o status quando aplicável e rejeita confirmação para usuários bloqueados/deletados.
     public void confirmEmail() {
         if (status == AuthUserStatus.BLOCKED || status == AuthUserStatus.DELETED) {
             throw new IllegalStateException("User is not eligible to confirm email");
@@ -175,18 +190,21 @@ public class AuthUser {
         touch();
     }
 
+    // Troca a senha do usuário, zera tentativas falhas e atualiza o timestamp de modificação.
     public void changePassword(PasswordHash newPasswordHash) {
         this.passwordHash = Objects.requireNonNull(newPasswordHash, "newPasswordHash must not be null");
         this.failedLoginAttempts = 0;
         touch();
     }
 
+    // Registra login bem-sucedido, limpando tentativas falhas e atualizando lastLoginAt.
     public void registerSuccessfulLogin() {
         this.failedLoginAttempts = 0;
         this.lastLoginAt = Instant.now();
         touch();
     }
 
+    // Registra tentativa de login falha e bloqueia (LOCKED) ao atingir o limite configurado.
     public void registerFailedLogin(int maxAttemptsBeforeLock) {
         if (maxAttemptsBeforeLock <= 0) {
             throw new IllegalArgumentException("maxAttemptsBeforeLock must be greater than zero");
@@ -198,33 +216,38 @@ public class AuthUser {
         touch();
     }
 
+    // Verifica se o usuário possui a permissão requerida via roles ou permissões diretas.
     public boolean hasPermission(String permissionName) {
         Permission required = new Permission(permissionName, null, "*");
         return roles.stream().anyMatch(r -> r.implies(required))
                 || directPermissions.stream().anyMatch(p -> p.implies(required));
     }
 
+    // Adiciona uma role ao usuário e atualiza o timestamp de modificação.
     public void addRole(Role role) {
         this.roles.add(Objects.requireNonNull(role, "role must not be null"));
         touch();
     }
 
+    // Adiciona uma permissão direta ao usuário e atualiza o timestamp de modificação.
     public void addDirectPermission(Permission permission) {
         this.directPermissions.add(Objects.requireNonNull(permission, "permission must not be null"));
         touch();
     }
 
+    // Marca o usuário como BLOCKED para impedir operações sensíveis e acessos.
     public void block() {
         this.status = AuthUserStatus.BLOCKED;
         touch();
     }
 
+    // Marca o usuário como DELETED (soft delete) para desativação lógica.
     public void delete() {
         this.status = AuthUserStatus.DELETED;
         touch();
     }
 
-    // Internals
+    // Atualiza o updatedAt para refletir mudanças de estado no agregado.
     private void touch() {
         this.updatedAt = Instant.now();
     }

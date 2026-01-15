@@ -16,10 +16,9 @@ public class InboundEventMapper {
     private static final String HDR_EVENT_ID = "event_id";
     private static final String HDR_CORRELATION_ID = "correlation_id";
 
-    /**
-     * Overload recomendado: consumer só passa (msg, record).
-     * Gera runId e tenta extrair eventId/correlationId dos headers.
-     */
+
+     //Overload recomendado: consumer só passa (msg, record).
+     // Gera runId e tenta extrair eventId/correlationId dos headers.
     public ProcessTransactionCommand toCommand(
             CategorizedTransactionMessage msg,
             ConsumerRecord<String, CategorizedTransactionMessage> record
@@ -31,9 +30,7 @@ public class InboundEventMapper {
         return toCommand(msg, runId, eventId, correlationId, record);
     }
 
-    /**
-     * Overload completo: permite o consumer passar runId/eventId/correlationId explicitamente.
-     */
+    // Overload completo: permite o consumer passar runId/eventId/correlationId explicitamente.
     public ProcessTransactionCommand toCommand(
             CategorizedTransactionMessage msg,
             UUID runId,
@@ -77,4 +74,5 @@ public class InboundEventMapper {
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
+
 }

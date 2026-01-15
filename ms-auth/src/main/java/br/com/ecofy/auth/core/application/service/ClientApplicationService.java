@@ -16,7 +16,7 @@ import java.util.Base64;
 import java.util.Objects;
 import java.util.Set;
 
-// Serviço responsável pelo registro e gerenciamento de Client Applications no MS Auth.
+// Serviço responsável por registrar Client Applications (client_id/secret) e validar grants/redirect URIs no ms-auth.
 @Slf4j
 @Service
 public class ClientApplicationService implements RegisterClientApplicationUseCase {
@@ -25,12 +25,14 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
     private final PasswordHashingPort passwordHashingPort;
     private final SecureRandom secureRandom = new SecureRandom();
 
+    // Inicializa o serviço com as portas de persistência e hashing necessárias para criação de clients.
     public ClientApplicationService(SaveClientApplicationPort saveClientApplicationPort,
                                     PasswordHashingPort passwordHashingPort) {
         this.saveClientApplicationPort = Objects.requireNonNull(saveClientApplicationPort, "saveClientApplicationPort must not be null");
         this.passwordHashingPort = Objects.requireNonNull(passwordHashingPort, "passwordHashingPort must not be null");
     }
 
+    // Registra um novo client, gera client_id/secret (quando aplicável), valida grants/redirectUris e persiste no repositório.
     @Override
     public ClientApplication register(RegisterClientCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -57,6 +59,7 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
             );
         }
 
+        // Gera o hash do client secret (quando existir) para armazenar somente o valor derivado no banco.
         String secretHash = rawSecret != null
                 ? passwordHashingPort.hash(rawSecret).value()
                 : null;
@@ -95,11 +98,13 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
         return saved;
     }
 
+    // Indica se o tipo de client exige client secret (ex.: CONFIDENTIAL e MACHINE_TO_MACHINE).
     private boolean requiresSecret(ClientType clientType) {
         return clientType == ClientType.CONFIDENTIAL
                 || clientType == ClientType.MACHINE_TO_MACHINE;
     }
 
+    // Resolve os grants efetivos do client usando os solicitados (se existirem) ou defaults conforme o tipo.
     private Set<GrantType> resolveEffectiveGrants(ClientType clientType,
                                                   Set<GrantType> requested) {
 
@@ -124,6 +129,7 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
 
     }
 
+    // Valida se o conjunto de grants é compatível com o tipo do client (ex.: M2M exige CLIENT_CREDENTIALS).
     private void validateGrants(ClientType clientType, Set<GrantType> grants) {
         switch (clientType) {
             case MACHINE_TO_MACHINE -> {
@@ -163,10 +169,12 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                 }
             }
             case CONFIDENTIAL -> {
+                // CONFIDENTIAL permite os grants definidos, desde que consistentes com a configuração.
             }
         }
     }
 
+    // Valida a obrigatoriedade de redirectUris quando o grant AUTHORIZATION_CODE estiver habilitado.
     private void validateRedirectUrisIfNeeded(Set<GrantType> grants, Set<String> redirectUris) {
 
         if (grants.contains(GrantType.AUTHORIZATION_CODE)) {
@@ -183,6 +191,7 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
 
     }
 
+    // Gera um client_id com prefixo "eco_" usando bytes aleatórios codificados em Base64 URL-safe.
     private String generateClientId(String name) {
         byte[] bytes = new byte[12];
         secureRandom.nextBytes(bytes);
@@ -199,6 +208,7 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
 
     }
 
+    // Gera um client secret aleatório em Base64 URL-safe (o valor nunca deve ser impresso integralmente em logs).
     private String generateSecret() {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Objects;
 
-// Serviço responsável pela confirmação de e-mail de usuários recém-registrados.
+// Serviço responsável por confirmar o e-mail do usuário a partir de um token de verificação válido.
 @Slf4j
 @Service
 public class EmailConfirmationService implements ConfirmEmailUseCase {
@@ -22,6 +22,7 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
     private final SaveAuthUserPort saveAuthUserPort;
     private final PublishAuthEventPort publishAuthEventPort;
 
+    // Inicializa o serviço com as portas de token, persistência de usuário e publicação de eventos.
     public EmailConfirmationService(VerificationTokenStorePort verificationTokenStorePort,
                                     SaveAuthUserPort saveAuthUserPort,
                                     PublishAuthEventPort publishAuthEventPort) {
@@ -33,6 +34,7 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
                 Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
     }
 
+    // Consome o token de verificação, marca o e-mail como confirmado, persiste o usuário e publica o evento de confirmação.
     @Override
     public AuthUser confirm(ConfirmEmailCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -83,6 +85,7 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
         return persisted;
     }
 
+    // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";

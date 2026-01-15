@@ -2,6 +2,7 @@ package br.com.ecofy.auth.adapters.in.web;
 
 import br.com.ecofy.auth.adapters.in.web.dto.request.ClientApplicationRequest;
 import br.com.ecofy.auth.adapters.in.web.dto.response.ClientApplicationResponse;
+import br.com.ecofy.auth.adapters.in.web.mapper.ClientApplicationMapper;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.port.in.RegisterClientApplicationUseCase;
 import io.swagger.v3.oas.annotations.Operation;
@@ -80,7 +81,7 @@ public class ClientApplicationController {
                 client.clientId(), client.clientType(), client.isActive()
         );
 
-        ClientApplicationResponse body = br.com.ecofy.auth.adapters.in.web.ClientApplicationMapper.toResponse(client);
+        ClientApplicationResponse body = ClientApplicationMapper.toResponse(client);
 
         // Location apontando para o recurso recém-criado
         URI location = ServletUriComponentsBuilder

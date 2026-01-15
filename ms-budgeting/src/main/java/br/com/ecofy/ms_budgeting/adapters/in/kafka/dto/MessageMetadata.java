@@ -5,8 +5,11 @@ import java.time.Instant;
 public record MessageMetadata (
 
         String eventId,
+
         Instant occurredAt,
+
         String producer,
+
         String traceId
 
 ) { }

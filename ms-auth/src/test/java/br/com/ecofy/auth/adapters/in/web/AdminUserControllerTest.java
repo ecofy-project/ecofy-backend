@@ -2,6 +2,7 @@ package br.com.ecofy.auth.adapters.in.web;
 
 import br.com.ecofy.auth.adapters.in.web.dto.request.AdminUserCreateRequest;
 import br.com.ecofy.auth.adapters.in.web.dto.response.UserResponse;
+import br.com.ecofy.auth.adapters.in.web.mapper.UserMapper;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.port.in.RegisterUserUseCase;
 import org.junit.jupiter.api.BeforeEach;

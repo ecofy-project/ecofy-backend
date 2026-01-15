@@ -19,10 +19,12 @@ public class SpringSecurityCurrentUserAdapter implements CurrentUserProviderPort
 
     private final AuthUserJpaAdapter authUserJpaAdapter;
 
+    // Injeta o adapter JPA de usuário e garante que ele não seja nulo para carregar o usuário autenticado.
     public SpringSecurityCurrentUserAdapter(AuthUserJpaAdapter authUserJpaAdapter) {
         this.authUserJpaAdapter = Objects.requireNonNull(authUserJpaAdapter, "authUserJpaAdapter must not be null");
     }
 
+    // Resolve o usuário atual a partir do JWT no SecurityContext e carrega o AuthUser no banco (lança erro se falhar).
     @Override
     public AuthUser getCurrentUserOrThrow() {
         log.debug("[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Iniciando resolução do usuário atual");
@@ -74,4 +76,6 @@ public class SpringSecurityCurrentUserAdapter implements CurrentUserProviderPort
                     return new IllegalStateException("Usuário autenticado não encontrado");
                 });
     }
+
 }
+

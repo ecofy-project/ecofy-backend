@@ -1,6 +1,7 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.AuthUserEntity;
+import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.AuthUserRepository;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
