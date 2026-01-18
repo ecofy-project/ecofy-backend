@@ -26,6 +26,7 @@ public class CategorizedTransactionConsumer {
             groupId = "${spring.application.name}",
             containerFactory = "budgetingKafkaListenerContainerFactory"
     )
+    // Consome mensagens Kafka de transações categorizadas e dispara o caso de uso de processamento.
     public void onMessage(ConsumerRecord<String, CategorizedTransactionMessage> record) {
         UUID runId = UUID.randomUUID();
         CategorizedTransactionMessage msg = record.value();
@@ -53,6 +54,7 @@ public class CategorizedTransactionConsumer {
         useCase.process(mapper.toCommand(msg, runId, eventId, correlationId, record));
     }
 
+    // Valida os campos mínimos obrigatórios do payload antes de processar.
     private static void validate(CategorizedTransactionMessage msg) {
         if (isBlank(String.valueOf(msg.transactionId()))) throw new IllegalArgumentException("transactionId is required");
         if (isBlank(String.valueOf(msg.userId()))) throw new IllegalArgumentException("userId is required");
@@ -60,10 +62,12 @@ public class CategorizedTransactionConsumer {
         // if (isBlank(msg.categoryId())) throw new IllegalArgumentException("categoryId is required");
     }
 
+    // Verifica se uma string é nula, vazia ou contém apenas espaços.
     private static boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
     }
 
+    // Extrai um header do Kafka como String (UTF-8) a partir da chave informada.
     private static String headerAsString(ConsumerRecord<?, ?> record, String key) {
         Header h = record.headers().lastHeader(key);
         if (h == null || h.value() == null) return null;

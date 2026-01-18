@@ -6,8 +6,11 @@ import java.util.UUID;
 public record BudgetConsumptionResult (
 
         UUID budgetId,
+
         BigDecimal consumedAmount,
+
         BigDecimal limitAmount,
+
         BigDecimal consumedPct
 
 ) { }

@@ -12,6 +12,7 @@ public final class BudgetAlertMapper {
 
     private BudgetAlertMapper() {}
 
+    // Converte o objeto de domínio (BudgetAlert) para a entidade JPA (BudgetAlertEntity).
     public static BudgetAlertEntity toEntity(BudgetAlert d) {
         Objects.requireNonNull(d, "domain must not be null");
 
@@ -27,6 +28,7 @@ public final class BudgetAlertMapper {
                 .build();
     }
 
+    // Converte a entidade JPA (BudgetAlertEntity) para o objeto de domínio (BudgetAlert).
     public static BudgetAlert toDomain(BudgetAlertEntity e) {
         if (e == null) return null;
 
@@ -42,6 +44,7 @@ public final class BudgetAlertMapper {
         );
     }
 
+    // Cria um BudgetAlert novo (domínio) já com id e createdAt preenchidos.
     public static BudgetAlert newAlert(
             UUID budgetId,
             UUID consumptionId,
@@ -62,6 +65,7 @@ public final class BudgetAlertMapper {
         );
     }
 
+    // Converte o texto persistido de severidade para o enum AlertSeverity.
     private static AlertSeverity parseSeverity(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new IllegalArgumentException("severity must not be blank");
@@ -73,6 +77,7 @@ public final class BudgetAlertMapper {
         }
     }
 
+    // Normaliza e valida a mensagem para garantir que não seja nula/blank.
     private static String normalizeMessage(String msg) {
         if (msg == null || msg.trim().isEmpty()) {
             throw new IllegalArgumentException("message must not be blank");
@@ -80,6 +85,7 @@ public final class BudgetAlertMapper {
         return msg.trim();
     }
 
+    // Valida que um campo obrigatório não é nulo e retorna o próprio valor.
     private static <T> T requireNonNull(T v, String field) {
         return Objects.requireNonNull(v, field + " must not be null");
     }

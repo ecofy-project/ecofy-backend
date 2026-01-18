@@ -17,6 +17,7 @@ public final class BudgetMapper {
 
     private BudgetMapper() {}
 
+    // Converte a entidade JPA (BudgetEntity) para o objeto de domínio (Budget) validando consistência do naturalKey.
     public static Budget toDomain(BudgetEntity e) {
         if (e == null) return null;
 
@@ -65,6 +66,7 @@ public final class BudgetMapper {
         );
     }
 
+    // Converte o objeto de domínio (Budget) para a entidade JPA (BudgetEntity) calculando naturalKey e timestamps.
     public static BudgetEntity toEntity(Budget b) {
         Objects.requireNonNull(b, "budget must not be null");
         Objects.requireNonNull(b.getKey(), "budget.key must not be null");
@@ -91,6 +93,7 @@ public final class BudgetMapper {
                 .build();
     }
 
+    // Valida e converte o código de moeda (ISO 4217) em um objeto Currency.
     private static Currency parseCurrency(String code) {
         if (code == null || code.isBlank()) {
             throw new IllegalArgumentException("currency must not be blank");
@@ -102,6 +105,7 @@ public final class BudgetMapper {
         }
     }
 
+    // Valida que um campo obrigatório não é nulo e retorna o próprio valor.
     private static <T> T requireNonNull(T v, String field) {
         return Objects.requireNonNull(v, field + " must not be null");
     }

@@ -6,7 +6,9 @@ import java.util.UUID;
 public record BudgetOverviewResult(
 
         UUID userId,
+
         List<BudgetConsumptionResult> consumptions,
+
         List<BudgetAlertResult> alerts
 
 ) { }

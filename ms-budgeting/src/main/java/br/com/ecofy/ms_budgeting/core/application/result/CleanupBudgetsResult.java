@@ -4,9 +4,15 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public record CleanupBudgetsResult(
+
         UUID runId,
+
         LocalDate referenceDate,
+
         int retentionDays,
+
         long budgetsDeleted,
+
         long consumptionsDeleted
+
 ) { }

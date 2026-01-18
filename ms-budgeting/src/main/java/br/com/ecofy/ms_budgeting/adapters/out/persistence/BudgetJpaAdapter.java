@@ -24,6 +24,7 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
 
     private final BudgetRepository repo;
 
+    // Salva o orçamento (Budget) no banco e retorna o domínio reidratado a partir da entidade persistida.
     @Override
     @Transactional
     public Budget save(Budget budget) {
@@ -42,7 +43,6 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
             return BudgetMapper.toDomain(saved);
 
         } catch (DataIntegrityViolationException ex) {
-            // Mais comum: violação do unique uk_budget_natural (natural_key)
             String causeMsg = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
 
             log.warn(
@@ -50,23 +50,23 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
                     budget.getId(), naturalKey, causeMsg
             );
 
-            // Mantém a causa original para diagnóstico
             throw ex;
         }
     }
 
+    // Busca um orçamento pelo id e retorna Optional caso não exista.
     @Override
     @Transactional(readOnly = true)
     public Optional<Budget> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
 
-        // Útil em troubleshooting (não gera barulho em prod se log nível >= INFO)
         log.debug("[BudgetJpaAdapter] - [findById] -> id={}", id);
 
         return repo.findById(id)
                 .map(BudgetMapper::toDomain);
     }
 
+    // Lista todos os orçamentos associados a um usuário.
     @Override
     @Transactional(readOnly = true)
     public List<Budget> findByUserId(UUID userId) {
@@ -84,6 +84,7 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
                 .toList();
     }
 
+    // Verifica se já existe um orçamento persistido para uma naturalKey específica.
     @Override
     @Transactional(readOnly = true)
     public boolean existsByNaturalKey(String naturalKey) {
@@ -94,6 +95,7 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
         return repo.existsByNaturalKey(nk);
     }
 
+    // Lista todos os orçamentos com status ACTIVE.
     @Override
     @Transactional(readOnly = true)
     public List<Budget> findAllActive() {
@@ -109,6 +111,7 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
                 .toList();
     }
 
+    // Valida e normaliza uma string obrigatória (não nula e não vazia) antes do uso.
     private static String requireNonBlank(String value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " must not be null");

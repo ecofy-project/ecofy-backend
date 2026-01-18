@@ -9,14 +9,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ecofy.budgeting.scheduling")
 public class BudgetingSchedulingProperties {
 
-    /**
-     * Default seguro: false.
-     */
+    /** Habilita/desabilita a rotina de limpeza agendada (default seguro: false). */
     private boolean cleanupEnabled = false;
 
-    /**
-     * Política de retenção (dias).
-     * Ex.: 90 => apaga dados até (hoje - 90 dias)
-     */
+    /** Define a retenção em dias para a limpeza (ex.: 90 apaga dados anteriores a hoje-90 dias). */
     private int cleanupRetentionDays = 90;
 }

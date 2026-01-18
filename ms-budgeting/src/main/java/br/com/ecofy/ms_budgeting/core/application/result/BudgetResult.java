@@ -11,15 +11,25 @@ import java.util.UUID;
 public record BudgetResult (
 
         UUID id,
+
         UUID userId,
+
         UUID categoryId,
+
         BudgetPeriodType periodType,
+
         LocalDate periodStart,
+
         LocalDate periodEnd,
+
         BigDecimal limitAmount,
+
         String currency,
+
         BudgetStatus status,
+
         Instant createdAt,
+
         Instant updatedAt
 
 ) { }

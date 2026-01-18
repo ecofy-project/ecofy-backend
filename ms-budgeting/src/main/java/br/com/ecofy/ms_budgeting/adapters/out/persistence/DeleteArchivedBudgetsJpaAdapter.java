@@ -17,6 +17,7 @@ public class DeleteArchivedBudgetsJpaAdapter implements DeleteArchivedBudgetsOld
 
     private final BudgetJpaRepository repository;
 
+    // Remove orçamentos arquivados com archivedAt <= cutoffDateInclusive e retorna a quantidade deletada.
     @Override
     @Transactional
     public long deleteArchivedBudgetsOlderThan(LocalDate cutoffDateInclusive) {

@@ -28,10 +28,7 @@ public class BudgetConsumptionEntity {
     @Column(name = "budget_id", nullable = false)
     private UUID budgetId;
 
-    /**
-     * Data de referência usada para limpeza (ex.: period_end).
-     * Mantém o repository existente: deleteByReferenceDateLessThanEqual(...)
-     */
+    // Data de referência usada para retenção/limpeza (ex.: period_end) e suporte ao deleteByReferenceDateLessThanEqual.
     @Column(name = "reference_date", nullable = false)
     private LocalDate referenceDate;
 

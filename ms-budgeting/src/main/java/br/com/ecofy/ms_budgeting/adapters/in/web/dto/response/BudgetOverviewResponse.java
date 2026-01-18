@@ -15,6 +15,7 @@ public record BudgetOverviewResponse(
 
 ) {
 
+    // converte o resultado da aplicação (use case) para o DTO de resposta da API
     public static BudgetOverviewResponse from(BudgetOverviewResult r) {
         return new BudgetOverviewResponse(r.userId(), r.consumptions(), r.alerts());
     }

@@ -32,6 +32,7 @@ public record BudgetResponse(
 
 ) {
 
+    // converte o resultado do caso de uso (BudgetResult) para o DTO de resposta da API
     public static BudgetResponse from(BudgetResult r) {
         return new BudgetResponse(
                 r.id(),

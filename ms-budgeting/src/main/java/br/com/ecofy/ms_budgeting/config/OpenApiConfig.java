@@ -17,6 +17,7 @@ public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_BEARER = "BearerAuth";
 
+    // Registra o OpenAPI principal com metadados, docs externas e esquema de segurança JWT.
     @Bean
     public OpenAPI ecofyBudgetingOpenAPI() {
         return new OpenAPI()
@@ -28,6 +29,7 @@ public class OpenApiConfig {
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_BEARER));
     }
 
+    // Monta as informações (title/description/version/contato/licença) exibidas no Swagger UI.
     private Info apiInfo() {
         return new Info()
                 .title("EcoFy Budgeting Service – Budgets, Consumption & Alerts")
@@ -54,12 +56,14 @@ public class OpenApiConfig {
                 .termsOfService("https://ecofy.com/terms");
     }
 
+    // Define o link de documentação externa do serviço para ser exibido no OpenAPI.
     private ExternalDocumentation externalDocs() {
         return new ExternalDocumentation()
                 .description("EcoFy Platform – Documentação de Budgeting")
                 .url("https://docs.ecofy.com/budgeting");
     }
 
+    // Define o SecurityScheme HTTP Bearer (JWT) para autenticação via header Authorization.
     private SecurityScheme bearerSecurityScheme() {
         return new SecurityScheme()
                 .name("Authorization")
@@ -72,6 +76,7 @@ public class OpenApiConfig {
                         """);
     }
 
+    // Agrupa endpoints de negócio (/api/**) em um grupo no Swagger, excluindo actuator.
     @Bean
     public GroupedOpenApi budgetingApiGroup() {
         return GroupedOpenApi.builder()
@@ -81,6 +86,7 @@ public class OpenApiConfig {
                 .build();
     }
 
+    // Agrupa endpoints do actuator (/actuator/**) em um grupo separado no Swagger.
     @Bean
     public GroupedOpenApi actuatorGroup() {
         return GroupedOpenApi.builder()

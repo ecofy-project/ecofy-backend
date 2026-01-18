@@ -22,6 +22,7 @@ public class BudgetConsumptionJpaAdapter implements SaveBudgetConsumptionPort, L
 
     private final BudgetConsumptionRepository repository;
 
+    // Persiste um BudgetConsumption no banco via JPA e retorna o domínio reidratado a partir da entidade salva.
     @Override
     @Transactional
     public BudgetConsumption save(BudgetConsumption consumption) {
@@ -36,6 +37,7 @@ public class BudgetConsumptionJpaAdapter implements SaveBudgetConsumptionPort, L
         return BudgetConsumptionMapper.toDomain(saved);
     }
 
+    // Busca o consumo de um budget para um período específico (start/end) e retorna Optional se não existir.
     @Override
     @Transactional(readOnly = true)
     public Optional<BudgetConsumption> findByBudgetAndPeriod(UUID budgetId, LocalDate start, LocalDate end) {
@@ -56,10 +58,7 @@ public class BudgetConsumptionJpaAdapter implements SaveBudgetConsumptionPort, L
                 .map(BudgetConsumptionMapper::toDomain);
     }
 
-    /**
-     * Helper interno (não faz parte do port).
-     * Use somente se existir caso de uso explícito para "último consumo atualizado".
-     */
+    // Busca o consumo mais recente (por updatedAt) de um budget específico.
     @Transactional(readOnly = true)
     public Optional<BudgetConsumption> findLatestByBudgetId(UUID budgetId) {
         Objects.requireNonNull(budgetId, "budgetId must not be null");

@@ -20,10 +20,10 @@ public class BudgetEventIngestionService {
 
     private final ProcessTransactionForBudgetUseCase useCase;
 
+    // Ingere o evento de transação, aplicando validações mínimas, MDC e delegando ao caso de uso.
     public void ingest(ProcessTransactionCommand cmd) throws Exception {
         Objects.requireNonNull(cmd, "cmd must not be null");
 
-        // validações mínimas para evitar pipeline “engolindo” eventos inválidos
         requireNonBlank(String.valueOf(cmd.transactionId()), "transactionId");
         requireNonBlank(String.valueOf(cmd.userId()), "userId");
         requireNonBlank(String.valueOf(cmd.categoryId()), "categoryId");
@@ -63,6 +63,7 @@ public class BudgetEventIngestionService {
         }
     }
 
+    // Abre um “escopo” de MDC para runId/eventId/correlationId e limpa automaticamente ao final.
     private static AutoCloseable mdcScope(String runId, String eventId, String correlationId) {
         if (runId != null) MDC.put(MDC_RUN_ID, runId);
         if (eventId != null) MDC.put(MDC_EVENT_ID, eventId);
@@ -75,6 +76,7 @@ public class BudgetEventIngestionService {
         };
     }
 
+    // Valida que um campo string não está nulo/vazio para evitar processamento de payload inválido.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");

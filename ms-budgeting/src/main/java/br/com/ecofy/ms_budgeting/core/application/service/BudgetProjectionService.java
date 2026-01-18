@@ -61,13 +61,13 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Processa uma transação categorizada, atualizando consumo do budget e emitindo alertas quando aplicável.
     @Override
     @Transactional
     public void process(ProcessTransactionCommand cmd) {
         Objects.requireNonNull(cmd, "cmd must not be null");
         validate(cmd);
 
-        // Idempotência: prefira eventId (garante "exactly-once lógico" por evento Kafka)
         String eventId = cmd.metadata() != null ? cmd.metadata().eventId() : null;
         String idemKey = buildIdempotencyKey(eventId, String.valueOf(cmd.transactionId()));
 
@@ -98,6 +98,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         }
     }
 
+    // Cria/atualiza o consumo do período do budget e dispara alertas/eventos conforme thresholds configurados.
     private void upsertConsumptionAndMaybeAlert(Budget budget, Money delta, LocalDate txDate, String eventId) {
         Instant now = Instant.now(clock);
 
@@ -135,7 +136,6 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
             return;
         }
 
-        // Evita alert spam: dispara apenas quando cruza o threshold (ex.: de <warning para >=warning)
         AlertSeverity severityBefore = resolveSeverity(pctBefore);
         boolean crossed = severityBefore != severityAfter;
 
@@ -145,7 +145,6 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
             return;
         }
 
-        // Dedup opcional por budget+consumption+severity (evita duplicar alertas em retries)
         String alertIdemKey = "alert:" + budgetId + ":" + saved.getId() + ":" + severityAfter;
         if (!idempotencyPort.tryAcquire(alertIdemKey, props.idempotency().ttl(), "budget:alert")) {
             log.debug("[BudgetProjectionService] - [alert] -> idempotency hit budgetId={} severity={}", budgetId, severityAfter);
@@ -172,9 +171,9 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
                 budgetId, severityAfter, pctAfter, txDate, eventId);
     }
 
+    // Calcula o percentual consumido em relação ao limite do budget com escala fixa.
     private static BigDecimal toPct(BigDecimal consumed, BigDecimal limit) {
         if (limit == null || limit.signum() <= 0) {
-            // Evita ArithmeticException; limite inválido não deveria existir no domínio, mas protege o boundary
             return BigDecimal.ZERO;
         }
         if (consumed == null) return BigDecimal.ZERO;
@@ -184,6 +183,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
                 .divide(limit, 2, RoundingMode.HALF_UP);
     }
 
+    // Resolve a severidade do alerta (WARNING/CRITICAL) conforme thresholds configurados.
     private AlertSeverity resolveSeverity(BigDecimal pct) {
         if (pct == null) return null;
 
@@ -192,10 +192,12 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         return null;
     }
 
+    // Monta a mensagem do alerta a partir da severidade, percentual e período do budget.
     private static String buildAlertMessage(AlertSeverity severity, BigDecimal pct, LocalDate start, LocalDate end) {
         return "Budget " + severity + ": " + pct + "% consumed for period " + start + " -> " + end;
     }
 
+    // Gera a chave de idempotência priorizando o eventId (quando disponível) e fallback para transactionId.
     private static String buildIdempotencyKey(String eventId, String transactionId) {
         if (eventId != null && !eventId.isBlank()) {
             return "kafka:categorized-tx:event:" + eventId.trim();
@@ -203,6 +205,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         return "kafka:categorized-tx:tx:" + transactionId;
     }
 
+    // Valida o comando de processamento (campos obrigatórios, valores e currency ISO-4217).
     private static void validate(ProcessTransactionCommand cmd) {
         if (cmd == null) throw new IllegalArgumentException("cmd must not be null");
 
@@ -213,10 +216,6 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
 
         if (isBlank(String.valueOf(cmd.userId())))
             throw new IllegalArgumentException("userId must not be blank");
-
-        // categoryId é opcional no seu command (pode ser null)
-        // se você quiser exigir em budgeting, valide aqui:
-        // if (isBlank(cmd.categoryId())) throw new IllegalArgumentException("categoryId must not be blank");
 
         if (cmd.amount() == null)
             throw new IllegalArgumentException("amount must not be null");
@@ -230,11 +229,12 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         if (cmd.transactionDate() == null)
             throw new IllegalArgumentException("transactionDate must not be null");
 
-        // Valida ISO-4217
         java.util.Currency.getInstance(cmd.currency().trim().toUpperCase());
     }
 
+    // Avalia se uma string é nula ou vazia após trim.
     private static boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
     }
+
 }

@@ -19,6 +19,7 @@ public class DeleteBudgetJpaAdapter implements DeleteBudgetPort {
         this.repo = Objects.requireNonNull(repo, "repo must not be null");
     }
 
+    // Deleta um budget por id (operação idempotente: se não existir, não faz nada).
     @Override
     @Transactional
     public void deleteById(UUID id) {
@@ -33,6 +34,7 @@ public class DeleteBudgetJpaAdapter implements DeleteBudgetPort {
         log.debug("[DeleteBudgetJpaAdapter] - [deleteById] -> DELETED id={}", id);
     }
 
+    // Verifica se existe um budget com o id informado.
     @Override
     public boolean existsById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");

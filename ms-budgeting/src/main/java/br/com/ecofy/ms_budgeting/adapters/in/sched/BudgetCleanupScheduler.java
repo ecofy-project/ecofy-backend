@@ -26,11 +26,14 @@ public class BudgetCleanupScheduler {
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     @Scheduled(cron = "${ecofy.budgeting.scheduling.cleanup-cron:0 0 3 * * *}")
+    // Executa periodicamente a rotina de limpeza de budgets conforme configuração (cron + enable/retention).
     public void cleanup() {
+        // Verifica se a rotina está habilitada via propriedades antes de executar.
         if (!props.isCleanupEnabled()) {
             log.debug("[BudgetCleanupScheduler] SKIP cleanupEnabled=false");
             return;
         }
+        // Garante execução única por vez para evitar concorrência entre disparos do scheduler.
         if (!running.compareAndSet(false, true)) {
             log.warn("[BudgetCleanupScheduler] SKIP already running");
             return;
@@ -46,16 +49,19 @@ public class BudgetCleanupScheduler {
                 runId, referenceDate, retentionDays);
 
         try {
+            // Dispara o caso de uso de cleanup passando contexto (runId, data de referência e retenção).
             var result = useCase.cleanup(new CleanupBudgetsCommand(runId, referenceDate, retentionDays));
             long tookMs = Duration.between(start, Instant.now(clock)).toMillis();
 
             log.info("[BudgetCleanupScheduler] DONE runId={} tookMs={} budgetsDeleted={} consumptionsDeleted={}",
                     runId, tookMs, result.budgetsDeleted(), result.consumptionsDeleted());
         } catch (Exception ex) {
+            // Registra falha com tempo de execução e exceção para observabilidade e troubleshooting.
             long tookMs = Duration.between(start, Instant.now(clock)).toMillis();
             log.error("[BudgetCleanupScheduler] FAIL runId={} tookMs={} error={}",
                     runId, tookMs, ex.getMessage(), ex);
         } finally {
+            // Libera o lock de execução para permitir futuras execuções do scheduler.
             running.set(false);
         }
     }

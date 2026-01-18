@@ -13,15 +13,17 @@ public final class EventMapper {
 
     private EventMapper() {}
 
-    // Mantém compatibilidade com o seu código atual
+    // mantém compatibilidade com o método atual do sistema, usando Clock padrão UTC
     public static BudgetAlertEvent toEvent(BudgetAlert alert) {
         return toEvent(alert, Clock.systemUTC());
     }
 
+    // converte o BudgetAlert do domínio para o BudgetAlertEvent que será publicado no broker
     public static BudgetAlertEvent toEvent(BudgetAlert alert, Clock clock) {
         Objects.requireNonNull(alert, "alert must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
 
+        // valida campos obrigatórios para evitar publicar evento inconsistente
         if (alert.getBudgetId() == null) {
             throw new IllegalArgumentException("alert.budgetId must not be null");
         }
@@ -29,8 +31,10 @@ public final class EventMapper {
             throw new IllegalArgumentException("alert.severity must not be null");
         }
 
+        // normaliza e garante que a mensagem do alerta não é vazia
         String message = normalizeRequired(alert.getMessage(), "alert.message");
 
+        // monta o evento com id determinístico e timestamp controlável (Clock) para testes
         return new BudgetAlertEvent(
                 deterministicEventId(alert),
                 Instant.now(clock),
@@ -43,8 +47,9 @@ public final class EventMapper {
         );
     }
 
+    // gera um eventId determinístico a partir dos campos do alerta (facilita idempotência/dedup)
     private static String deterministicEventId(BudgetAlert alert) {
-        // Se você quiser aleatório: return UUID.randomUUID().toString();
+        // se você quiser aleatório: return UUID.randomUUID().toString();
         String base = String.valueOf(alert.getBudgetId())
                 + "|" + String.valueOf(alert.getConsumptionId())
                 + "|" + String.valueOf(alert.getSeverity())
@@ -54,6 +59,7 @@ public final class EventMapper {
         return UUID.nameUUIDFromBytes(base.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
+    // valida e normaliza uma string obrigatória (trim) para publicação do evento
     private static String normalizeRequired(String value, String field) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");

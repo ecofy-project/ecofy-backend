@@ -19,26 +19,31 @@ import java.util.Map;
 @RestControllerAdvice
 public class RestExceptionHandler {
 
+    // retorna 404 quando o budget não existe
     @ExceptionHandler(BudgetNotFoundException.class)
     ResponseEntity<ApiErrorResponse> handleNotFound(BudgetNotFoundException ex, HttpServletRequest req) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), req, Map.of());
     }
 
+    // retorna 409 quando já existe um budget para o mesmo contexto
     @ExceptionHandler(BudgetAlreadyExistsException.class)
     ResponseEntity<ApiErrorResponse> handleConflict(BudgetAlreadyExistsException ex, HttpServletRequest req) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, Map.of("reason", "BUDGET_ALREADY_EXISTS"));
     }
 
+    // retorna 409 quando há violação de idempotência (mesma chave/execução duplicada)
     @ExceptionHandler(IdempotencyViolationException.class)
     ResponseEntity<ApiErrorResponse> handleIdempotency(IdempotencyViolationException ex, HttpServletRequest req) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, Map.of("reason", "IDEMPOTENCY_VIOLATION"));
     }
 
+    // retorna 400 quando uma regra de negócio é violada
     @ExceptionHandler(BusinessValidationException.class)
     ResponseEntity<ApiErrorResponse> handleBusiness(BusinessValidationException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("reason", "BUSINESS_VALIDATION"));
     }
 
+    // retorna 400 quando o payload falha na validação do Bean Validation (@Valid)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
         Map<String, Object> details = new LinkedHashMap<>();
@@ -48,11 +53,13 @@ public class RestExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Invalid payload", req, details);
     }
 
+    // retorna 500 para erros não tratados (fallback)
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex, HttpServletRequest req) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error", req, Map.of());
     }
 
+    // monta o corpo padrão de erro e aplica traceId/correlationId quando disponível
     private ResponseEntity<ApiErrorResponse> build(
             HttpStatus status,
             String message,

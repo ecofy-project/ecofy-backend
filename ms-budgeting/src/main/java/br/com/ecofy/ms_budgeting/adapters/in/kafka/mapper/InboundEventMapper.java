@@ -16,9 +16,8 @@ public class InboundEventMapper {
     private static final String HDR_EVENT_ID = "event_id";
     private static final String HDR_CORRELATION_ID = "correlation_id";
 
-
-     //Overload recomendado: consumer só passa (msg, record).
-     // Gera runId e tenta extrair eventId/correlationId dos headers.
+    // Overload recomendado: o consumer passa apenas (msg, record).
+    // Gera runId e tenta extrair eventId/correlationId dos headers do Kafka.
     public ProcessTransactionCommand toCommand(
             CategorizedTransactionMessage msg,
             ConsumerRecord<String, CategorizedTransactionMessage> record
@@ -42,7 +41,7 @@ public class InboundEventMapper {
         if (runId == null) throw new IllegalArgumentException("runId must not be null");
         if (record == null) throw new IllegalArgumentException("record must not be null");
 
-        // IMPORTANTE: ajuste os getters abaixo conforme seu DTO real
+        // Observação: ajuste os getters abaixo conforme o seu DTO real.
         return new ProcessTransactionCommand(
                 runId,
                 msg.transactionId(),
@@ -65,10 +64,12 @@ public class InboundEventMapper {
 
     private static String firstHeaderAsString(ConsumerRecord<?, ?> record, String headerKey) {
         if (record == null || record.headers() == null) return null;
-        Header h = record.headers().lastHeader(headerKey);
-        if (h == null || h.value() == null) return null;
-        String v = new String(h.value(), StandardCharsets.UTF_8);
-        return v.isBlank() ? null : v;
+
+        Header header = record.headers().lastHeader(headerKey);
+        if (header == null || header.value() == null) return null;
+
+        String value = new String(header.value(), StandardCharsets.UTF_8);
+        return value.isBlank() ? null : value;
     }
 
     private static String blankToNull(String v) {

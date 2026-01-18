@@ -26,6 +26,7 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
     private final LoadBudgetConsumptionPort loadBudgetConsumptionPort;
     private final Clock clock;
 
+    // Recalcula métricas de consumo/percentual dos budgets ativos para uma data de referência.
     @Override
     @Transactional(readOnly = true)
     public void recalculate(RecalculateBudgetsCommand cmd) {
@@ -78,6 +79,7 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
                 cmd.runId(), refDate, evaluated);
     }
 
+    // Calcula o percentual consumido do budget, protegendo contra limite inválido e valores nulos.
     private static BigDecimal pct(BigDecimal consumed, BigDecimal limit) {
         if (limit == null || limit.signum() <= 0) return BigDecimal.ZERO;
         if (consumed == null) return BigDecimal.ZERO;
@@ -86,4 +88,5 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
                 .multiply(BigDecimal.valueOf(100))
                 .divide(limit, 2, RoundingMode.HALF_UP);
     }
+
 }

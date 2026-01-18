@@ -37,13 +37,28 @@ public class BudgetAlert {
         this.createdAt = Objects.requireNonNull(createdAt);
     }
 
+    // Retorna o identificador único do alerta.
     public UUID getId() { return id; }
+
+    // Retorna o identificador do budget ao qual o alerta pertence.
     public UUID getBudgetId() { return budgetId; }
+
+    // Retorna o identificador do consumo que originou o alerta.
     public UUID getConsumptionId() { return consumptionId; }
+
+    // Retorna a severidade do alerta (WARNING/CRITICAL/etc.).
     public AlertSeverity getSeverity() { return severity; }
+
+    // Retorna a mensagem descritiva do alerta.
     public String getMessage() { return message; }
+
+    // Retorna a data inicial do período do budget associado ao alerta.
     public LocalDate getPeriodStart() { return periodStart; }
+
+    // Retorna a data final do período do budget associado ao alerta.
     public LocalDate getPeriodEnd() { return periodEnd; }
+
+    // Retorna o instante em que o alerta foi criado.
     public Instant getCreatedAt() { return createdAt; }
 
 }

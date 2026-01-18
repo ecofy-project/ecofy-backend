@@ -52,10 +52,7 @@ public class BudgetEntity {
     @Column(name = "status", nullable = false)
     private BudgetStatus status;
 
-    /**
-     * Preenchido quando o status vai para ARCHIVED.
-     * Usado pelo cleanup (ex.: remover arquivados antigos).
-     */
+    // Data preenchida ao arquivar (ARCHIVED) e usada pelo cleanup para expurgo de arquivados antigos.
     @Column(name = "archived_at")
     private LocalDate archivedAt;
 
@@ -68,6 +65,7 @@ public class BudgetEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // Inicializa id e timestamps e normaliza campos antes de inserir no banco.
     @PrePersist
     void prePersist() {
         if (id == null) id = UUID.randomUUID();
@@ -79,9 +77,11 @@ public class BudgetEntity {
         if (naturalKey != null) naturalKey = naturalKey.trim();
     }
 
+    // Atualiza timestamp e normaliza campos antes de atualizar no banco.
     @PreUpdate
     void preUpdate() {
         updatedAt = Instant.now();
         if (currency != null) currency = currency.trim().toUpperCase();
     }
+
 }

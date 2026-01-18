@@ -17,6 +17,7 @@ public class DeleteBudgetConsumptionsJpaAdapter implements DeleteBudgetConsumpti
 
     private final BudgetConsumptionJpaRepository repository;
 
+    // Remove consumos com referenceDate <= cutoffDateInclusive e retorna a quantidade deletada.
     @Override
     @Transactional
     public long deleteConsumptionsOlderThan(LocalDate cutoffDateInclusive) {

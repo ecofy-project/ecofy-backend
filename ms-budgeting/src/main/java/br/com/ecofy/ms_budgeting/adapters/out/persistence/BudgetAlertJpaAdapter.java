@@ -18,6 +18,7 @@ public class BudgetAlertJpaAdapter implements SaveBudgetAlertPort {
 
     private final BudgetAlertRepository repository;
 
+    // Persiste um BudgetAlert no banco via JPA e retorna o domínio reidratado a partir da entidade salva.
     @Override
     @Transactional
     public BudgetAlert save(BudgetAlert alert) {

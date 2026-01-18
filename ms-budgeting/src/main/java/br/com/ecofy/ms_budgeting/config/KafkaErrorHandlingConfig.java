@@ -13,6 +13,7 @@ import org.springframework.util.backoff.FixedBackOff;
 @Configuration
 public class KafkaErrorHandlingConfig {
 
+    // Cria o recoverer que publica mensagens com falha em um tópico DLT (topic + ".DLT").
     @Bean
     public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(KafkaTemplate<String, Object> template) {
         return new DeadLetterPublishingRecoverer(template, (record, ex) ->
@@ -20,6 +21,7 @@ public class KafkaErrorHandlingConfig {
         );
     }
 
+    // Configura o ErrorHandler com retry (backoff) e redirecionamento para DLT após esgotar tentativas.
     @Bean
     public DefaultErrorHandler kafkaErrorHandler(DeadLetterPublishingRecoverer recoverer) {
         FixedBackOff backOff = new FixedBackOff(2_000L, 3L);

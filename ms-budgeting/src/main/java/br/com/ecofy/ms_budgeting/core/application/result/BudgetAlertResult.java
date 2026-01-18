@@ -10,12 +10,19 @@ import java.util.UUID;
 public record BudgetAlertResult (
 
         UUID id,
+
         UUID budgetId,
+
         UUID consumptionId,
+
         AlertSeverity severity,
+
         String message,
+
         LocalDate periodStart,
+
         LocalDate periodEnd,
+
         Instant createdAt
 
 ) { }

@@ -8,8 +8,11 @@ import java.util.UUID;
 public record UpdateBudgetCommand (
 
         UUID budgetId,
+
         BigDecimal newLimitAmount,
+
         String currency,
+
         BudgetStatus status
 
 ) { }

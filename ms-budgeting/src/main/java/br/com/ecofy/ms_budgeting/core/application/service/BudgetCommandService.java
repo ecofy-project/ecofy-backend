@@ -43,6 +43,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
     private final BudgetingProperties props;
     private final Clock clock;
 
+    // Constrói o serviço de comandos de Budget injetando ports, propriedades e Clock.
     public BudgetCommandService(
             SaveBudgetPort saveBudgetPort,
             LoadBudgetsPort loadBudgetsPort,
@@ -59,6 +60,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Cria um budget com idempotência, validações e prevenção de duplicidade por naturalKey.
     @Override
     @Transactional
     public BudgetResult create(CreateBudgetCommand cmd, String idempotencyKey) {
@@ -103,6 +105,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         return toResult(saved);
     }
 
+    // Atualiza um budget existente (limite e/ou status) com idempotência e retorna o estado atualizado.
     @Override
     @Transactional
     public BudgetResult update(UpdateBudgetCommand cmd, String idempotencyKey) {
@@ -117,9 +120,6 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
 
         boolean changed = false;
 
-        // Update limit:
-        // - Se vier amount e NÃO vier currency, usa currency atual.
-        // - Se vier currency e NÃO vier amount, rejeita (evita update parcial confuso).
         if (cmd.newLimitAmount() != null || cmd.currency() != null) {
             if (cmd.newLimitAmount() == null) {
                 throw new IllegalArgumentException("newLimitAmount must be provided when currency is provided");
@@ -152,6 +152,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         return toResult(saved);
     }
 
+    // Remove um budget por id com idempotência e validação de existência.
     @Override
     @Transactional
     public void delete(DeleteBudgetCommand cmd, String idempotencyKey) {
@@ -169,6 +170,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         log.info("[BudgetCommandService] - [delete] -> SUCCESS budgetId={}", budgetId);
     }
 
+    // Garante idempotência por escopo (create/update/delete) ou lança exceção de violação.
     private void acquireIdempotencyOrThrow(String key, String scope) {
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("Idempotency-Key header must be provided");
@@ -185,6 +187,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         }
     }
 
+    // Valida invariantes do comando de criação (campos obrigatórios e consistência de período/moeda).
     private void validateCreateCommand(CreateBudgetCommand cmd) {
         requireNonNull(cmd.userId(), "userId");
         requireNonNull(cmd.categoryId(), "categoryId");
@@ -197,10 +200,10 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
             throw new IllegalArgumentException("periodStart must be <= periodEnd");
         }
 
-        // Currency é string no command; valida aqui com mensagem amigável
         parseCurrency(cmd.currency());
     }
 
+    // Converte um código de moeda em Currency validando formato e suportes do Java.
     private static Currency parseCurrency(String code) {
         if (code == null || code.isBlank()) {
             throw new IllegalArgumentException("currency must not be blank");
@@ -212,10 +215,12 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         }
     }
 
+    // Aplica null-check padronizado retornando o valor validado.
     private static <T> T requireNonNull(T v, String field) {
         return Objects.requireNonNull(v, field + " must not be null");
     }
 
+    // Converte o agregado Budget do domínio para o DTO de resultado da camada de aplicação.
     private static BudgetResult toResult(Budget b) {
         return new BudgetResult(
                 b.getId(),
@@ -231,4 +236,5 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
                 b.getUpdatedAt()
         );
     }
+
 }

@@ -19,6 +19,7 @@ public class CleanupBudgetsService implements CleanupBudgetsUseCase {
     private final DeleteArchivedBudgetsOlderThanPort deleteArchivedBudgetsOlderThanPort;
     private final DeleteBudgetConsumptionsOlderThanPort deleteBudgetConsumptionsOlderThanPort;
 
+    // Executa a limpeza de dados antigos (consumos e budgets arquivados) conforme política de retenção.
     @Override
     public CleanupBudgetsResult cleanup(CleanupBudgetsCommand command) {
         // Política: tudo que for anterior a (referenceDate - retentionDays) é elegível para limpeza
@@ -41,4 +42,5 @@ public class CleanupBudgetsService implements CleanupBudgetsUseCase {
                 consumptionsDeleted
         );
     }
+
 }

@@ -23,10 +23,12 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
 
     private final LoadBudgetsPort loadBudgetsPort;
 
+    // Injeta o port de leitura de budgets para atender casos de uso de consulta.
     public BudgetQueryService(LoadBudgetsPort loadBudgetsPort) {
         this.loadBudgetsPort = Objects.requireNonNull(loadBudgetsPort, "loadBudgetsPort must not be null");
     }
 
+    // Lista budgets de um usuário e converte para BudgetResult.
     @Override
     public List<BudgetResult> listByUser(UUID userId) {
         requireNonNull(userId, "userId");
@@ -40,6 +42,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 .toList();
     }
 
+    // Busca um budget por id e lança exceção se não existir.
     @Override
     public BudgetResult get(UUID budgetId) {
         requireNonNull(budgetId, "budgetId");
@@ -49,14 +52,13 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 .orElseThrow(() -> new BudgetNotFoundException(budgetId));
     }
 
+    // Retorna visão geral do usuário (budgets + consumos/alertas) com consumos stub até existir port agregado.
     @Override
     public BudgetOverviewResult overview(UUID userId) {
         requireNonNull(userId, "userId");
 
         var budgets = loadBudgetsPort.findByUserId(userId);
 
-        // Enquanto não houver um port para carregar consumo agregado por budget/period,
-        // retornamos consumo zerado (mas já estruturado corretamente para evoluir).
         var consumptions = budgets.stream()
                 .map(b -> toConsumptionStub(b))
                 .toList();
@@ -66,9 +68,8 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         return new BudgetOverviewResult(userId, consumptions, List.of());
     }
 
+    // Cria um consumo “placeholder” zerado para o budget até haver leitura de consumo agregado.
     private static BudgetConsumptionResult toConsumptionStub(Budget b) {
-        // Campos: (budgetId, consumedAmount, limitAmount, pctConsumed)
-        // pctConsumed é zero pois consumed é zero.
         return new BudgetConsumptionResult(
                 b.getId(),
                 BigDecimal.ZERO,
@@ -77,6 +78,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         );
     }
 
+    // Converte Budget (domínio) para BudgetResult (DTO de aplicação).
     private static BudgetResult toResult(Budget b) {
         return new BudgetResult(
                 b.getId(),
@@ -93,7 +95,9 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         );
     }
 
+    // Valida referência não nula com mensagem de erro padronizada.
     private static <T> T requireNonNull(T v, String field) {
         return Objects.requireNonNull(v, field + " must not be null");
     }
+
 }

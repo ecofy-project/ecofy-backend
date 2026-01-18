@@ -2,7 +2,7 @@ package br.com.ecofy.ms_budgeting.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -18,23 +18,34 @@ public class KafkaListenerConfig {
 
     @Bean(name = "budgetingKafkaListenerContainerFactory")
     public ConcurrentKafkaListenerContainerFactory<Object, Object> budgetingKafkaListenerContainerFactory(
-            ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
             ConsumerFactory<Object, Object> consumerFactory,
-            DefaultErrorHandler kafkaErrorHandler
+            DefaultErrorHandler kafkaErrorHandler,
+            KafkaProperties kafkaProperties
     ) {
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
-        configurer.configure(factory, consumerFactory);
+        factory.setConsumerFactory(consumerFactory);
 
+        // Error handler (Spring Kafka 4)
         factory.setCommonErrorHandler(kafkaErrorHandler);
 
-        if (concurrency < 1) {
-            log.warn("[KafkaListenerConfig] concurrency inválida ({}). Forçando para 1.", concurrency);
-            concurrency = 1;
+        // Concurrency
+        int resolvedConcurrency = Math.max(concurrency, 1);
+        if (resolvedConcurrency != concurrency) {
+            log.warn("[KafkaListenerConfig] concurrency inválida ({}). Forçando para {}.", concurrency, resolvedConcurrency);
         }
-        factory.setConcurrency(concurrency);
+        factory.setConcurrency(resolvedConcurrency);
 
-        log.info("[KafkaListenerConfig] Listener factory configurada. concurrency={}", concurrency);
+        // Opcional: aplique ackMode/pollTimeout via application.yml (se existir)
+        // Mantém compatibilidade com o que o Boot já expõe em spring.kafka.listener.*
+        KafkaProperties.Listener listener = kafkaProperties.getListener();
+        if (listener != null && listener.getAckMode() != null) {
+            factory.getContainerProperties().setAckMode(listener.getAckMode());
+        }
+        if (listener != null && listener.getPollTimeout() != null) {
+            factory.getContainerProperties().setPollTimeout(listener.getPollTimeout().toMillis());
+        }
 
+        log.info("[KafkaListenerConfig] Listener factory configurada. concurrency={}", resolvedConcurrency);
         return factory;
     }
 }

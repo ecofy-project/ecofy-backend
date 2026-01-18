@@ -25,6 +25,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Tenta adquirir uma chave de idempotência com TTL e escopo, retornando true se conseguiu bloquear a operação.
     @Override
     @Transactional
     public boolean tryAcquire(String key, Duration ttl, String scope) {
@@ -61,6 +62,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         }
     }
 
+    // Tenta re-adquirir uma chave existente se ela estiver expirada, removendo-a e recriando com novo TTL.
     private boolean tryReacquireIfExpired(String key, String scope, Duration ttl, Instant now) {
         return repo.findById(Long.valueOf(key))
                 .filter(existing -> existing.getExpiresAt() != null && existing.getExpiresAt().isBefore(now))
@@ -88,6 +90,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
                 .orElse(false);
     }
 
+    // Valida e normaliza uma String obrigatória, lançando exceção se estiver nula ou em branco.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
