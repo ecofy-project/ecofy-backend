@@ -1,4 +1,4 @@
-package br.com.ecofy.ms_categorization.adapters.in.web.dto;
+package br.com.ecofy.ms_categorization.adapters.in.web.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 

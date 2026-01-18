@@ -9,14 +9,23 @@ import java.util.UUID;
 public record CategorizedTransactionEvent(
 
         UUID eventId,
+
         UUID transactionId,
+
         UUID importJobId,
+
         String externalId,
+
         LocalDate transactionDate,
+
         BigDecimal amount,
+
         Currency currency,
+
         UUID categoryId,
+
         String mode,
+
         Instant occurredAt
 
 ) { }

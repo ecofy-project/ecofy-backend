@@ -10,12 +10,17 @@ import java.util.UUID;
 public record CreateRuleCommand(
 
         UUID categoryId,
+
         String name,
+
         RuleStatus status,
+
         int priority,
+
         List<RuleCondition> conditions
 
 ) {
+    // Valida os dados de entrada para criação de uma regra de categorização (categoria, nome, status, prioridade e condições).
     public CreateRuleCommand {
 
         Objects.requireNonNull(categoryId, "categoryId must not be null");

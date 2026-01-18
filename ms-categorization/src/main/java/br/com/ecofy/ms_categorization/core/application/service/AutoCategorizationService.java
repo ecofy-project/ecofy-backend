@@ -38,6 +38,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
     private final Clock clock;
     private final RuleEngine engine;
 
+    // Construtor padrão para wiring do Spring usando Clock/RuleEngine default.
     @Autowired
     public AutoCategorizationService(
             CategorizationProperties props,
@@ -51,6 +52,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
                 Clock.systemUTC(), new RuleEngine());
     }
 
+    // Inicializa e valida dependências obrigatórias do serviço.
     public AutoCategorizationService(
             CategorizationProperties props,
             IdempotencyPortOut idempotencyPort,
@@ -71,6 +73,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
         this.engine = Objects.requireNonNull(engine, "engine must not be null");
     }
 
+    // Executa a auto-categorização com idempotência, avaliação de regras, persistência e publicação de eventos.
     @Override
     @Transactional
     public CategorizationResult autoCategorize(AutoCategorizeCommand command) {
@@ -159,7 +162,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
                 updatedTx.getExternalId(),
                 updatedTx.getTransactionDate(),
                 updatedTx.getMoney().getAmount(),
-                updatedTx.getMoney().getCurrency(), // String direto
+                updatedTx.getMoney().getCurrency(),
                 best.categoryId(),
                 "AUTO",
                 now
@@ -189,8 +192,9 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
         );
     }
 
+    // Calcula o melhor score da regra para a transação e retorna um candidato se houver match.
     private Optional<Candidate> toCandidate(Transaction tx, CategorizationRule rule) {
-        var scores = engine.score(tx, rule); // IntStream (pela evidência do erro)
+        var scores = engine.score(tx, rule);
 
         int bestScoreForRule = scores.max().orElse(0);
         if (bestScoreForRule <= 0) return Optional.empty();
@@ -204,10 +208,12 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
         ));
     }
 
+    // Define a ordenação para escolher o melhor candidato (maior score; em empate, maior prioridade).
     private static Comparator<Candidate> bestCandidateComparator() {
         return Comparator.<Candidate>comparingInt(Candidate::score)
                 .thenComparingInt(c -> -c.priority());
     }
 
     private record Candidate(UUID ruleId, UUID categoryId, int score, int priority, String rationale) { }
+
 }

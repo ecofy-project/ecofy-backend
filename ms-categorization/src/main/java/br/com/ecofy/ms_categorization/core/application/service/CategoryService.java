@@ -30,11 +30,13 @@ public class CategoryService implements CreateCategoryUseCase, ListCategoriesUse
     private final LoadCategoriesPortOut loadCategoriesPort;
     private final Clock clock;
 
+    // Construtor de conveniência para wiring padrão com Clock em UTC.
     @Autowired
     public CategoryService(SaveCategoryPortOut saveCategoryPort, LoadCategoriesPortOut loadCategoriesPort) {
         this(saveCategoryPort, loadCategoriesPort, Clock.systemUTC());
     }
 
+    // Cria e persiste uma categoria normalizando nome/cor e aplicando defaults (active=true).
     @Override
     @Transactional
     public Category create(CreateCategoryCommand command) {
@@ -62,21 +64,25 @@ public class CategoryService implements CreateCategoryUseCase, ListCategoriesUse
         return saved;
     }
 
+    // Lista categorias ativas para consumo em UI e validações de domínio (ex.: criação de regras).
     @Override
     public List<Category> listActive() {
         log.debug("[CategoryService] - [listActive] -> Listing active categories");
         return loadCategoriesPort.findActive();
     }
 
+    // Remove whitespace e converte nome vazio em null para facilitar validação.
     private static String normalizeName(String name) {
         if (name == null) return null;
         String n = name.trim();
         return n.isEmpty() ? null : n;
     }
 
+    // Remove whitespace e converte cor vazia em null (campo opcional).
     private static String normalizeColor(String color) {
         if (color == null) return null;
         String c = color.trim();
         return c.isEmpty() ? null : c;
     }
+
 }

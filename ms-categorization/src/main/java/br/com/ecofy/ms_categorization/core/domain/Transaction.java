@@ -22,6 +22,7 @@ public final class Transaction {
     private final Instant createdAt;
     private final Instant updatedAt;
 
+    // Representa uma transação importada (normalizada) com metadados de origem, valor e auditoria.
     public Transaction(
             UUID id,
             UUID importJobId,
@@ -48,50 +49,62 @@ public final class Transaction {
         this.categoryId = categoryId;
     }
 
+    // Retorna o identificador único da transação.
     public UUID getId() {
         return id;
     }
 
+    // Retorna o identificador do job de importação que originou a transação.
     public UUID getImportJobId() {
         return importJobId;
     }
 
+    // Retorna o identificador externo (chave do provedor/arquivo) para deduplicação e rastreio.
     public String getExternalId() {
         return externalId;
     }
 
+    // Retorna a descrição bruta da transação (texto original).
     public String getDescription() {
         return description;
     }
 
+    // Retorna o merchant normalizado derivado da descrição para suportar regras de categorização.
     public Merchant getMerchant() {
         return merchant;
     }
 
+    // Retorna a data da transação para agregações por período e relatórios.
     public LocalDate getTransactionDate() {
         return transactionDate;
     }
 
+    // Retorna o valor monetário (amount/currency) da transação.
     public Money getMoney() {
         return money;
     }
 
+    // Retorna o tipo de origem (ex.: CSV, OFX, KAFKA) para auditoria e diagnóstico.
     public String getSourceType() {
         return sourceType;
     }
 
+    // Retorna a categoria aplicada (se houver) após categorização manual/automática.
     public UUID getCategoryId() {
         return categoryId;
     }
 
+    // Retorna o timestamp de criação da transação persistida.
     public Instant getCreatedAt() {
         return createdAt;
     }
 
+    // Retorna o timestamp da última atualização da transação persistida.
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    // Cria uma nova instância imutável da transação aplicando categoryId e atualizando updatedAt.
     public Transaction withCategory(UUID categoryId, Instant now) {
         return new Transaction(
                 id, importJobId, externalId, description, merchant, transactionDate, money, sourceType,
@@ -99,6 +112,7 @@ public final class Transaction {
         );
     }
 
+    // Compara transações por valor (campos relevantes) para consistência em coleções e testes.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -116,6 +130,7 @@ public final class Transaction {
                 updatedAt.equals(that.updatedAt);
     }
 
+    // Gera hash consistente com equals para uso em estruturas baseadas em hashing.
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -124,6 +139,7 @@ public final class Transaction {
         );
     }
 
+    // Fornece uma representação textual completa da transação para logs e debug.
     @Override
     public String toString() {
         return "Transaction[" +

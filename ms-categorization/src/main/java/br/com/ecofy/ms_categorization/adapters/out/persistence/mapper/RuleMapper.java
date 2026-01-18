@@ -20,19 +20,23 @@ public class RuleMapper {
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    // Construtor default que usa ObjectMapper padrão e Clock UTC.
     public RuleMapper() {
         this(new ObjectMapper(), Clock.systemUTC());
     }
 
+    // Construtor que injeta ObjectMapper e usa Clock UTC.
     public RuleMapper(ObjectMapper objectMapper) {
         this(objectMapper, Clock.systemUTC());
     }
 
+    // Construtor que injeta ObjectMapper e Clock para testes e consistência temporal.
     public RuleMapper(ObjectMapper objectMapper, Clock clock) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Converte a entidade JPA CategorizationRuleEntity para o domínio CategorizationRule.
     public CategorizationRule toDomain(CategorizationRuleEntity e) {
         Objects.requireNonNull(e, "entity must not be null");
 
@@ -48,6 +52,7 @@ public class RuleMapper {
         );
     }
 
+    // Converte o domínio CategorizationRule para a entidade JPA CategorizationRuleEntity.
     public CategorizationRuleEntity toEntity(CategorizationRule d) {
         Objects.requireNonNull(d, "domain must not be null");
 
@@ -63,6 +68,7 @@ public class RuleMapper {
                 .build();
     }
 
+    // Desserializa o JSON de condições da regra para uma lista de RuleCondition.
     private List<RuleCondition> readConditions(String json) {
         if (json == null || json.isBlank()) return List.of();
         try {
@@ -72,6 +78,7 @@ public class RuleMapper {
         }
     }
 
+    // Serializa a lista de RuleCondition para JSON para persistência.
     private String writeConditions(List<RuleCondition> conditions) {
         if (conditions == null || conditions.isEmpty()) return "[]";
         try {
@@ -81,7 +88,9 @@ public class RuleMapper {
         }
     }
 
+    // Retorna o Instant informado ou um Instant "agora" usando o Clock.
     private Instant nonNullOrNow(Instant value) {
         return value != null ? value : Instant.now(clock);
     }
+
 }

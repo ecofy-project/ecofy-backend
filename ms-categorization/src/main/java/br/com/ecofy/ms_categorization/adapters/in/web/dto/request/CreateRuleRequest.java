@@ -1,4 +1,4 @@
-package br.com.ecofy.ms_categorization.adapters.in.web.dto;
+package br.com.ecofy.ms_categorization.adapters.in.web.dto.request;
 
 import br.com.ecofy.ms_categorization.core.domain.enums.RuleStatus;
 import br.com.ecofy.ms_categorization.core.domain.valueobject.RuleCondition;

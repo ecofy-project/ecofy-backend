@@ -25,6 +25,7 @@ public class RawTransactionForCategorizationConsumer {
     private final AutoCategorizeTransactionUseCase useCase;
     private final InboundMessageMapper mapper;
 
+    // Consome eventos de transações brutas, aciona autocategorização e confirma o offset manualmente.
     @KafkaListener(
             topics = "${ecofy.categorization.topics.categorization-request}",
             groupId = "${spring.application.name}",
@@ -65,6 +66,7 @@ public class RawTransactionForCategorizationConsumer {
         }
     }
 
+    // Extrai o messageId da metadata da mensagem (quando existir) para rastreio e idempotência.
     private static String extractMessageId(CategorizationRequestMessage message) {
         var meta = message.metadata();
         if (meta == null) return null;
@@ -72,8 +74,10 @@ public class RawTransactionForCategorizationConsumer {
         return (id == null || id.isBlank()) ? null : id.trim();
     }
 
+    // Gera a chave de idempotência priorizando messageId e caindo para transactionId quando ausente.
     private static String buildIdempotencyKey(String messageId, UUID txId) {
         if (messageId != null) return IDEMPOTENCY_PREFIX_MSG + messageId;
         return IDEMPOTENCY_PREFIX_TX + Objects.requireNonNull(txId, "transactionId must not be null");
     }
+
 }

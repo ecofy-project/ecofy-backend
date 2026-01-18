@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_categorization.adapters.in.web;
 
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.CreateRuleRequest;
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.RuleResponse;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.request.CreateRuleRequest;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.RuleResponse;
 import br.com.ecofy.ms_categorization.core.application.command.CreateRuleCommand;
 import br.com.ecofy.ms_categorization.core.port.in.CreateRuleUseCase;
 import br.com.ecofy.ms_categorization.core.port.in.ListRulesUseCase;
@@ -111,4 +111,5 @@ public class RuleController {
                 r.getUpdatedAt()
         );
     }
+
 }

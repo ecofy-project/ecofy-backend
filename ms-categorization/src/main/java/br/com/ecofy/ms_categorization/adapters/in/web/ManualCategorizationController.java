@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_categorization.adapters.in.web;
 
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.CategorizationResponse;
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.ManualCategorizationRequest;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.CategorizationResponse;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.request.ManualCategorizationRequest;
 import br.com.ecofy.ms_categorization.core.application.command.ManualCategorizeCommand;
 import br.com.ecofy.ms_categorization.core.application.result.CategorizationResult;
 import br.com.ecofy.ms_categorization.core.port.in.ManualCategorizationUseCase;
@@ -85,4 +85,5 @@ public class ManualCategorizationController {
                 result.score()
         );
     }
+
 }

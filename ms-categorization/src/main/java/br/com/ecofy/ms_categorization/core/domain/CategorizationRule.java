@@ -19,6 +19,7 @@ public final class CategorizationRule {
     private final Instant createdAt;
     private final Instant updatedAt;
 
+    // Representa uma regra de categorização imutável (categoria alvo, condições e metadados) garantindo invariantes básicas do domínio.
     public CategorizationRule(
             UUID id,
             UUID categoryId,
@@ -43,38 +44,47 @@ public final class CategorizationRule {
         }
     }
 
+    // Retorna o identificador único da regra.
     public UUID getId() {
         return id;
     }
 
+    // Retorna o id da categoria que a regra aplica quando for satisfeita.
     public UUID getCategoryId() {
         return categoryId;
     }
 
+    // Retorna o nome descritivo da regra (para auditoria e manutenção).
     public String getName() {
         return name;
     }
 
+    // Retorna o status da regra (ex.: ACTIVE/INACTIVE) para controle de avaliação.
     public RuleStatus getStatus() {
         return status;
     }
 
+    // Retorna a prioridade usada como critério de desempate/ordenação durante a avaliação.
     public int getPriority() {
         return priority;
     }
 
+    // Retorna a lista de condições que devem ser satisfeitas para a regra "bater".
     public List<RuleCondition> getConditions() {
         return conditions;
     }
 
+    // Retorna o timestamp de criação para rastreabilidade/auditoria.
     public Instant getCreatedAt() {
         return createdAt;
     }
 
+    // Retorna o timestamp da última atualização para rastreabilidade/auditoria.
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
+    // Compara regras por valor (campos relevantes do objeto) para consistência em coleções e testes.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -89,11 +99,13 @@ public final class CategorizationRule {
                 updatedAt.equals(that.updatedAt);
     }
 
+    // Gera hash consistente com equals para uso em estruturas baseadas em hashing.
     @Override
     public int hashCode() {
         return Objects.hash(id, categoryId, name, status, priority, conditions, createdAt, updatedAt);
     }
 
+    // Fornece uma representação textual completa da regra para logs e debug.
     @Override
     public String toString() {
         return "CategorizationRule[" +
@@ -107,4 +119,5 @@ public final class CategorizationRule {
                 ", updatedAt=" + updatedAt +
                 ']';
     }
+
 }

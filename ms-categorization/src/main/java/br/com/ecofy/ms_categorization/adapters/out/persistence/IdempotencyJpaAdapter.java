@@ -25,6 +25,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPortOut {
     private final CategorizationProperties props;
     private final Clock clock = Clock.systemUTC();
 
+    // Tenta adquirir uma chave de idempotência persistindo-a com TTL, retornando false em caso de colisão.
     @Override
     @Transactional
     public boolean tryAcquire(String key, Instant now) {
@@ -49,7 +50,6 @@ public class IdempotencyJpaAdapter implements IdempotencyPortOut {
 
             return true;
         } catch (DataIntegrityViolationException ex) {
-            // concorrência: outro nó já adquiriu a chave
             log.info(
                     "[IdempotencyJpaAdapter] - [tryAcquire] -> COLLISION key={}",
                     key
@@ -57,4 +57,5 @@ public class IdempotencyJpaAdapter implements IdempotencyPortOut {
             return false;
         }
     }
+
 }

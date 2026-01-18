@@ -22,6 +22,7 @@ public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTra
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final CategorizationProperties props;
 
+    // Publica o evento de transação categorizada no tópico Kafka configurado.
     @Override
     public void publish(CategorizedTransactionEvent event) {
         Objects.requireNonNull(event, "event must not be null");
@@ -46,6 +47,7 @@ public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTra
         });
     }
 
+    // Publica o evento de categorização aplicada no tópico Kafka configurado.
     @Override
     public void publish(CategorizationAppliedEvent event) {
         Objects.requireNonNull(event, "event must not be null");
@@ -69,4 +71,5 @@ public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTra
                     event.transactionId(), md.topic(), md.partition(), md.offset());
         });
     }
+
 }

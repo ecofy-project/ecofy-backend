@@ -31,6 +31,7 @@ public class CategorizationRuleService implements CreateRuleUseCase, ListRulesUs
 
     private final Clock clock = Clock.systemUTC();
 
+    // Cria e persiste uma regra de categorização garantindo que a categoria alvo exista.
     @Override
     @Transactional
     public CategorizationRule create(CreateRuleCommand command) {
@@ -66,9 +67,11 @@ public class CategorizationRuleService implements CreateRuleUseCase, ListRulesUs
         return saved;
     }
 
+    // Lista regras ativas ordenadas por prioridade para avaliação determinística no motor de regras.
     @Override
     public List<CategorizationRule> listActive() {
         log.debug("[CategorizationRuleService] - [listActive] -> Listing active rules ordered by priority");
         return loadRulesPort.findActiveOrdered();
     }
+
 }

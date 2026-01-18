@@ -5,10 +5,15 @@ import java.util.UUID;
 public record CategorizationResult(
 
         UUID transactionId,
+
         boolean categorized,
+
         UUID categoryId,
+
         UUID suggestionId,
+
         String decision,
+
         int score
 
 ) { }

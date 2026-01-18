@@ -16,14 +16,17 @@ public class TransactionMapper {
 
     private final Clock clock;
 
+    // Construtor default que usa Clock UTC.
     public TransactionMapper() {
         this(Clock.systemUTC());
     }
 
+    // Construtor que injeta Clock para testes e consistência temporal.
     public TransactionMapper(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Converte o domínio Transaction para a entidade JPA TransactionEntity.
     public TransactionEntity toEntity(Transaction d) {
         Objects.requireNonNull(d, "domain must not be null");
         Objects.requireNonNull(d.getMoney(), "domain.money must not be null");
@@ -45,6 +48,7 @@ public class TransactionMapper {
                 .build();
     }
 
+    // Converte a entidade JPA TransactionEntity para o domínio Transaction.
     public Transaction toDomain(TransactionEntity e) {
         Objects.requireNonNull(e, "entity must not be null");
 
@@ -66,21 +70,26 @@ public class TransactionMapper {
         );
     }
 
+    // Garante que um UUID obrigatório não seja nulo (senão lança exceção).
     private UUID nonNullOrThrow(UUID v, String msg) {
         if (v == null) throw new IllegalStateException(msg);
         return v;
     }
 
+    // Garante que um valor obrigatório não seja nulo (senão lança exceção).
     private <T> T nonNullOrThrow(T v, String msg) {
         if (v == null) throw new IllegalStateException(msg);
         return v;
     }
 
+    // Normaliza String nula para string vazia para evitar NPE e simplificar domínio.
     private String nonNullOrDefault(String v) {
         return v == null ? "" : v;
     }
 
+    // Retorna o Instant informado ou um Instant "agora" usando o Clock.
     private Instant nonNullOrNow(Instant v) {
         return v != null ? v : Instant.now(clock);
     }
+
 }

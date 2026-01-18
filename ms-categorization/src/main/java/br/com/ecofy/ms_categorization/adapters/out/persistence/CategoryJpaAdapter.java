@@ -24,6 +24,7 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
     private final CategoryRepository repo;
     private final CategoryMapper mapper;
 
+    // Carrega todas as categorias ativas ordenadas por nome.
     @Override
     public List<Category> findActive() {
 
@@ -35,6 +36,7 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
                 .toList();
     }
 
+    // Busca uma categoria por id e converte para o domínio.
     @Override
     public Optional<Category> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -45,6 +47,7 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
                 .map(mapper::toDomain);
     }
 
+    // Persiste uma categoria (create/update) e retorna a versão do domínio salva.
     @Override
     @Transactional
     public Category save(Category category) {
@@ -66,4 +69,5 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
 
         return mapper.toDomain(savedEntity);
     }
+
 }

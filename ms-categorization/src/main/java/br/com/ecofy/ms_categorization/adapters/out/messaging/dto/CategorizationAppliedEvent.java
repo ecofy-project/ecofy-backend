@@ -6,12 +6,19 @@ import java.util.UUID;
 public record CategorizationAppliedEvent(
 
         UUID eventId,
+
         UUID transactionId,
+
         UUID categoryId,
+
         UUID ruleId,
+
         String mode,
+
         int score,
+
         UUID suggestionId,
+
         Instant occurredAt
 
 ) { }

@@ -7,13 +7,20 @@ import java.util.UUID;
 public record CategorizationRequestMessage(
 
         MessageMetadata metadata,
+
         UUID transactionId,
         UUID importJobId,
+
         String externalId,
+
         String description,
+
         LocalDate transactionDate,
+
         BigDecimal amount,
+
         String currency,
+
         String sourceType
 
 ) { }

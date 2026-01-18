@@ -1,6 +1,6 @@
 package br.com.ecofy.ms_categorization.adapters.in.web;
 
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.SuggestionResponse;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.SuggestionResponse;
 import br.com.ecofy.ms_categorization.core.application.result.SuggestionResult;
 import br.com.ecofy.ms_categorization.core.port.in.GetSuggestionUseCase;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,4 +61,5 @@ public class SuggestionController {
                 result.rationale()
         ));
     }
+
 }

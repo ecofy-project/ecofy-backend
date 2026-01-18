@@ -25,6 +25,7 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
     private final CategorizationRuleRepository repo;
     private final RuleMapper mapper;
 
+    // Busca regras ativas ordenadas por prioridade (ascendente).
     @Override
     public List<CategorizationRule> findActiveOrdered() {
 
@@ -36,6 +37,7 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
                 .toList();
     }
 
+    // Busca uma regra por id e a converte para o domínio.
     @Override
     public Optional<CategorizationRule> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -45,6 +47,7 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
         return repo.findById(id).map(mapper::toDomain);
     }
 
+    // Persiste uma regra (create/update) e retorna a versão do domínio salva.
     @Override
     @Transactional
     public CategorizationRule save(CategorizationRule rule) {
@@ -69,4 +72,5 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
 
         return mapper.toDomain(savedEntity);
     }
+
 }

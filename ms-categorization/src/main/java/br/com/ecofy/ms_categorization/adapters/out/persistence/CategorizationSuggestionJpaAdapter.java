@@ -22,6 +22,7 @@ public class CategorizationSuggestionJpaAdapter implements SaveSuggestionPortOut
     private final CategorizationSuggestionRepository repo;
     private final SuggestionMapper mapper;
 
+    // Persiste uma sugestão de categorização (create/update) e retorna a versão do domínio salva.
     @Override
     @Transactional
     public CategorizationSuggestion save(CategorizationSuggestion suggestion) {
@@ -47,6 +48,7 @@ public class CategorizationSuggestionJpaAdapter implements SaveSuggestionPortOut
         return mapper.toDomain(savedEntity);
     }
 
+    // Busca a sugestão mais recente de uma transação e converte para o domínio.
     @Override
     public Optional<CategorizationSuggestion> findByTransactionId(UUID transactionId) {
         Objects.requireNonNull(transactionId, "transactionId must not be null");
@@ -59,4 +61,5 @@ public class CategorizationSuggestionJpaAdapter implements SaveSuggestionPortOut
         return repo.findTopByTransactionIdOrderByUpdatedAtDesc(transactionId)
                 .map(mapper::toDomain);
     }
+
 }

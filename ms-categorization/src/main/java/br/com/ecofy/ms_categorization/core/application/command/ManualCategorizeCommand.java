@@ -6,11 +6,14 @@ import java.util.UUID;
 public record ManualCategorizeCommand(
 
         UUID transactionId,
+
         UUID categoryId,
+
         String rationale
 
 ) {
 
+    // Valida os dados de entrada para categorização manual de uma transação (transação, categoria e justificativa opcional).
     public ManualCategorizeCommand {
 
         Objects.requireNonNull(transactionId, "transactionId must not be null");

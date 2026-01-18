@@ -42,6 +42,7 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
 
     private final Clock clock = Clock.systemUTC();
 
+    // Aplica categorização manual garantindo existência de transação/categoria, persistindo sugestão e publicando eventos.
     @Override
     @Transactional
     public CategorizationResult manualCategorize(ManualCategorizeCommand command) {
@@ -91,6 +92,7 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
         );
     }
 
+    // Publica eventos de transação categorizada e auditoria de aplicação para consumo por serviços downstream.
     private void publishEvents(Transaction updated, UUID suggestionId, Instant now) {
         publishPort.publish(new CategorizedTransactionEvent(
                 UUID.randomUUID(),
@@ -117,15 +119,18 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
         ));
     }
 
+    // Valida campos obrigatórios do comando para evitar execução com parâmetros nulos.
     private static void validate(ManualCategorizeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         Objects.requireNonNull(command.transactionId(), "command.transactionId must not be null");
         Objects.requireNonNull(command.categoryId(), "command.categoryId must not be null");
     }
 
+    // Normaliza a justificativa removendo whitespace e convertendo vazio para null.
     private static String normalizeRationale(String rationale) {
         if (rationale == null) return null;
         String r = rationale.trim();
         return r.isEmpty() ? null : r;
     }
+
 }

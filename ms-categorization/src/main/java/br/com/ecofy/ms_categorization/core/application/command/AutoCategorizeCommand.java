@@ -7,10 +7,12 @@ import java.util.Objects;
 public record AutoCategorizeCommand(
 
         String idempotencyKey,
+
         Transaction inboundTransaction
 
 ) {
 
+    // Valida e normaliza os dados de entrada do comando de autocategorização (incluindo idempotência e transação).
     public AutoCategorizeCommand {
 
         Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");

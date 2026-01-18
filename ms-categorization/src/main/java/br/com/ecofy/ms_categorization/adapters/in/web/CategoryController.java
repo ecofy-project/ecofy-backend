@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_categorization.adapters.in.web;
 
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.CategoryResponse;
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.CreateCategoryRequest;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.CategoryResponse;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.request.CreateCategoryRequest;
 import br.com.ecofy.ms_categorization.core.application.command.CreateCategoryCommand;
 import br.com.ecofy.ms_categorization.core.port.in.CreateCategoryUseCase;
 import br.com.ecofy.ms_categorization.core.port.in.ListCategoriesUseCase;

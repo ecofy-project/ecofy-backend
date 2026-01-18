@@ -18,22 +18,27 @@ public class EventMapper {
 
     private final Clock clock;
 
+    // Inicializa o mapper usando Clock UTC por padrão.
     public EventMapper() {
         this(Clock.systemUTC());
     }
 
+    // Inicializa o mapper com um Clock injetável para permitir testes determinísticos.
     public EventMapper(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Cria um evento de transação categorizada com occurredAt=agora e eventId aleatório.
     public CategorizedTransactionEvent toCategorizedEvent(Transaction tx, UUID categoryId, String mode) {
         return toCategorizedEvent(tx, categoryId, mode, Instant.now(clock), UUID.randomUUID());
     }
 
+    // Cria um evento de transação categorizada com occurredAt informado e eventId aleatório.
     public CategorizedTransactionEvent toCategorizedEvent(Transaction tx, UUID categoryId, String mode, Instant occurredAt) {
         return toCategorizedEvent(tx, categoryId, mode, occurredAt, UUID.randomUUID());
     }
 
+    // Cria um evento de transação categorizada com occurredAt e eventId explicitamente definidos.
     public CategorizedTransactionEvent toCategorizedEvent(
             Transaction tx,
             UUID categoryId,
@@ -63,6 +68,7 @@ public class EventMapper {
         );
     }
 
+    // Cria um evento de categorização aplicada (por ids) com occurredAt=agora e eventId aleatório.
     public CategorizationAppliedEvent toAppliedEvent(
             UUID txId,
             UUID categoryId,
@@ -74,6 +80,7 @@ public class EventMapper {
         return toAppliedEvent(txId, categoryId, ruleId, mode, score, suggestionId, Instant.now(clock), UUID.randomUUID());
     }
 
+    // Cria um evento de categorização aplicada (por ids) com occurredAt informado e eventId aleatório.
     public CategorizationAppliedEvent toAppliedEvent(
             UUID txId,
             UUID categoryId,
@@ -86,6 +93,7 @@ public class EventMapper {
         return toAppliedEvent(txId, categoryId, ruleId, mode, score, suggestionId, occurredAt, UUID.randomUUID());
     }
 
+    // Cria um evento de categorização aplicada (por ids) com occurredAt e eventId explicitamente definidos.
     public CategorizationAppliedEvent toAppliedEvent(
             UUID txId,
             UUID categoryId,
@@ -113,14 +121,17 @@ public class EventMapper {
         );
     }
 
+    // Cria um evento de categorização aplicada a partir de uma sugestão com occurredAt=agora e eventId aleatório.
     public CategorizationAppliedEvent toAppliedEvent(CategorizationSuggestion suggestion, String mode) {
         return toAppliedEvent(suggestion, mode, Instant.now(clock), UUID.randomUUID());
     }
 
+    // Cria um evento de categorização aplicada a partir de uma sugestão com occurredAt informado e eventId aleatório.
     public CategorizationAppliedEvent toAppliedEvent(CategorizationSuggestion suggestion, String mode, Instant occurredAt) {
         return toAppliedEvent(suggestion, mode, occurredAt, UUID.randomUUID());
     }
 
+    // Cria um evento de categorização aplicada a partir de uma sugestão com occurredAt e eventId explicitamente definidos.
     public CategorizationAppliedEvent toAppliedEvent(
             CategorizationSuggestion suggestion,
             String mode,
@@ -144,7 +155,9 @@ public class EventMapper {
         );
     }
 
+    // Converte Currency em código ISO-4217 (ou null se currency for null).
     private static String currencyCode(Currency currency) {
         return currency == null ? null : currency.getCurrencyCode();
     }
+
 }

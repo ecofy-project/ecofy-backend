@@ -23,6 +23,7 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
     private final TransactionRepository repo;
     private final TransactionMapper mapper;
 
+    // Carrega uma transação por ID (UUID) e converte a entidade persistida para o domínio.
     @Override
     public Optional<Transaction> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -33,6 +34,7 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
                 .map(mapper::toDomain);
     }
 
+    // Carrega uma transação pela chave externa (importJobId + externalId) e converte para o domínio.
     @Override
     public Optional<Transaction> findByExternalKey(UUID importJobId, String externalId) {
         Objects.requireNonNull(importJobId, "importJobId must not be null");
@@ -44,6 +46,7 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
                 .map(mapper::toDomain);
     }
 
+    // Persiste uma transação no banco via JPA e retorna o objeto de domínio correspondente ao registro salvo.
     @Override
     @Transactional
     public Transaction save(Transaction transaction) {
@@ -68,4 +71,5 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
 
         return mapper.toDomain(savedEntity);
     }
+
 }
