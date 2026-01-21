@@ -22,6 +22,7 @@ public class TransactionEventIngestionService implements IngestTransactionEventU
     private final SaveRawTransactionPort saveRawTransactionPort;
     private final PublishTransactionForCategorizationPort publishTransactionForCategorizationPort;
 
+    // Inicializa e valida as dependências do serviço de ingestão via eventos.
     public TransactionEventIngestionService(SaveRawTransactionPort saveRawTransactionPort,
                                             PublishTransactionForCategorizationPort publishTransactionForCategorizationPort) {
         this.saveRawTransactionPort = Objects.requireNonNull(saveRawTransactionPort, "saveRawTransactionPort must not be null");
@@ -29,6 +30,7 @@ public class TransactionEventIngestionService implements IngestTransactionEventU
                 Objects.requireNonNull(publishTransactionForCategorizationPort, "publishTransactionForCategorizationPort must not be null");
     }
 
+    // Persiste transações vindas de evento e publica para o fluxo de categorização, com validações e tratamento de falhas.
     @Override
     public void ingest(IngestEventCommand command) {
         if (command == null) {
@@ -61,4 +63,5 @@ public class TransactionEventIngestionService implements IngestTransactionEventU
             throw new PublishException("Failed to publish transactions for categorization", e);
         }
     }
+
 }

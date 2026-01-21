@@ -11,8 +11,9 @@ import br.com.ecofy.ms_ingestion.core.port.out.SaveImportJobPort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +30,7 @@ public class ImportJobJpaAdapter implements SaveImportJobPort, LoadImportJobPort
         this.importFileRepository = Objects.requireNonNull(importFileRepository, "importFileRepository must not be null");
     }
 
+    // Persiste um ImportJob garantindo que o ImportFile referenciado exista e retornando o domínio persistido.
     @Override
     @Transactional
     public ImportJob save(ImportJob job) {
@@ -45,6 +47,7 @@ public class ImportJobJpaAdapter implements SaveImportJobPort, LoadImportJobPort
         return PersistenceMapper.toDomain(saved);
     }
 
+    // Carrega um ImportJob pelo id, retornando Optional para representar ausência sem exceção.
     @Override
     @Transactional(readOnly = true)
     public Optional<ImportJob> loadById(UUID jobId) {
@@ -54,6 +57,7 @@ public class ImportJobJpaAdapter implements SaveImportJobPort, LoadImportJobPort
                 .map(PersistenceMapper::toDomain);
     }
 
+    // Lista jobs elegíveis para retry (FAILED/COMPLETED_WITH_ERRORS) ordenando pelos mais antigos e aplicando limite.
     @Override
     @Transactional(readOnly = true)
     public List<ImportJob> loadJobsToRetry(int maxJobs) {
@@ -75,4 +79,5 @@ public class ImportJobJpaAdapter implements SaveImportJobPort, LoadImportJobPort
                 .map(PersistenceMapper::toDomain)
                 .toList();
     }
+
 }

@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_ingestion.adapters.in.web;
 
-import br.com.ecofy.ms_ingestion.adapters.in.web.dto.ImportJobResponse;
-import br.com.ecofy.ms_ingestion.adapters.in.web.dto.ImportJobStatusResponse;
+import br.com.ecofy.ms_ingestion.adapters.in.web.dto.response.ImportJobResponse;
+import br.com.ecofy.ms_ingestion.adapters.in.web.dto.response.ImportJobStatusResponse;
 import br.com.ecofy.ms_ingestion.core.domain.ImportFile;
 import br.com.ecofy.ms_ingestion.core.domain.enums.ImportFileType;
 import br.com.ecofy.ms_ingestion.core.port.in.GetImportJobStatusUseCase;
@@ -138,4 +138,5 @@ public class ImportController {
         }
         throw new IllegalArgumentException("Could not infer file type from name: " + filename);
     }
+
 }

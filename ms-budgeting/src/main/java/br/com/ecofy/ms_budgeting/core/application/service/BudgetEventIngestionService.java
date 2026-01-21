@@ -1,6 +1,8 @@
 package br.com.ecofy.ms_budgeting.core.application.service;
 
 import br.com.ecofy.ms_budgeting.core.application.command.ProcessTransactionCommand;
+import br.com.ecofy.ms_budgeting.core.application.exception.BudgetEventIngestionFailedException;
+import br.com.ecofy.ms_budgeting.core.application.exception.InvalidFieldException;
 import br.com.ecofy.ms_budgeting.core.port.in.ProcessTransactionForBudgetUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +10,7 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -20,18 +23,19 @@ public class BudgetEventIngestionService {
 
     private final ProcessTransactionForBudgetUseCase useCase;
 
-    // Ingere o evento de transação, aplicando validações mínimas, MDC e delegando ao caso de uso.
-    public void ingest(ProcessTransactionCommand cmd) throws Exception {
-        Objects.requireNonNull(cmd, "cmd must not be null");
-
-        requireNonBlank(String.valueOf(cmd.transactionId()), "transactionId");
-        requireNonBlank(String.valueOf(cmd.userId()), "userId");
-        requireNonBlank(String.valueOf(cmd.categoryId()), "categoryId");
+    // Orquestra a ingestão do evento de transação: valida campos obrigatórios, configura MDC, loga início/fim e chama o caso de uso.
+    public void ingest(ProcessTransactionCommand cmd) {
+        if (cmd == null) throw InvalidFieldException.required("cmd");
+        if (cmd.transactionId() == null) throw InvalidFieldException.required("transactionId");
+        if (cmd.userId() == null) throw InvalidFieldException.required("userId");
+        if (cmd.categoryId() == null) throw InvalidFieldException.required("categoryId");
 
         var md = cmd.metadata();
         String runId = cmd.runId() != null ? cmd.runId().toString() : null;
         String eventId = md != null ? md.eventId() : null;
         String correlationId = md != null ? md.correlationId() : null;
+
+        UUID txId = UUID.fromString(String.valueOf(cmd.transactionId()));
 
         try (var ignored = mdcScope(runId, eventId, correlationId)) {
 
@@ -59,11 +63,11 @@ public class BudgetEventIngestionService {
                     "[BudgetEventIngestionService] - [ingest] -> FAIL txId={} eventId={} correlationId={} message={}",
                     cmd.transactionId(), eventId, correlationId, ex.getMessage(), ex
             );
-            throw ex;
+            throw new BudgetEventIngestionFailedException(txId, eventId, correlationId, ex);
         }
     }
 
-    // Abre um “escopo” de MDC para runId/eventId/correlationId e limpa automaticamente ao final.
+    // Cria um escopo de logging com MDC para runId/eventId/correlationId e garante a limpeza automática ao final (try-with-resources).
     private static AutoCloseable mdcScope(String runId, String eventId, String correlationId) {
         if (runId != null) MDC.put(MDC_RUN_ID, runId);
         if (eventId != null) MDC.put(MDC_EVENT_ID, eventId);
@@ -74,14 +78,6 @@ public class BudgetEventIngestionService {
             MDC.remove(MDC_EVENT_ID);
             MDC.remove(MDC_CORRELATION_ID);
         };
-    }
-
-    // Valida que um campo string não está nulo/vazio para evitar processamento de payload inválido.
-    private static String requireNonBlank(String v, String field) {
-        if (v == null || v.trim().isEmpty()) {
-            throw new IllegalArgumentException(field + " must not be blank");
-        }
-        return v;
     }
 
 }

@@ -138,7 +138,6 @@ public class ImportJob {
         return updatedAt;
     }
 
-    // Se quiser atualizar contadores em outro lugar:
     public void updateCounts(int totalRecords,
                              int processedRecords,
                              int successCount,
@@ -149,4 +148,5 @@ public class ImportJob {
         this.errorCount = errorCount;
         this.updatedAt = Instant.now();
     }
+
 }

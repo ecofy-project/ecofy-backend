@@ -15,12 +15,14 @@ public class TransactionEventConsumer {
     private final IngestTransactionEventUseCase ingestTransactionEventUseCase;
     private final TransactionEventMapper mapper;
 
+    // Inicializa o consumer com as dependências necessárias para mapear e processar eventos de transação.
     public TransactionEventConsumer(IngestTransactionEventUseCase ingestTransactionEventUseCase,
                                     TransactionEventMapper mapper) {
         this.ingestTransactionEventUseCase = ingestTransactionEventUseCase;
         this.mapper = mapper;
     }
 
+    // Consome eventos Kafka de transação, mapeia para comando de ingestão e delega o processamento ao use case.
     @KafkaListener(
             topics = "${ecofy.ingestion.kafka.transaction-event-topic:eco.tx.raw}",
             groupId = "${spring.kafka.consumer.group-id:ms-ingestion}"

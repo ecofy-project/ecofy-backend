@@ -1,5 +1,6 @@
 package br.com.ecofy.ms_budgeting.core.application.service;
 
+import br.com.ecofy.ms_budgeting.core.application.exception.InvalidFieldException;
 import br.com.ecofy.ms_budgeting.core.application.result.BudgetConsumptionResult;
 import br.com.ecofy.ms_budgeting.core.application.result.BudgetOverviewResult;
 import br.com.ecofy.ms_budgeting.core.application.result.BudgetResult;
@@ -23,12 +24,12 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
 
     private final LoadBudgetsPort loadBudgetsPort;
 
-    // Injeta o port de leitura de budgets para atender casos de uso de consulta.
+    // Injeta o port de leitura de budgets garantindo dependência não nula.
     public BudgetQueryService(LoadBudgetsPort loadBudgetsPort) {
         this.loadBudgetsPort = Objects.requireNonNull(loadBudgetsPort, "loadBudgetsPort must not be null");
     }
 
-    // Lista budgets de um usuário e converte para BudgetResult.
+    // Lista budgets de um usuário, validando o userId, consultando o repositório e mapeando entidades para DTOs de resposta.
     @Override
     public List<BudgetResult> listByUser(UUID userId) {
         requireNonNull(userId, "userId");
@@ -42,7 +43,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 .toList();
     }
 
-    // Busca um budget por id e lança exceção se não existir.
+    // Busca um budget por id, validando entrada, convertendo para DTO e lançando exceção de não encontrado quando necessário.
     @Override
     public BudgetResult get(UUID budgetId) {
         requireNonNull(budgetId, "budgetId");
@@ -52,7 +53,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 .orElseThrow(() -> new BudgetNotFoundException(budgetId));
     }
 
-    // Retorna visão geral do usuário (budgets + consumos/alertas) com consumos stub até existir port agregado.
+    // Retorna um overview do usuário com “stubs” de consumo (zeros), útil como baseline quando consumos reais não são agregados aqui.
     @Override
     public BudgetOverviewResult overview(UUID userId) {
         requireNonNull(userId, "userId");
@@ -60,7 +61,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         var budgets = loadBudgetsPort.findByUserId(userId);
 
         var consumptions = budgets.stream()
-                .map(b -> toConsumptionStub(b))
+                .map(BudgetQueryService::toConsumptionStub)
                 .toList();
 
         log.debug("[BudgetQueryService] - [overview] -> userId={} budgets={}", userId, budgets.size());
@@ -68,7 +69,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         return new BudgetOverviewResult(userId, consumptions, List.of());
     }
 
-    // Cria um consumo “placeholder” zerado para o budget até haver leitura de consumo agregado.
+    // Cria um resumo de consumo “stub” para um budget (consumido e % zerados), preservando o limite do budget.
     private static BudgetConsumptionResult toConsumptionStub(Budget b) {
         return new BudgetConsumptionResult(
                 b.getId(),
@@ -78,7 +79,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         );
     }
 
-    // Converte Budget (domínio) para BudgetResult (DTO de aplicação).
+    // Converte a entidade Budget em BudgetResult, extraindo chave, período, limite, moeda, status e timestamps.
     private static BudgetResult toResult(Budget b) {
         return new BudgetResult(
                 b.getId(),
@@ -95,9 +96,10 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         );
     }
 
-    // Valida referência não nula com mensagem de erro padronizada.
+    // Valida campo obrigatório (não nulo) e lança InvalidFieldException com o nome do campo para padronizar erros de entrada.
     private static <T> T requireNonNull(T v, String field) {
-        return Objects.requireNonNull(v, field + " must not be null");
+        if (v == null) throw InvalidFieldException.required(field);
+        return v;
     }
 
 }

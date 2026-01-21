@@ -23,6 +23,7 @@ public class ImportJobQueryService implements GetImportJobStatusUseCase {
         this.loadImportJobPort = Objects.requireNonNull(loadImportJobPort, "loadImportJobPort must not be null");
     }
 
+    // Consulta e retorna o status do ImportJob (e erros associados quando aplicável) a partir do jobId.
     @Override
     public ImportJobStatusView getById(UUID jobId) {
         Objects.requireNonNull(jobId, "jobId must not be null");
@@ -34,4 +35,5 @@ public class ImportJobQueryService implements GetImportJobStatusUseCase {
         List<ImportError> errors = Collections.emptyList();
         return new ImportJobStatusView(job, errors);
     }
+
 }

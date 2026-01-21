@@ -29,6 +29,7 @@ public class OfxParserAdapter implements ParseOfxPort {
     private static final Pattern STMTTRN_BLOCK =
             Pattern.compile("(?is)<STMTTRN>(.*?)</STMTTRN>");
 
+    // Extrai blocos STMTTRN de um OFX e converte em RawTransaction, aplicando defaults e validações mínimas.
     @Override
     public List<RawTransaction> parse(ImportJob job, String ofxContent) {
         Objects.requireNonNull(job, "job must not be null");
@@ -94,18 +95,21 @@ public class OfxParserAdapter implements ParseOfxPort {
         return out;
     }
 
+    // Define a melhor descrição para a transação priorizando NAME e fallback para MEMO/UNKNOWN.
     private static String resolveDescription(String name, String memo) {
         if (name != null && !name.isBlank()) return name.trim();
         if (memo != null && !memo.isBlank()) return memo.trim();
         return "UNKNOWN";
     }
 
+    // Normaliza quebras de linha e remove BOM para facilitar regex/parsing do OFX.
     private static String normalize(String s) {
         String out = s.replace("\uFEFF", "");
         out = out.replace("\r\n", "\n").replace("\r", "\n");
         return out;
     }
 
+    // Extrai o primeiro valor associado a uma tag OFX (SGML), suportando tags sem fechamento explícito.
     private static String firstTagValue(String content, String tag) {
         if (content == null) return null;
 
@@ -124,11 +128,13 @@ public class OfxParserAdapter implements ParseOfxPort {
         return v.isEmpty() ? null : v;
     }
 
+    // Converte o valor monetário do OFX para BigDecimal, ajustando separador decimal quando necessário.
     private static BigDecimal parseAmount(String raw) {
         String cleaned = raw.trim().replace(",", ".");
         return new BigDecimal(cleaned);
     }
 
+    // Converte o DTPOSTED do OFX (com possíveis timezones/metadados) para Instant em UTC.
     private static Instant parseOfxToInstant(String raw) {
         // Exemplos:
         // 20250105120000
@@ -152,4 +158,5 @@ public class OfxParserAdapter implements ParseOfxPort {
 
         throw new IllegalArgumentException("DTPOSTED inválido: " + raw);
     }
+
 }

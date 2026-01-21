@@ -22,6 +22,7 @@ public class ImportFileJpaAdapter implements SaveImportFilePort {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
     }
 
+    // Persiste um ImportFile validando o tipo e retornando o domínio conforme persistido.
     @Override
     @Transactional
     public ImportFile save(ImportFile file) {
@@ -43,6 +44,7 @@ public class ImportFileJpaAdapter implements SaveImportFilePort {
         return PersistenceMapper.toDomain(saved);
     }
 
+    // Recupera um ImportFile pelo id garantindo existência e retornando o domínio correspondente.
     @Override
     @Transactional(readOnly = true)
     public ImportFile getById(UUID id) {

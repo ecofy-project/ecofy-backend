@@ -22,6 +22,7 @@ public class LocalStorageFileAdapter implements StoreFilePort {
         this.properties = properties;
     }
 
+    // Persiste o arquivo no filesystem local e retorna o caminho absoluto onde foi armazenado.
     @Override
     public String store(ImportFile file, byte[] content) {
         try {

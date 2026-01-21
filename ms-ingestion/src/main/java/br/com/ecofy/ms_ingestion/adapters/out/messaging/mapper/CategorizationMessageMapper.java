@@ -7,6 +7,7 @@ public final class CategorizationMessageMapper {
 
     private CategorizationMessageMapper() {}
 
+    // Mapeia um RawTransaction para a mensagem de request de categorização (payload enviado ao Kafka).
     public static CategorizationRequestMessage from(RawTransaction tx) {
         return new CategorizationRequestMessage(
                 tx.id(),
@@ -18,4 +19,5 @@ public final class CategorizationMessageMapper {
                 tx.sourceType().name()
         );
     }
+
 }

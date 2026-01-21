@@ -29,6 +29,7 @@ public class RawTransactionJpaAdapter implements SaveRawTransactionPort {
         this.importJobRepository = Objects.requireNonNull(importJobRepository, "importJobRepository must not be null");
     }
 
+    // Persiste em lote transações brutas garantindo integridade (jobs/files existentes) e minimizando round-trips.
     @Override
     @Transactional
     public void saveAll(List<RawTransaction> transactions) {
@@ -82,4 +83,5 @@ public class RawTransactionJpaAdapter implements SaveRawTransactionPort {
                 transactions.stream().map(t -> t.sourceType().name()).collect(Collectors.toSet())
         );
     }
+
 }

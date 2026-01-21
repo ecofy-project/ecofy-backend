@@ -28,6 +28,7 @@ public class ImportErrorJpaAdapter implements SaveImportErrorPort {
         this.jobRepository = Objects.requireNonNull(jobRepository, "jobRepository must not be null");
     }
 
+    // Persiste em lote os erros de importação, carregando os jobs relacionados em um único round-trip.
     @Override
     @Transactional
     public void saveAll(List<ImportError> errors) {
@@ -73,4 +74,5 @@ public class ImportErrorJpaAdapter implements SaveImportErrorPort {
                 errors.stream().map(e -> e.errorType().name()).collect(Collectors.toSet())
         );
     }
+
 }

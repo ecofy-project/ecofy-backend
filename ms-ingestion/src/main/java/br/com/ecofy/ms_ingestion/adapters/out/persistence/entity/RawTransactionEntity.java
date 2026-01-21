@@ -2,12 +2,18 @@ package br.com.ecofy.ms_ingestion.adapters.out.persistence.entity;
 
 import br.com.ecofy.ms_ingestion.core.domain.enums.TransactionSourceType;
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "raw_transaction")
 public class RawTransactionEntity {
@@ -49,96 +55,4 @@ public class RawTransactionEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public RawTransactionEntity() {
-    }
-
-    // getters e setters
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public ImportJobEntity getImportJob() {
-        return importJob;
-    }
-
-    public void setImportJob(ImportJobEntity importJob) {
-        this.importJob = importJob;
-    }
-
-    public ImportFileEntity getImportFile() {
-        return importFile;
-    }
-
-    public void setImportFile(ImportFileEntity importFile) {
-        this.importFile = importFile;
-    }
-
-    public LocalDate getTransactionDate() {
-        return transactionDate;
-    }
-
-    public void setTransactionDate(LocalDate transactionDate) {
-        this.transactionDate = transactionDate;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public void setAmount(BigDecimal amount) {
-        this.amount = amount;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public TransactionSourceType getSourceType() {
-        return sourceType;
-    }
-
-    public void setSourceType(TransactionSourceType sourceType) {
-        this.sourceType = sourceType;
-    }
-
-    public String getExternalId() {
-        return externalId;
-    }
-
-    public void setExternalId(String externalId) {
-        this.externalId = externalId;
-    }
-
-    public String getRawPayload() {
-        return rawPayload;
-    }
-
-    public void setRawPayload(String rawPayload) {
-        this.rawPayload = rawPayload;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 }

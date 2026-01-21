@@ -12,6 +12,7 @@ import java.nio.file.Path;
 @Component
 public class LocalFileContentLoaderAdapter implements FileContentLoaderPort {
 
+    // Carrega o conteúdo de um arquivo local em bytes a partir do path informado.
     @Override
     public byte[] load(String path) {
         try {
@@ -23,4 +24,5 @@ public class LocalFileContentLoaderAdapter implements FileContentLoaderPort {
             throw new IllegalStateException("Error loading file: " + path, e);
         }
     }
+
 }

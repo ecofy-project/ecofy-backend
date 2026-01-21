@@ -37,6 +37,7 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
     private final PublishIngestionEventPort publishIngestionEventPort;
     private final IngestionProperties ingestionProperties;
 
+    // Inicializa e valida todas as dependências do serviço de processamento de importação.
     public ImportProcessingService(SaveImportJobPort saveImportJobPort,
                                    LoadImportJobPort loadImportJobPort,
                                    SaveRawTransactionPort saveRawTransactionPort,
@@ -64,6 +65,7 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
         this.ingestionProperties = Objects.requireNonNull(ingestionProperties, "ingestionProperties must not be null");
     }
 
+    // Cria um ImportJob para o arquivo informado e dispara o processamento completo do job.
     @Override
     public ImportJob start(StartImportJobCommand command) {
         if (command == null) {
@@ -90,6 +92,7 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
         return job;
     }
 
+    // Processa um ImportJob: marca RUNNING, carrega arquivo, faz parse, persiste transações/erros e publica eventos/status.
     private void processJob(ImportJob job) {
         Objects.requireNonNull(job, "job must not be null");
 
@@ -210,6 +213,7 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
         }
     }
 
+    // Finaliza o job como FAILED, persistindo o status e publicando o evento de mudança de status com resiliência.
     private void failJob(ImportJob job, RuntimeException cause) {
         log.error(
                 "[ImportProcessingService] - [processJob] -> Erro ao processar job id={} error={}",
@@ -236,6 +240,7 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
         }
     }
 
+    // Reprocessa jobs elegíveis (FAILED/COMPLETED_WITH_ERRORS) respeitando o limite configurado no comando.
     @Override
     public void retry(RetryFailedImportsCommand command) {
         if (command == null) {
@@ -278,4 +283,5 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
             processJob(job);
         }
     }
+
 }

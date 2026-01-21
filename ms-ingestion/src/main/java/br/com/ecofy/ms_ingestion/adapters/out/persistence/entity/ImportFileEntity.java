@@ -3,10 +3,16 @@ package br.com.ecofy.ms_ingestion.adapters.out.persistence.entity;
 import br.com.ecofy.ms_ingestion.core.domain.enums.ImportFileType;
 import br.com.ecofy.ms_ingestion.core.domain.enums.TransactionSourceType;
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.Instant;
 import java.util.UUID;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "import_file")
 public class ImportFileEntity {
@@ -41,80 +47,4 @@ public class ImportFileEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public ImportFileEntity() {
-    }
-
-    // getters e setters
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public String getOriginalFilename() {
-        return originalFilename;
-    }
-
-    public void setOriginalFilename(String originalFilename) {
-        this.originalFilename = originalFilename;
-    }
-
-    public String getStoredFilename() {
-        return storedFilename;
-    }
-
-    public void setStoredFilename(String storedFilename) {
-        this.storedFilename = storedFilename;
-    }
-
-    public ImportFileType getFileType() {
-        return fileType;
-    }
-
-    public void setFileType(ImportFileType fileType) {
-        this.fileType = fileType;
-    }
-
-    public TransactionSourceType getSourceType() {
-        return sourceType;
-    }
-
-    public void setSourceType(TransactionSourceType sourceType) {
-        this.sourceType = sourceType;
-    }
-
-    public String getContentType() {
-        return contentType;
-    }
-
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
-
-    public long getSizeBytes() {
-        return sizeBytes;
-    }
-
-    public void setSizeBytes(long sizeBytes) {
-        this.sizeBytes = sizeBytes;
-    }
-
-    public Instant getUploadedAt() {
-        return uploadedAt;
-    }
-
-    public void setUploadedAt(Instant uploadedAt) {
-        this.uploadedAt = uploadedAt;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 }

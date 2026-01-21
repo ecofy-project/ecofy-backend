@@ -1,6 +1,7 @@
 package br.com.ecofy.ms_budgeting.core.application.service;
 
 import br.com.ecofy.ms_budgeting.core.application.command.RecalculateBudgetsCommand;
+import br.com.ecofy.ms_budgeting.core.application.exception.InvalidFieldException;
 import br.com.ecofy.ms_budgeting.core.domain.valueobject.Period;
 import br.com.ecofy.ms_budgeting.core.port.in.RecalculateBudgetsUseCase;
 import br.com.ecofy.ms_budgeting.core.port.out.LoadBudgetConsumptionPort;
@@ -15,7 +16,6 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Objects;
 
 @Slf4j
 @Service
@@ -26,11 +26,12 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
     private final LoadBudgetConsumptionPort loadBudgetConsumptionPort;
     private final Clock clock;
 
-    // Recalcula métricas de consumo/percentual dos budgets ativos para uma data de referência.
+    // Recalcula (de forma read-only) os percentuais de consumo dos budgets ativos para uma data de referência e registra métricas em log.
     @Override
     @Transactional(readOnly = true)
     public void recalculate(RecalculateBudgetsCommand cmd) {
-        Objects.requireNonNull(cmd, "cmd must not be null");
+        if (cmd == null) throw InvalidFieldException.required("cmd");
+        if (cmd.runId() == null) throw InvalidFieldException.required("runId");
 
         LocalDate refDate = cmd.referenceDate() != null ? cmd.referenceDate() : LocalDate.now(clock);
         Instant startedAt = Instant.now(clock);
@@ -46,7 +47,6 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
         for (var b : budgets) {
             Period period = b.getKey().period();
 
-            // se você quer recalcular apenas budgets “vigentes” na data de referência
             if (!period.contains(refDate)) continue;
             evaluated++;
 
@@ -79,7 +79,7 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
                 cmd.runId(), refDate, evaluated);
     }
 
-    // Calcula o percentual consumido do budget, protegendo contra limite inválido e valores nulos.
+    // Calcula o percentual consumido sobre o limite com escala 2 e HALF_UP, tratando nulos e limites inválidos como 0%.
     private static BigDecimal pct(BigDecimal consumed, BigDecimal limit) {
         if (limit == null || limit.signum() <= 0) return BigDecimal.ZERO;
         if (consumed == null) return BigDecimal.ZERO;

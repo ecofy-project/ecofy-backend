@@ -2,10 +2,16 @@ package br.com.ecofy.ms_ingestion.adapters.out.persistence.entity;
 
 import br.com.ecofy.ms_ingestion.core.domain.enums.ImportErrorType;
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.Instant;
 import java.util.UUID;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "import_error")
 public class ImportErrorEntity {
@@ -34,64 +40,4 @@ public class ImportErrorEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public ImportErrorEntity() {
-    }
-
-    // getters e setters
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public ImportJobEntity getImportJob() {
-        return importJob;
-    }
-
-    public void setImportJob(ImportJobEntity importJob) {
-        this.importJob = importJob;
-    }
-
-    public Integer getLineNumber() {
-        return lineNumber;
-    }
-
-    public void setLineNumber(Integer lineNumber) {
-        this.lineNumber = lineNumber;
-    }
-
-    public String getRawLine() {
-        return rawLine;
-    }
-
-    public void setRawLine(String rawLine) {
-        this.rawLine = rawLine;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public ImportErrorType getErrorType() {
-        return errorType;
-    }
-
-    public void setErrorType(ImportErrorType errorType) {
-        this.errorType = errorType;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 }

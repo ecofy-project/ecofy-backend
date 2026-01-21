@@ -25,6 +25,7 @@ public class CategorizationRequestKafkaAdapter implements PublishTransactionForC
         this.topics = Objects.requireNonNull(topics, "topics must not be null");
     }
 
+    // Publica as transações recebidas como mensagens de request de categorização no tópico Kafka configurado.
     @Override
     public void publish(List<RawTransaction> transactions) {
         Objects.requireNonNull(transactions, "transactions must not be null");
@@ -44,4 +45,5 @@ public class CategorizationRequestKafkaAdapter implements PublishTransactionForC
             kafkaTemplate.send(topic, tx.id().toString(), message);
         }
     }
+
 }

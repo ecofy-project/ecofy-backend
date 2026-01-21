@@ -6,8 +6,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record ImportJobStatusChangedEvent(
+
         UUID importJobId,
+
         ImportJobStatus oldStatus,
+
         ImportJobStatus newStatus,
+
         Instant changedAt
+
 ) { }

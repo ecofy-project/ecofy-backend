@@ -27,6 +27,8 @@ public class TransactionEventMapper {
      * Mapeia um registro Kafka bruto + payload JSON para o comando de ingestão.
      * Hoje gera um RawTransaction "dummy", mas já estruturado para evoluir o parsing depois.
      */
+
+    // Converte ConsumerRecord + payload em um comando de ingestão contendo RawTransaction(s).
     public IngestTransactionEventUseCase.IngestEventCommand toCommand(ConsumerRecord<String, String> record,
                                                                       String payload) {
 
@@ -63,10 +65,10 @@ public class TransactionEventMapper {
         );
     }
 
-    // Gera um "jobId sintético" para transações vindas de eventos.
+    // Gera um identificador de job sintético para agrupar/traquear ingestões originadas de eventos.
     private UUID syntheticJobIdFrom(ConsumerRecord<String, String> record) {
         // Estratégia simples: UUID aleatório.
-        // Se quiser algo determinístico por chave, pode usar UUID.nameUUIDFromBytes(...)
         return UUID.randomUUID();
     }
+
 }

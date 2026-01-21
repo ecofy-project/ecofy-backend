@@ -21,6 +21,7 @@ public class ApacheCommonsCsvParserAdapter implements ParseCsvPort {
 
     private static final String DEFAULT_CURRENCY = "BRL";
 
+    // Converte o conteúdo CSV de um job em uma lista de RawTransaction, validando linhas e aplicando defaults.
     @Override
     public List<RawTransaction> parse(ImportJob job, String csvContent) {
         log.info("[ApacheCommonsCsvParserAdapter] - [parse] -> Parsing CSV para jobId={}", job.id());
@@ -77,4 +78,5 @@ public class ApacheCommonsCsvParserAdapter implements ParseCsvPort {
         log.info("[ApacheCommonsCsvParserAdapter] - [parse] -> CSV parseado com sucesso totalTx={}", result.size());
         return result;
     }
+
 }

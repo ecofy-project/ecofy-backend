@@ -6,6 +6,7 @@ import java.util.UUID;
 public record TransactionsImportedEvent(
 
         UUID importJobId,
+
         List<UUID> rawTransactionIds
 
 ) { }

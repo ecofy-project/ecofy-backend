@@ -28,6 +28,7 @@ public class FileUploadService implements UploadFileUseCase {
         this.storageProperties = Objects.requireNonNull(storageProperties, "storageProperties must not be null");
     }
 
+    // Realiza o upload validando tamanho/tipo, persistindo metadados, armazenando conteúdo e atualizando o storedPath.
     @Override
     public ImportFile upload(UploadFileCommand command) {
         if (command == null) {
@@ -100,4 +101,5 @@ public class FileUploadService implements UploadFileUseCase {
             throw new PersistenceException("Unexpected error while uploading file", e);
         }
     }
+
 }

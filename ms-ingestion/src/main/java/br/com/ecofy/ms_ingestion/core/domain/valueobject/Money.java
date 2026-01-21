@@ -9,6 +9,7 @@ public final class Money {
     private final BigDecimal amount;
     private final String currency;
 
+    // Cria um Money com defaults defensivos (amount=0 e currency=BRL) e normaliza o código da moeda.
     public Money(BigDecimal amount, String currency) {
         this.amount = amount != null ? amount : BigDecimal.ZERO;
         this.currency = (currency == null || currency.isBlank())
@@ -16,6 +17,7 @@ public final class Money {
                 : currency.trim().toUpperCase();
     }
 
+    // Cria um Money a partir de java.util.Currency, aplicando defaults defensivos (amount=0 e currency=BRL).
     public Money(BigDecimal amount, Currency currency) {
         this.amount = amount != null ? amount : BigDecimal.ZERO;
         this.currency = (currency == null)
@@ -23,18 +25,22 @@ public final class Money {
                 : currency.getCurrencyCode();
     }
 
+    // Retorna o valor monetário (BigDecimal) do objeto.
     public BigDecimal amount() {
         return amount;
     }
 
+    // Retorna o código ISO da moeda (String) do objeto.
     public String currency() {
         return currency;
     }
 
+    // Retorna uma nova instância com o valor negado, mantendo a mesma moeda.
     public Money negate() {
         return new Money(amount.negate(), currency);
     }
 
+    // Soma dois valores monetários da mesma moeda, validando compatibilidade de currency.
     public Money add(Money other) {
         Objects.requireNonNull(other, "other must not be null");
 
@@ -46,16 +52,19 @@ public final class Money {
         return new Money(this.amount.add(other.amount), this.currency);
     }
 
+    // Serializa o valor no formato "<CURRENCY> <AMOUNT>" para logs/debug.
     @Override
     public String toString() {
         return currency + " " + amount;
     }
 
+    // Cria Money com moeda padrão BRL, exigindo amount não nulo.
     public static Money of(BigDecimal amount) {
         Objects.requireNonNull(amount, "amount must not be null");
         return new Money(amount, "BRL");
     }
 
+    // Cria Money com moeda informada, exigindo amount não nulo e normalizando currency internamente.
     public static Money of(BigDecimal amount, String currency) {
         Objects.requireNonNull(amount, "amount must not be null");
         return new Money(amount, currency);

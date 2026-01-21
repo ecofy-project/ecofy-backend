@@ -21,6 +21,7 @@ public class IngestionEventsKafkaAdapter implements PublishIngestionEventPort {
         this.topics = topics;
     }
 
+    // Publica o evento de transações importadas no tópico Kafka correspondente, usando importJobId como chave.
     @Override
     public void publish(TransactionsImportedEvent event) {
         String topic = topics.getTransactionImported();
@@ -29,6 +30,7 @@ public class IngestionEventsKafkaAdapter implements PublishIngestionEventPort {
         kafkaTemplate.send(topic, event.importJobId().toString(), event);
     }
 
+    // Publica a mudança de status do job de importação no tópico Kafka correspondente, usando importJobId como chave.
     @Override
     public void publish(ImportJobStatusChangedEvent event) {
         String topic = topics.getImportJobStatusChanged();
