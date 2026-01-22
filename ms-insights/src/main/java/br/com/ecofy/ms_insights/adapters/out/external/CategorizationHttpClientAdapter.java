@@ -117,5 +117,6 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
             String currency,
             LocalDate bookingDate,
             boolean income
-    ) {}
+    ) { }
+
 }

@@ -10,6 +10,7 @@ public record ExternalClientsProperties(
         Budgeting budgeting
 ) {
 
+    // Valida que os blocos de configuração de clients (categorization/budgeting) foram carregados e não são nulos.
     public ExternalClientsProperties {
         Objects.requireNonNull(categorization, "categorization must not be null");
         Objects.requireNonNull(budgeting, "budgeting must not be null");
@@ -21,6 +22,7 @@ public record ExternalClientsProperties(
             int connectTimeoutMs,
             int readTimeoutMs
     ) {
+        // Normaliza a baseUrl e valida que os timeouts configurados são positivos para o client de categorization.
         public Categorization {
             baseUrl = normalizeUrl(baseUrl);
             connectTimeoutMs = requirePositive(connectTimeoutMs, "categorization.connectTimeoutMs");
@@ -34,6 +36,7 @@ public record ExternalClientsProperties(
             int connectTimeoutMs,
             int readTimeoutMs
     ) {
+        // Normaliza a baseUrl e valida que os timeouts configurados são positivos para o client de budgeting.
         public Budgeting {
             baseUrl = normalizeUrl(baseUrl);
             connectTimeoutMs = requirePositive(connectTimeoutMs, "budgeting.connectTimeoutMs");
@@ -41,6 +44,7 @@ public record ExternalClientsProperties(
         }
     }
 
+    // Valida que um valor numérico de configuração é estritamente positivo, lançando IllegalArgumentException quando inválido.
     private static int requirePositive(int v, String field) {
         if (v <= 0) {
             throw new IllegalArgumentException(field + " must be > 0");
@@ -48,6 +52,7 @@ public record ExternalClientsProperties(
         return v;
     }
 
+    // Normaliza uma URL de base removendo espaços e barras finais para facilitar a concatenação consistente de paths.
     private static String normalizeUrl(String url) {
         if (url == null || url.trim().isEmpty()) {
             return null;
@@ -59,4 +64,5 @@ public record ExternalClientsProperties(
         }
         return u;
     }
+
 }

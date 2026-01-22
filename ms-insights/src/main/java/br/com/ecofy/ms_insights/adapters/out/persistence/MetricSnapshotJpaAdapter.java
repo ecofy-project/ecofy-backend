@@ -19,10 +19,12 @@ public class MetricSnapshotJpaAdapter implements SaveMetricSnapshotPort {
 
     private final MetricSnapshotRepository repository;
 
+    // Injeta o repositório JPA responsável pela persistência de MetricSnapshot.
     public MetricSnapshotJpaAdapter(MetricSnapshotRepository repository) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
     }
 
+    // Persiste um MetricSnapshot no banco (domain -> entity -> save) com observabilidade (tempo) e logs de erro diferenciando falhas de acesso a dados.
     @Override
     @Transactional
     public MetricSnapshot save(MetricSnapshot snapshot) {
@@ -60,19 +62,24 @@ public class MetricSnapshotJpaAdapter implements SaveMetricSnapshotPort {
         }
     }
 
+    // Calcula o tempo decorrido em milissegundos desde startedAt para métricas de observabilidade.
     private static long elapsedMs(Instant startedAt) {
         return Duration.between(startedAt, Instant.now()).toMillis();
     }
 
+    // Recupera o id do snapshot com segurança para logging, evitando exceções caso o domínio esteja inconsistente.
     private static Object safeSnapshotId(MetricSnapshot s) {
         try { return s.getId(); } catch (Exception ignore) { return "n/a"; }
     }
 
+    // Recupera o userId do snapshot com segurança para logging, evitando exceções caso o domínio esteja inconsistente.
     private static Object safeUserId(MetricSnapshot s) {
         try { return s.getUserId().value(); } catch (Exception ignore) { return "n/a"; }
     }
 
+    // Recupera o metricType do snapshot com segurança para logging, evitando exceções caso o domínio esteja inconsistente.
     private static Object safeMetricType(MetricSnapshot s) {
         try { return s.getMetricType(); } catch (Exception ignore) { return "n/a"; }
     }
+
 }

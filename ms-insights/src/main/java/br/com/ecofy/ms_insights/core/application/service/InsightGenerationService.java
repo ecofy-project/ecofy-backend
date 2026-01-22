@@ -45,6 +45,7 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
     private final IdempotencyPort idempotencyPort;
     private final Clock clock;
 
+    // Injeta propriedades de engine/idempotência e todas as portas necessárias para carregar dados, persistir resultados e publicar eventos, usando Clock para timestamps determinísticos.
     public InsightGenerationService(
             InsightsProperties properties,
             LoadCategorizedTransactionsPort loadCategorizedTransactionsPort,
@@ -67,6 +68,7 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Orquestra a geração de insights para um usuário e período: aplica idempotência, carrega dados (tx/budgets/goals), calcula métricas/score, persiste e publica evento conforme limiar.
     @Override
     @Transactional
     public InsightsBundleResult generate(GenerateInsightsCommand cmd) {
@@ -191,6 +193,7 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         );
     }
 
+    // Constrói a chave de idempotência final usando prefixo fixo e uma base derivada do rawKey (se informado) ou de user+período+granularidade.
     private static String buildIdempotencyKey(UserId userId, Period period, String rawKey) {
         String base = (rawKey == null || rawKey.trim().isEmpty())
                 ? (userId.value() + "|" + period.start() + "|" + period.end() + "|" + period.granularity())
@@ -198,16 +201,19 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         return IDEM_PREFIX + base;
     }
 
+    // Normaliza o TTL da idempotência aplicando fallback seguro quando ausente ou inválido.
     private static int normalizeTtlSeconds(Integer ttlSeconds) {
         if (ttlSeconds == null || ttlSeconds <= 0) return 300;
         return ttlSeconds;
     }
 
+    // Normaliza o limite de transações a analisar aplicando default quando ausente ou inválido.
     private static int normalizeMaxTransactions(Integer max) {
         if (max == null || max <= 0) return DEFAULT_MAX_TX;
         return max;
     }
 
+    // Normaliza o score mínimo de publicação garantindo faixa 0..100 com fallback padrão.
     private static int normalizeMinScore(Integer minScore) {
         if (minScore == null) return 50;
         if (minScore < 0) return 0;
@@ -215,10 +221,12 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         return minScore;
     }
 
+    // Protege contra retornos null de integrações externas, padronizando para lista vazia.
     private static <T> List<T> safeList(List<T> v) {
         return v == null ? List.of() : v;
     }
 
+    // Resolve a moeda do processamento a partir da primeira transação com currency válida, usando fallback quando ausente.
     private static String resolveCurrency(List<CategorizedTxView> txs) {
         return txs.stream()
                 .filter(Objects::nonNull)
@@ -230,6 +238,7 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
                 .orElse(DEFAULT_CURRENCY);
     }
 
+    // Agrega gasto (somente despesas) por categoryId somando amountCents para produzir ranking de categorias.
     private static Map<UUID, Long> buildSpentByCategory(List<CategorizedTxView> txs) {
         Map<UUID, Long> byCat = new HashMap<>();
         for (var t : txs) {
@@ -240,6 +249,7 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         return byCat;
     }
 
+    // Calcula um score heurístico do insight comparando gasto total com soma de limites de budgets (quando existirem).
     private static int computeScore(long totalSpentCents, List<LoadBudgetsForUserPort.BudgetView> budgets) {
         if (budgets == null || budgets.isEmpty()) return 30;
 
@@ -258,6 +268,7 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         return 55;
     }
 
+    // Converte Insight (domínio) em InsightResult (DTO) para compor o retorno do bundle.
     private static InsightResult toInsightResult(Insight i) {
         return new InsightResult(
                 i.getId(),
@@ -271,6 +282,7 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         );
     }
 
+    // Converte MetricSnapshot (domínio) em MetricSnapshotResult (DTO) para compor o retorno do bundle.
     private static MetricSnapshotResult toMetricResult(MetricSnapshot s) {
         return new MetricSnapshotResult(
                 s.getId(),
@@ -281,4 +293,5 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
                 s.getCreatedAt()
         );
     }
+
 }

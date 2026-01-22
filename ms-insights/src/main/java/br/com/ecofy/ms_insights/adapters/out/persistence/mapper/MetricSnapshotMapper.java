@@ -15,9 +15,11 @@ import java.util.UUID;
 
 public final class MetricSnapshotMapper {
 
+    // Impede instanciação e reforça o uso estático (classe utilitária de mapeamento domain <-> persistence).
     private MetricSnapshotMapper() {
     }
 
+    // Converte MetricSnapshot (domínio) em MetricSnapshotEntity (persistência), validando campos obrigatórios e normalizando moeda.
     public static MetricSnapshotEntity toEntity(MetricSnapshot d) {
         Objects.requireNonNull(d, "metricSnapshot must not be null");
         Objects.requireNonNull(d.getId(), "metricSnapshot.id must not be null");
@@ -41,10 +43,12 @@ public final class MetricSnapshotMapper {
                 .build();
     }
 
+    // Converte MetricSnapshotEntity em MetricSnapshot (domínio) usando Clock padrão UTC para timestamps de fallback.
     public static MetricSnapshot toDomain(MetricSnapshotEntity e) {
         return toDomain(e, Clock.systemUTC());
     }
 
+    // Converte MetricSnapshotEntity em MetricSnapshot (domínio) validando campos, parseando enums e aplicando fallback de createdAt via Clock.
     public static MetricSnapshot toDomain(MetricSnapshotEntity e, Clock clock) {
         Objects.requireNonNull(e, "entity must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
@@ -78,6 +82,7 @@ public final class MetricSnapshotMapper {
         );
     }
 
+    // Converte uma String persistida em enum do tipo informado, validando não vazio e lançando IllegalArgumentException quando inválido.
     private static <E extends Enum<E>> E parseEnum(Class<E> enumType, String raw, String field) {
         String v = requireNonBlank(raw, field);
         try {
@@ -87,6 +92,7 @@ public final class MetricSnapshotMapper {
         }
     }
 
+    // Garante que uma String obrigatória esteja preenchida (não nula/não vazia), normalizando com trim e lançando IllegalArgumentException em caso de falha.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
@@ -94,6 +100,7 @@ public final class MetricSnapshotMapper {
         return v.trim();
     }
 
+    // Valida e normaliza um código de moeda de 3 letras (ISO-4217), garantindo uppercase e tamanho exato 3.
     private static String requireCurrency3(String v, String field) {
         String c = requireNonBlank(v, field).toUpperCase();
         if (c.length() != 3) {
@@ -101,4 +108,5 @@ public final class MetricSnapshotMapper {
         }
         return c;
     }
+
 }

@@ -3,7 +3,7 @@ package br.com.ecofy.ms_insights.config;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -18,6 +18,7 @@ import java.util.Objects;
 @Slf4j
 public class KafkaConsumerConfig {
 
+    // Cria e configura a factory de listeners Kafka (String/String) com propriedades de consumo estável, ack por record e concorrência controlada.
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
             KafkaProperties kafkaProperties
@@ -43,16 +44,17 @@ public class KafkaConsumerConfig {
         // Consistência: commit só após processamento bem-sucedido
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
 
-        // Concorrência: deixe configurável via application.yml se quiser (aqui default seguro)
+        // Concorrência: default seguro (depois você pode parametrizar)
         factory.setConcurrency(1);
 
         log.info(
-                "[KafkaConsumerConfig] - Inicializando KafkaListenerContainerFactory | bootstrapServers={} | groupId={} | ackMode={}",
-                kafkaProperties.getBootstrapServers(),
+                "[KafkaConsumerConfig] KafkaListenerContainerFactory | bootstrapServers={} | groupId={} | ackMode={}",
+                kafkaProperties.getBootstrapServers(), // List<String> no Boot 4
                 props.get(ConsumerConfig.GROUP_ID_CONFIG),
                 factory.getContainerProperties().getAckMode()
         );
 
         return factory;
     }
+
 }

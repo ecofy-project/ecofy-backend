@@ -1,8 +1,8 @@
 package br.com.ecofy.ms_insights.adapters.in.web;
 
-import br.com.ecofy.ms_insights.adapters.in.web.dto.CreateGoalRequest;
-import br.com.ecofy.ms_insights.adapters.in.web.dto.GoalResponse;
-import br.com.ecofy.ms_insights.adapters.in.web.dto.UpdateGoalRequest;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.request.CreateGoalRequest;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.response.GoalResponse;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.request.UpdateGoalRequest;
 import br.com.ecofy.ms_insights.core.application.command.CreateGoalCommand;
 import br.com.ecofy.ms_insights.core.application.command.UpdateGoalCommand;
 import br.com.ecofy.ms_insights.core.application.result.GoalResult;
@@ -201,4 +201,5 @@ public class GoalsController {
                 r.updatedAt()
         );
     }
+
 }

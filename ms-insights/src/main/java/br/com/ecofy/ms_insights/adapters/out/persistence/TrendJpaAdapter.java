@@ -21,11 +21,13 @@ public class TrendJpaAdapter implements SaveTrendPort {
     private final TrendRepository repository;
     private final ObjectMapper objectMapper;
 
+    // Injeta o repositório JPA e o ObjectMapper usados para persistir e (de)serializar a série do Trend.
     public TrendJpaAdapter(TrendRepository repository, ObjectMapper objectMapper) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
     }
 
+    // Persiste um Trend no banco (domain -> entity -> save) com observabilidade (tempo) e logs de erro diferenciando falhas de acesso a dados.
     @Override
     @Transactional
     public Trend save(Trend trend) {
@@ -63,10 +65,12 @@ public class TrendJpaAdapter implements SaveTrendPort {
         }
     }
 
+    // Calcula o tempo decorrido em milissegundos desde startedAt para métricas de observabilidade.
     private static long elapsedMs(Instant startedAt) {
         return Duration.between(startedAt, Instant.now()).toMillis();
     }
 
+    // Retorna a quantidade de pontos na série do Trend com segurança para logging, evitando exceções em caso de inconsistência.
     private static int safeSeriesSize(Trend t) {
         try {
             return t.getSeriesCents() == null ? 0 : t.getSeriesCents().size();
@@ -75,15 +79,19 @@ public class TrendJpaAdapter implements SaveTrendPort {
         }
     }
 
+    // Recupera o id do Trend com segurança para logging, evitando exceções caso o domínio esteja inconsistente.
     private static Object safeTrendId(Trend t) {
         try { return t.getId(); } catch (Exception ignore) { return "n/a"; }
     }
 
+    // Recupera o userId do Trend com segurança para logging, evitando exceções caso o domínio esteja inconsistente.
     private static Object safeUserId(Trend t) {
         try { return t.getUserId().value(); } catch (Exception ignore) { return "n/a"; }
     }
 
+    // Recupera o tipo do Trend com segurança para logging, evitando exceções caso o domínio esteja inconsistente.
     private static Object safeType(Trend t) {
         try { return t.getType(); } catch (Exception ignore) { return "n/a"; }
     }
+
 }

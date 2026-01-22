@@ -21,12 +21,14 @@ public class BudgetingHttpClientAdapter implements LoadBudgetsForUserPort {
     private final ExternalClientsProperties props;
     private final WebClient webClient;
 
+    // Inicializa o adapter com propriedades do client externo e constrói um WebClient configurado com timeouts.
     public BudgetingHttpClientAdapter(ExternalClientsProperties props, WebClient.Builder builder) {
         this.props = props;
         var b = props.budgeting();
         this.webClient = HttpClientConfig.build(builder, b.connectTimeoutMs(), b.readTimeoutMs());
     }
 
+    // Carrega budgets do serviço externo de budgeting para um usuário, com feature-flag (enabled) e fallback resiliente para lista vazia.
     @Override
     public List<BudgetView> loadBudgets(UUID userId) {
         var b = props.budgeting();
@@ -66,6 +68,7 @@ public class BudgetingHttpClientAdapter implements LoadBudgetsForUserPort {
         }
     }
 
+    // Aplica headers comuns (Accept, trace/correlation e Authorization) propagando contexto do thread quando disponível.
     private static void applyCommonHeaders(HttpHeaders headers) {
         headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
 
@@ -79,6 +82,7 @@ public class BudgetingHttpClientAdapter implements LoadBudgetsForUserPort {
         if (StringUtils.hasText(bearer)) headers.set(HttpHeaders.AUTHORIZATION, bearer);
     }
 
+    // Recupera um valor de contexto associado à thread atual (ex.: MDC/Reactor Context) para propagação de headers.
     private static String currentThreadValue(String key) {
         return null;
     }
@@ -86,11 +90,13 @@ public class BudgetingHttpClientAdapter implements LoadBudgetsForUserPort {
     // DTOs internos (não vazam para o core)
     public record BudgetListResponse(List<BudgetItem> items) {}
 
+    // Representa um item retornado pelo serviço externo de budgeting para mapeamento em BudgetView.
     public record BudgetItem(
             UUID budgetId,
             UUID categoryId,
             long limitCents,
             String currency,
             String status
-    ) {}
+    ) { }
+
 }

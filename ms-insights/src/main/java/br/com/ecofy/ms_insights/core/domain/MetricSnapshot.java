@@ -32,4 +32,5 @@ public class MetricSnapshot {
     public MetricType getMetricType() { return metricType; }
     public Money getValue() { return value; }
     public Instant getCreatedAt() { return createdAt; }
+
 }

@@ -1,9 +1,9 @@
 package br.com.ecofy.ms_insights.adapters.in.web;
 
-import br.com.ecofy.ms_insights.adapters.in.web.dto.GenerateInsightsRequest;
-import br.com.ecofy.ms_insights.adapters.in.web.dto.InsightsBundleResponse;
-import br.com.ecofy.ms_insights.adapters.in.web.dto.InsightResponse;
-import br.com.ecofy.ms_insights.adapters.in.web.dto.GoalResponse;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.request.GenerateInsightsRequest;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.response.InsightsBundleResponse;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.response.InsightResponse;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.response.GoalResponse;
 import br.com.ecofy.ms_insights.core.application.command.GenerateInsightsCommand;
 import br.com.ecofy.ms_insights.core.application.result.InsightsBundleResult;
 import br.com.ecofy.ms_insights.core.port.in.GenerateInsightsUseCase;
@@ -150,4 +150,5 @@ public class InsightsController {
 
         return new InsightsBundleResponse(insights, Collections.singletonList(metricsAsSingletonList), goals);
     }
+
 }

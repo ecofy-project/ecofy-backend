@@ -88,4 +88,5 @@ public class OpenApiConfig {
                 .pathsToMatch("/actuator/**")
                 .build();
     }
+
 }

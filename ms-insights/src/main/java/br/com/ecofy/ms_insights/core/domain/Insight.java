@@ -44,4 +44,5 @@ public class Insight {
     public String getSummary() { return summary; }
     public Map<String, Object> getPayload() { return payload; }
     public Instant getCreatedAt() { return createdAt; }
+
 }

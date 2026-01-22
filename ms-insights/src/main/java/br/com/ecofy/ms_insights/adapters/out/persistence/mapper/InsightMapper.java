@@ -21,9 +21,11 @@ public final class InsightMapper {
 
     private static final TypeReference<Map<String, Object>> MAP_REF = new TypeReference<>() {};
 
+    // Impede instanciação e reforça o uso estático (classe utilitária de mapeamento domain <-> persistence).
     private InsightMapper() {
     }
 
+    // Converte Insight (domínio) em InsightEntity (persistência), validando campos obrigatórios e serializando o payload para JSON.
     public static InsightEntity toEntity(Insight d, ObjectMapper om) {
         Objects.requireNonNull(d, "insight must not be null");
         Objects.requireNonNull(om, "objectMapper must not be null");
@@ -56,10 +58,12 @@ public final class InsightMapper {
                 .build();
     }
 
+    // Converte InsightEntity em Insight (domínio) usando Clock padrão UTC para timestamps de fallback.
     public static Insight toDomain(InsightEntity e, ObjectMapper om) {
         return toDomain(e, om, Clock.systemUTC());
     }
 
+    // Converte InsightEntity em Insight (domínio) validando campos, parseando enums, desserializando payload e aplicando fallback de createdAt via Clock.
     public static Insight toDomain(InsightEntity e, ObjectMapper om, Clock clock) {
         Objects.requireNonNull(e, "entity must not be null");
         Objects.requireNonNull(om, "objectMapper must not be null");
@@ -95,6 +99,7 @@ public final class InsightMapper {
         );
     }
 
+    // Cria uma nova instância de Insight com id aleatório e createdAt em UTC, aplicando defaults (payload vazio) e validações básicas.
     public static Insight newInsight(
             UserId userId,
             InsightType type,
@@ -107,6 +112,7 @@ public final class InsightMapper {
         return newInsight(userId, type, period, score, title, summary, payload, Clock.systemUTC());
     }
 
+    // Cria uma nova instância de Insight com Clock injetável para facilitar testes determinísticos (id aleatório, createdAt via Clock, payload vazio se null).
     public static Insight newInsight(
             UserId userId,
             InsightType type,
@@ -134,6 +140,7 @@ public final class InsightMapper {
         );
     }
 
+    // Serializa o payload (Map) do insight para JSON, aplicando fallback para mapa vazio e encapsulando falhas em IllegalStateException.
     private static String serializePayload(ObjectMapper om, Map<String, Object> payload) {
         try {
             return om.writeValueAsString(payload == null ? Collections.emptyMap() : payload);
@@ -142,6 +149,7 @@ public final class InsightMapper {
         }
     }
 
+    // Desserializa o JSON do payload para Map, retornando mapa vazio quando o JSON é nulo/vazio e encapsulando falhas em IllegalStateException.
     private static Map<String, Object> deserializePayload(ObjectMapper om, String json) {
         if (json == null || json.trim().isEmpty()) {
             return Collections.emptyMap();
@@ -153,6 +161,7 @@ public final class InsightMapper {
         }
     }
 
+    // Converte uma String persistida em enum do tipo informado, validando não vazio e lançando IllegalArgumentException quando inválido.
     private static <E extends Enum<E>> E parseEnum(Class<E> enumType, String raw, String field) {
         String v = requireNonBlank(raw, field);
         try {
@@ -162,10 +171,12 @@ public final class InsightMapper {
         }
     }
 
+    // Garante que uma String obrigatória esteja preenchida (não nula/não vazia), normalizando com trim e lançando IllegalArgumentException em caso de falha.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
         return v.trim();
     }
+
 }

@@ -6,9 +6,15 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public record GenerateInsightsCommand(
+
         UUID userId,
+
         LocalDate start,
+
         LocalDate end,
+
         PeriodGranularity granularity,
+
         String idempotencyKey
-) {}
+
+) { }

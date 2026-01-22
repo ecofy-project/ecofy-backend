@@ -42,4 +42,5 @@ public class MetricSnapshotEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
 }

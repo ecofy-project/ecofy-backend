@@ -18,10 +18,12 @@ public class InsightRebuildService implements RebuildInsightsUseCase {
 
     private final LoadInsightsPort loadInsightsPort;
 
+    // Injeta a porta de leitura de insights para permitir validações/rebuild sem acoplamento à persistência.
     public InsightRebuildService(LoadInsightsPort loadInsightsPort) {
         this.loadInsightsPort = Objects.requireNonNull(loadInsightsPort, "loadInsightsPort must not be null");
     }
 
+    // Executa um “rebuild” (placeholder) que hoje apenas valida a saúde da porta/repositório e registra métricas de execução sem efeitos colaterais.
     @Override
     @Transactional(readOnly = true)
     public void rebuild(RebuildInsightsCommand cmd) {
@@ -66,10 +68,12 @@ public class InsightRebuildService implements RebuildInsightsUseCase {
         }
     }
 
+    // Garante um runId não-vazio para rastreabilidade do job, gerando um identificador padrão quando não fornecido.
     private static String normalizeRunId(String runId) {
         if (runId == null || runId.trim().isEmpty()) {
             return "rebuild|" + UUID.randomUUID();
         }
         return runId.trim();
     }
+
 }

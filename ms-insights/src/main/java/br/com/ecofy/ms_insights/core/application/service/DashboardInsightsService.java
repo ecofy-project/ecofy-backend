@@ -23,11 +23,13 @@ public class DashboardInsightsService implements GetDashboardInsightsUseCase {
     private final LoadInsightsPort loadInsightsPort;
     private final LoadGoalsPort loadGoalsPort;
 
+    // Injeta as portas de leitura de insights e goals para compor o bundle do dashboard via Ports & Adapters.
     public DashboardInsightsService(LoadInsightsPort loadInsightsPort, LoadGoalsPort loadGoalsPort) {
         this.loadInsightsPort = Objects.requireNonNull(loadInsightsPort, "loadInsightsPort must not be null");
         this.loadGoalsPort = Objects.requireNonNull(loadGoalsPort, "loadGoalsPort must not be null");
     }
 
+    // Carrega e agrega dados do dashboard (insights recentes + goals) para um usuário, retornando um bundle com metrics vazias por contrato atual.
     @Override
     @Transactional(readOnly = true)
     public InsightsBundleResult getDashboard(UUID userId) {
@@ -50,6 +52,7 @@ public class DashboardInsightsService implements GetDashboardInsightsUseCase {
         return new InsightsBundleResult(insights, List.of(), goals);
     }
 
+    // Converte Insight (domínio) em InsightResult (DTO de saída) para retorno em APIs/consumidores do caso de uso.
     private static InsightResult toInsightResult(br.com.ecofy.ms_insights.core.domain.Insight i) {
         return new InsightResult(
                 i.getId(),
@@ -62,4 +65,5 @@ public class DashboardInsightsService implements GetDashboardInsightsUseCase {
                 i.getCreatedAt()
         );
     }
+
 }

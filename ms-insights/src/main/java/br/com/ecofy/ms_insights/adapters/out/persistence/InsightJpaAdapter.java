@@ -29,11 +29,13 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
     private final InsightRepository repository;
     private final ObjectMapper objectMapper;
 
+    // Injeta o repositório JPA e o ObjectMapper usados para persistir e (de)serializar o payload de Insight.
     public InsightJpaAdapter(InsightRepository repository, ObjectMapper objectMapper) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
     }
 
+    // Persiste um Insight no banco (domain -> entity -> save) com observabilidade (tempo) e logs de erro diferenciando falhas de acesso a dados.
     @Override
     @Transactional
     public Insight save(Insight insight) {
@@ -63,6 +65,7 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
         }
     }
 
+    // Busca insights mais recentes do usuário com limite normalizado (20 ou 50), mapeando entities para domínio e registrando métricas/erros.
     @Override
     @Transactional(readOnly = true)
     public List<Insight> findRecentForUser(UUID userId, int limit) {
@@ -93,6 +96,7 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
         }
     }
 
+    // Busca insights por usuário/tipo/período usando estratégia simples (pega últimos 50 e filtra em memória) para reduzir complexidade de query.
     @Override
     @Transactional(readOnly = true)
     public List<Insight> findForUserTypePeriod(UUID userId, InsightType type, Period period) {
@@ -129,6 +133,7 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
         }
     }
 
+    // Normaliza o limite solicitado para um conjunto suportado (20 ou 50), aplicando fallback seguro quando inválido.
     private static int normalizeLimit(int limit) {
         // Contrato simples: 20 ou 50 (com fallback seguro).
         if (limit <= 0) return LIMIT_20;
@@ -136,16 +141,19 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
         return LIMIT_50;
     }
 
+    // Compara dois períodos por start/end e granularity para garantir equivalência exata no filtro em memória.
     private static boolean samePeriod(Period a, Period b) {
         return a.start().equals(b.start())
                 && a.end().equals(b.end())
                 && a.granularity() == b.granularity();
     }
 
+    // Calcula o tempo decorrido em milissegundos desde startedAt para métricas de observabilidade.
     private static long elapsedMs(Instant startedAt) {
         return Duration.between(startedAt, Instant.now()).toMillis();
     }
 
+    // Recupera o id do Insight com segurança para logging, evitando exceções caso o objeto esteja inconsistente.
     private static Object safeInsightId(Insight insight) {
         try {
             return insight.getId();
@@ -154,6 +162,7 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
         }
     }
 
+    // Recupera o userId do Insight com segurança para logging, evitando exceções caso a key esteja ausente/inválida.
     private static Object safeUserId(Insight insight) {
         try {
             return insight.getKey().userId().value();
@@ -162,6 +171,7 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
         }
     }
 
+    // Recupera o tipo do Insight com segurança para logging, evitando exceções em casos de inconsistência do domínio.
     private static Object safeType(Insight insight) {
         try {
             return insight.getType();
@@ -169,4 +179,5 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
             return "n/a";
         }
     }
+
 }

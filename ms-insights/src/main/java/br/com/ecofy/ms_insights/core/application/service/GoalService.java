@@ -32,12 +32,14 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
     private final SaveGoalPort saveGoalPort;
     private final Clock clock;
 
+    // Injeta as portas de leitura/escrita de goals e um Clock para padronizar timestamps e facilitar testes determinísticos.
     public GoalService(LoadGoalsPort loadGoalsPort, SaveGoalPort saveGoalPort, Clock clock) {
         this.loadGoalsPort = Objects.requireNonNull(loadGoalsPort, "loadGoalsPort must not be null");
         this.saveGoalPort = Objects.requireNonNull(saveGoalPort, "saveGoalPort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Cria um novo Goal a partir do comando, validando campos, aplicando defaults e persistindo via port, retornando um GoalResult.
     @Transactional
     public GoalResult create(CreateGoalCommand cmd) {
         Objects.requireNonNull(cmd, "cmd must not be null");
@@ -68,6 +70,7 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         return toResult(saved);
     }
 
+    // Atualiza um Goal existente aplicando merge de campos (name/status/target), validando regras de negócio e persistindo o estado atualizado.
     @Override
     @Transactional
     public GoalResult update(UpdateGoalCommand cmd) {
@@ -96,6 +99,7 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         return toResult(saved);
     }
 
+    // Lista os goals de um usuário, convertendo domínio para GoalResult e registrando quantidade retornada.
     @Override
     @Transactional(readOnly = true)
     public List<GoalResult> list(UUID userId) {
@@ -109,6 +113,7 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         return list;
     }
 
+    // Busca um goal por id, lançando GoalNotFoundException quando inexistente e retornando o GoalResult quando encontrado.
     @Override
     @Transactional(readOnly = true)
     public GoalResult get(UUID goalId) {
@@ -123,6 +128,7 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         return toResult(g);
     }
 
+    // Faz o merge do target garantindo regra de negócio: para atualizar target é obrigatório enviar targetCents e currency juntos.
     private static Money mergeTarget(Goal current, UpdateGoalCommand cmd) {
         Long newCents = cmd.targetCents();
         String newCurrency = cmd.currency();
@@ -141,6 +147,7 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         return new Money(cents, currency);
     }
 
+    // Converte o Goal (domínio) em GoalResult (DTO) para exposição nas camadas de entrada (web/kafka).
     public static GoalResult toResult(Goal g) {
         return new GoalResult(
                 g.getId(),
@@ -154,11 +161,13 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         );
     }
 
+    // Valida campo obrigatório não-nulo e lança BusinessValidationException com mensagem padronizada.
     private static <T> T requireNonNull(T v, String field) {
         if (v == null) throw new BusinessValidationException(field + " must not be null");
         return v;
     }
 
+    // Valida String obrigatória não-vazia/não-branca e retorna valor normalizado (trim).
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new BusinessValidationException(field + " must not be blank");
@@ -166,6 +175,7 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         return v.trim();
     }
 
+    // Valida código de moeda em formato ISO (3 caracteres), normaliza para uppercase e lança BusinessValidationException quando inválido.
     private static String requireCurrency(String currency) {
         String c = requireNonBlank(currency, "currency").toUpperCase();
         if (c.length() != 3) {
@@ -174,9 +184,11 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         return c;
     }
 
+    // Valida número obrigatório e não-negativo (>= 0), convertendo Long para long e lançando BusinessValidationException quando inválido.
     private static long requireNonNegative(Long v, String field) {
         if (v == null) throw new BusinessValidationException(field + " must not be null");
         if (v < 0) throw new BusinessValidationException(field + " must be >= 0");
         return v;
     }
+
 }

@@ -21,6 +21,7 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    // Injeta dependências de configuração, KafkaTemplate, ObjectMapper e Clock garantindo que estejam presentes.
     public InsightCreatedKafkaAdapter(InsightsProperties properties,
                                       KafkaTemplate<String, String> kafkaTemplate,
                                       ObjectMapper objectMapper,
@@ -31,6 +32,7 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Publica o evento insight.created no Kafka: valida entradas/config, mapeia Insight -> evento, serializa em JSON e envia com chave por userId.
     @Override
     public void publish(Insight insight) {
         Objects.requireNonNull(insight, "insight must not be null");
@@ -65,6 +67,7 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
         }
     }
 
+    // Garante que um valor String obrigatório esteja preenchido (não nulo/não vazio), normalizando com trim e lançando IllegalArgumentException em caso de falha.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
@@ -72,6 +75,7 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
         return v.trim();
     }
 
+    // Obtém o id do Insight com segurança para logging, evitando falhas caso o objeto esteja inconsistente.
     private static String safeInsightId(Insight insight) {
         try {
             return insight.getId() != null ? insight.getId().toString() : "null";
@@ -79,4 +83,5 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
             return "unavailable";
         }
     }
+
 }

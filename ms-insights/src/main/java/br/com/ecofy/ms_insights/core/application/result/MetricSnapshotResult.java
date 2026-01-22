@@ -6,10 +6,17 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record MetricSnapshotResult(
+
         UUID id,
+
         UUID userId,
+
         MetricType metricType,
+
         long valueCents,
+
         String currency,
+
         Instant createdAt
-) {}
+
+) { }

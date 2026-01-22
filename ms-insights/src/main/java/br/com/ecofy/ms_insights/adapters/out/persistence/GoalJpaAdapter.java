@@ -20,6 +20,7 @@ public class GoalJpaAdapter implements SaveGoalPort, LoadGoalsPort {
 
     private final GoalRepository repository;
 
+    // Persiste um Goal no banco via JPA (domain -> entity -> save) e retorna o domínio reidratado (entity -> domain).
     @Override
     public Goal save(Goal goal) {
         Objects.requireNonNull(goal, "goal must not be null");
@@ -44,6 +45,7 @@ public class GoalJpaAdapter implements SaveGoalPort, LoadGoalsPort {
         return GoalMapper.toDomain(saved);
     }
 
+    // Busca um Goal por id, retornando o domínio quando encontrado e null quando inexistente (mantendo contrato atual do port).
     @Override
     public Goal findById(UUID goalId) {
         Objects.requireNonNull(goalId, "goalId must not be null");
@@ -61,6 +63,7 @@ public class GoalJpaAdapter implements SaveGoalPort, LoadGoalsPort {
                 });
     }
 
+    // Lista até 200 goals do usuário ordenados por updatedAt desc, mapeando entities para domínio e registrando métricas em log.
     @Override
     public List<Goal> findByUserId(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -79,4 +82,5 @@ public class GoalJpaAdapter implements SaveGoalPort, LoadGoalsPort {
 
         return result;
     }
+
 }

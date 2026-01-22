@@ -19,11 +19,13 @@ public class InsightEventIngestionService {
     private final GenerateInsightsUseCase generateInsightsUseCase;
     private final Clock clock;
 
+    // Injeta o caso de uso de geração de insights e um Clock para cálculo determinístico do período.
     public InsightEventIngestionService(GenerateInsightsUseCase generateInsightsUseCase, Clock clock) {
         this.generateInsightsUseCase = Objects.requireNonNull(generateInsightsUseCase, "generateInsightsUseCase must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Trata um “sinal” (Kafka/webhook/etc.) para gerar insights do usuário no mês corrente, construindo comando com idempotencyKey estável.
     @Transactional
     public void onSignalGenerate(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -47,9 +49,11 @@ public class InsightEventIngestionService {
         ));
     }
 
+    // Gera uma chave de idempotência curta e estável baseada em userId+granularity+intervalo, evitando variação por timestamp.
     private static String buildIdempotencyKey(UUID userId, LocalDate start, LocalDate end, PeriodGranularity g) {
         // Curta, estável e legível; evita variar com timestamp e reduz risco de estouro de header.
         // Ex.: ins-kafka|<user>|MONTH|2026-01-01|2026-01-06
         return "ins-kafka|" + userId + "|" + g + "|" + start + "|" + end;
     }
+
 }

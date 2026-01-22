@@ -22,6 +22,7 @@ public class HttpClientConfig {
     private static final int DEFAULT_READ_TIMEOUT_MS = 5_000;
     private static final int DEFAULT_MAX_IN_MEMORY_MB = 2;
 
+    // Disponibiliza um WebClient.Builder padrão com limite de memória para codecs, prevenindo uso excessivo de heap em respostas grandes.
     @Bean
     public WebClient.Builder webClientBuilder() {
         // Limite de memória para evitar payloads gigantes estourarem heap (ajuste se necessário).
@@ -33,6 +34,7 @@ public class HttpClientConfig {
                 .exchangeStrategies(strategies);
     }
 
+    // Constrói um WebClient com timeouts configuráveis (connect/read), aplicando defaults e registrando parâmetros para observabilidade.
     public static WebClient build(WebClient.Builder builder, Integer connectTimeoutMs, Integer readTimeoutMs) {
         Assert.notNull(builder, "builder must not be null");
 
@@ -51,9 +53,11 @@ public class HttpClientConfig {
                 .build();
     }
 
+    // Normaliza valores opcionais de timeout aplicando fallback quando nulo e validando > 0 quando informado.
     private static int normalize(Integer value, int fallback, String field) {
         if (value == null) return fallback;
         if (value <= 0) throw new IllegalArgumentException(field + " must be > 0");
         return value;
     }
+
 }

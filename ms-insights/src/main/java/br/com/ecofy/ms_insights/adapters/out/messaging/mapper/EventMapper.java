@@ -10,13 +10,16 @@ import java.util.UUID;
 
 public final class EventMapper {
 
+    // Impede instanciação e reforça o uso estático (classe utilitária de mapeamento para eventos).
     private EventMapper() {
     }
 
+    // Converte um Insight em InsightCreatedEvent usando o Clock padrão (UTC) para timestamp do evento.
     public static InsightCreatedEvent toCreatedEvent(Insight insight) {
         return toCreatedEvent(insight, Clock.systemUTC());
     }
 
+    // Converte um Insight em InsightCreatedEvent validando entradas, extraindo ids e criando metadados (eventId/eventType/occurredAt) de forma padronizada.
     public static InsightCreatedEvent toCreatedEvent(Insight insight, Clock clock) {
         Objects.requireNonNull(insight, "insight must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
@@ -41,4 +44,5 @@ public final class EventMapper {
                 insight.getPayload()                    // payload
         );
     }
+
 }

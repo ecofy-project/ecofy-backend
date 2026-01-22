@@ -19,11 +19,13 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
     private final IdempotencyRepository repository;
     private final Clock clock;
 
+    // Injeta o repositório JPA e o Clock para controle de timestamps e testes determinísticos.
     public IdempotencyJpaAdapter(IdempotencyRepository repository, Clock clock) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    // Tenta adquirir a chave de idempotência persistindo-a com TTL; retorna false quando a chave já existe (a menos que esteja expirada e seja “reacquired”).
     @Override
     @Transactional
     public boolean tryAcquire(String key, int ttlSeconds) {
@@ -56,6 +58,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         }
     }
 
+    // Readquire a chave quando a existente está expirada: verifica expiresAt, remove e tenta salvar novamente lidando com corrida (race condition).
     private boolean tryReacquireIfExpired(String key, int ttlSeconds, Instant now) {
         return repository.findById(key)
                 .filter(existing -> existing.getExpiresAt() != null && existing.getExpiresAt().isBefore(now))
@@ -80,10 +83,12 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
                 .orElse(false);
     }
 
+    // Garante que uma String obrigatória esteja preenchida (não nula/não vazia), normalizando com trim e lançando IllegalArgumentException em caso de falha.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
         return v.trim();
     }
+
 }

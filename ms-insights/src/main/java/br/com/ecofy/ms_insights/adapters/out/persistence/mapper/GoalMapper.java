@@ -13,9 +13,11 @@ import java.util.UUID;
 
 public final class GoalMapper {
 
+    // Impede instanciação e reforça o uso estático (classe utilitária de mapeamento domain <-> persistence).
     private GoalMapper() {
     }
 
+    // Converte Goal (domínio) em GoalEntity (persistência), validando campos obrigatórios e normalizando strings.
     public static GoalEntity toEntity(Goal d) {
         Objects.requireNonNull(d, "goal must not be null");
         Objects.requireNonNull(d.getUserId(), "goal.userId must not be null");
@@ -39,16 +41,12 @@ public final class GoalMapper {
                 .build();
     }
 
-    /**
-     * Mapper “simples” sem Clock: mantém compatibilidade e aplica fallback mínimo.
-     */
+    // Converte GoalEntity em Goal (domínio) usando Clock padrão UTC para timestamps de fallback.
     public static Goal toDomain(GoalEntity e) {
         return toDomain(e, Clock.systemUTC());
     }
 
-    /**
-     * Mapper com Clock: evita Instant.now() direto e facilita testes determinísticos.
-     */
+    // Converte GoalEntity em Goal (domínio) validando campos e aplicando fallback de timestamps via Clock injetável.
     public static Goal toDomain(GoalEntity e, Clock clock) {
         Objects.requireNonNull(e, "entity must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
@@ -77,6 +75,7 @@ public final class GoalMapper {
         );
     }
 
+    // Faz parse do status persistido para enum GoalStatus com fallback seguro (ACTIVE) quando o dado é inválido/legado.
     private static GoalStatus parseStatus(String status) {
         String v = requireNonBlank(status, "entity.status");
         try {
@@ -87,10 +86,12 @@ public final class GoalMapper {
         }
     }
 
+    // Garante que uma String obrigatória esteja preenchida (não nula/não vazia), normalizando com trim e lançando IllegalArgumentException em caso de falha.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
         return v.trim();
     }
+
 }

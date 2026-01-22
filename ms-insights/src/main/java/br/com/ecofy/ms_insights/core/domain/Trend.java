@@ -35,4 +35,5 @@ public class Trend {
     public List<Long> getSeriesCents() { return seriesCents; }
     public String getCurrency() { return currency; }
     public Instant getCreatedAt() { return createdAt; }
+
 }

@@ -7,12 +7,21 @@ import java.util.Map;
 import java.util.UUID;
 
 public record InsightResult(
+
         UUID id,
+
         UUID userId,
+
         InsightType type,
+
         int score,
+
         String title,
+
         String summary,
+
         Map<String, Object> payload,
+
         Instant createdAt
-) {}
+
+) { }

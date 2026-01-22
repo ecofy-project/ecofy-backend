@@ -38,4 +38,5 @@ public class Goal {
     public Goal withUpdate(String name, Money target, GoalStatus status, Instant updatedAt) {
         return new Goal(this.id, this.userId, name, target, status, this.createdAt, updatedAt);
     }
+
 }

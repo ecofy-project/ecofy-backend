@@ -16,9 +16,11 @@ import java.util.UUID;
 
 public final class TrendMapper {
 
+    // Impede instanciação e reforça o uso estático (classe utilitária de mapeamento domain <-> persistence).
     private TrendMapper() {
     }
 
+    // Converte Trend (domínio) em TrendEntity (persistência), validando campos obrigatórios e serializando a série (List<Long>) em JSON.
     public static TrendEntity toEntity(Trend d, ObjectMapper om) {
         Objects.requireNonNull(d, "trend must not be null");
         Objects.requireNonNull(om, "objectMapper must not be null");
@@ -52,10 +54,12 @@ public final class TrendMapper {
         }
     }
 
+    // Converte TrendEntity em Trend (domínio) usando Clock padrão UTC para timestamps de fallback.
     public static Trend toDomain(TrendEntity e, ObjectMapper om) {
         return toDomain(e, om, Clock.systemUTC());
     }
 
+    // Converte TrendEntity em Trend (domínio) validando campos, parseando enums, desserializando a série e aplicando fallback de createdAt via Clock.
     @SuppressWarnings("unchecked")
     public static Trend toDomain(TrendEntity e, ObjectMapper om, Clock clock) {
         Objects.requireNonNull(e, "entity must not be null");
@@ -96,6 +100,7 @@ public final class TrendMapper {
         }
     }
 
+    // Converte uma String persistida em enum do tipo informado, validando não vazio e lançando IllegalArgumentException quando inválido.
     private static <E extends Enum<E>> E parseEnum(Class<E> enumType, String raw, String field) {
         String v = requireNonBlank(raw, field);
         try {
@@ -105,6 +110,7 @@ public final class TrendMapper {
         }
     }
 
+    // Garante que uma String obrigatória esteja preenchida (não nula/não vazia), normalizando com trim e lançando IllegalArgumentException em caso de falha.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
@@ -112,6 +118,7 @@ public final class TrendMapper {
         return v.trim();
     }
 
+    // Valida e normaliza um código de moeda de 3 letras (ISO-4217), garantindo uppercase e tamanho exato 3.
     private static String requireCurrency3(String v, String field) {
         String c = requireNonBlank(v, field).toUpperCase();
         if (c.length() != 3) {
@@ -119,4 +126,5 @@ public final class TrendMapper {
         }
         return c;
     }
+
 }

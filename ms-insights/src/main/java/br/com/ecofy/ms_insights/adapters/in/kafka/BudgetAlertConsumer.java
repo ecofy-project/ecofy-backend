@@ -19,6 +19,7 @@ public class BudgetAlertConsumer {
     private final ObjectMapper objectMapper;
     private final InsightEventIngestionService ingestionService;
 
+    // Injeta configurações, ObjectMapper e o serviço de ingestão garantindo que dependências essenciais não sejam nulas.
     public BudgetAlertConsumer(
             InsightsProperties properties,
             ObjectMapper objectMapper,
@@ -40,6 +41,7 @@ public class BudgetAlertConsumer {
             topics = "${ecofy.insights.topics.budget-alert-topic}",
             containerFactory = "kafkaListenerContainerFactory"
     )
+    // Consome eventos de alerta de budget do Kafka, valida payload, faz parsing do JSON e dispara a geração de insights para o usuário.
     public void consume(String payload) {
         if (payload == null || payload.isBlank()) {
             log.warn("[BudgetAlertConsumer] - [consume] -> empty payload received; skipping");
@@ -78,6 +80,7 @@ public class BudgetAlertConsumer {
         }
     }
 
+    // Faz parse e valida um UUID obrigatório do JSON, lançando IllegalArgumentException quando ausente/vazio/inválido.
     private static UUID parseRequiredUuid(JsonNode root, String field) {
         if (root == null || root.get(field) == null) {
             throw new IllegalArgumentException("Missing required field: " + field);
@@ -89,6 +92,7 @@ public class BudgetAlertConsumer {
         return UUID.fromString(v.trim());
     }
 
+    // Faz parse de um UUID opcional do JSON, retornando null quando ausente/vazio e lançando erro apenas se o formato for inválido.
     private static UUID parseOptionalUuid(JsonNode root, String field) {
         if (root == null || root.get(field) == null) return null;
         String v = root.get(field).asText(null);
@@ -96,9 +100,11 @@ public class BudgetAlertConsumer {
         return UUID.fromString(v.trim());
     }
 
+    // Faz parse de um campo texto opcional do JSON, normalizando whitespace e retornando null quando ausente/vazio.
     private static String parseOptionalText(JsonNode root, String field) {
         if (root == null || root.get(field) == null) return null;
         String v = root.get(field).asText(null);
         return (v == null || v.isBlank()) ? null : v.trim();
     }
+
 }
