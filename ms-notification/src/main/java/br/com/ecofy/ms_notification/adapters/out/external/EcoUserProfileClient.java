@@ -25,6 +25,7 @@ public class EcoUserProfileClient implements LoadUserContactInfoPort {
         );
     }
 
+    // Carrega informações de contato do usuário via client de perfil, aplicando feature-flag e fallback seguro quando desabilitado ou não implementado.
     @Override
     public Optional<UserContactInfo> load(UserId userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -45,10 +46,12 @@ public class EcoUserProfileClient implements LoadUserContactInfoPort {
         return Optional.empty();
     }
 
+    // Gera contatos sintéticos (email/telefone/deviceToken) para ambientes de dev/teste quando o client real estiver desabilitado.
     private static UserContactInfo syntheticContacts(UserId userId) {
         String email = "user+" + userId.value() + "@example.com";
         String phone = "+5511999999999";
         String deviceToken = "device-token-" + UUID.randomUUID();
         return new UserContactInfo(email, phone, deviceToken);
     }
+
 }

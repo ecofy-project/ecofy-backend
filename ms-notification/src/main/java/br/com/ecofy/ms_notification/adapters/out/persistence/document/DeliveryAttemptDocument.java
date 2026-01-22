@@ -33,4 +33,5 @@ public class DeliveryAttemptDocument {
     private String errorMessage;
 
     private Instant createdAt;
+
 }

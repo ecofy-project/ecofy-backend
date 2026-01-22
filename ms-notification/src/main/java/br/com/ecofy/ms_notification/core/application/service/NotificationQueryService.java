@@ -23,6 +23,7 @@ public class NotificationQueryService implements ListNotificationsUseCase {
         this.notificationMongoAdapter = Objects.requireNonNull(notificationMongoAdapter, "notificationMongoAdapter must not be null");
     }
 
+    // Lista notificações recentes de um usuário, aplicando normalização de limite (default/máximo) e delegando a consulta ao adapter Mongo.
     @Override
     public List<NotificationResult> listByUser(UUID userId, int limit) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -38,8 +39,10 @@ public class NotificationQueryService implements ListNotificationsUseCase {
         return notificationMongoAdapter.listByUser(userId, safeLimit);
     }
 
+    // Garante um limite seguro para paginação: aplica default quando inválido e impõe teto máximo para proteger o sistema.
     private static int clamp(int value, int defaultValue, int max) {
         if (value < 1) return defaultValue;
         return Math.min(value, max);
     }
+
 }

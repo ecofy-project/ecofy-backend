@@ -24,6 +24,7 @@ public class DeliveryAttemptMongoAdapter implements SaveDeliveryAttemptPort {
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    // Persiste um DeliveryAttempt no Mongo (via mapper), retornando o domínio reconstituído e registrando logs de sucesso/erro.
     @Override
     public DeliveryAttempt save(DeliveryAttempt attempt) {
         if (attempt == null) throw new IllegalArgumentException("attempt must not be null");
@@ -57,6 +58,7 @@ public class DeliveryAttemptMongoAdapter implements SaveDeliveryAttemptPort {
         }
     }
 
+    // Carrega todas as tentativas de entrega de uma notificação (ordenadas por attemptNumber), mapeando documentos para domínio.
     @Override
     public List<DeliveryAttempt> loadByNotificationId(NotificationId notificationId) {
         Objects.requireNonNull(notificationId, "notificationId must not be null");
@@ -84,4 +86,5 @@ public class DeliveryAttemptMongoAdapter implements SaveDeliveryAttemptPort {
             throw ex;
         }
     }
+
 }

@@ -14,6 +14,7 @@ import java.util.UUID;
 @Component
 public class NotificationMapper {
 
+    // Converte o domínio Notification em NotificationDocument (Mongo), validando campos obrigatórios e normalizando strings/opcionais.
     public NotificationDocument toDoc(Notification n) {
         if (n == null) throw new IllegalArgumentException("notification must not be null");
 
@@ -38,6 +39,7 @@ public class NotificationMapper {
                 .build();
     }
 
+    // Converte NotificationDocument (Mongo) em Notification (domínio), reconstruindo value objects e normalizando strings.
     public Notification toDomain(NotificationDocument d) {
         if (d == null) throw new IllegalArgumentException("document must not be null");
 
@@ -62,6 +64,7 @@ public class NotificationMapper {
                 .build();
     }
 
+    // Extrai e valida o UUID do NotificationId no domínio, falhando rápido se id/value estiver ausente.
     private static UUID requireId(Notification n) {
         if (n.getId() == null) throw new IllegalArgumentException("notification.id must not be null");
         UUID id = n.getId().value();
@@ -69,6 +72,7 @@ public class NotificationMapper {
         return id;
     }
 
+    // Extrai e valida o UUID do UserId no domínio, falhando rápido se userId/value estiver ausente.
     private static UUID requireUserId(Notification n) {
         if (n.getUserId() == null) throw new IllegalArgumentException("notification.userId must not be null");
         UUID userId = n.getUserId().value();
@@ -76,6 +80,7 @@ public class NotificationMapper {
         return userId;
     }
 
+    // Extrai e valida o endereço de destino do domínio (ChannelAddress.address), garantindo que não seja vazio e retornando trimmed.
     private static String requireDestination(Notification n) {
         if (n.getDestination() == null) throw new IllegalArgumentException("notification.destination must not be null");
         String dest = n.getDestination().address();
@@ -83,18 +88,22 @@ public class NotificationMapper {
         return dest.trim();
     }
 
+    // Converte IdempotencyKey (value object) para String persistível, normalizando vazio/em branco para null.
     private static String toIdempotencyKeyValue(IdempotencyKey key) {
         if (key == null) return null;
         String v = key.value();
         return blankToNull(v);
     }
 
+    // Converte String persistida em IdempotencyKey (value object), retornando null se a string estiver vazia/em branco.
     private static IdempotencyKey toIdempotencyKey(String v) {
         String safe = blankToNull(v);
         return safe == null ? null : new IdempotencyKey(safe);
     }
 
+    // Normaliza strings removendo espaços e convertendo valores nulos/em branco para null.
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
+
 }

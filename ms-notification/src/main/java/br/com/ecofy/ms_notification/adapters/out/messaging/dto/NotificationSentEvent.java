@@ -6,13 +6,22 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record NotificationSentEvent(
+
         UUID notificationId,
+
         UUID userId,
+
         String eventType,
+
         String channel,
+
         String status,
+
         Instant occurredAt
+
 ) {
+
+    // Cria um evento de "notification.sent" a partir do agregado Notification, extraindo IDs/enums e marcando o instante de ocorrência.
     public static NotificationSentEvent from(Notification n) {
         return new NotificationSentEvent(
                 n.getId().value(),
@@ -23,4 +32,5 @@ public record NotificationSentEvent(
                 Instant.now()
         );
     }
+
 }

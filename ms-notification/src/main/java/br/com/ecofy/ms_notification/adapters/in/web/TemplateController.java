@@ -1,9 +1,9 @@
 package br.com.ecofy.ms_notification.adapters.in.web;
 
-import br.com.ecofy.ms_notification.adapters.in.web.dto.SendNotificationRequest;
-import br.com.ecofy.ms_notification.adapters.in.web.dto.TemplatePreviewResponse;
-import br.com.ecofy.ms_notification.adapters.in.web.dto.TemplateRequest;
-import br.com.ecofy.ms_notification.adapters.in.web.dto.TemplateResponse;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.request.SendNotificationRequest;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.response.TemplatePreviewResponse;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.request.TemplateRequest;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.response.TemplateResponse;
 import br.com.ecofy.ms_notification.adapters.out.persistence.mongo.NotificationTemplateMongoAdapter;
 import br.com.ecofy.ms_notification.core.application.command.PreviewTemplateCommand;
 import br.com.ecofy.ms_notification.core.domain.NotificationTemplate;
@@ -168,4 +168,5 @@ public class TemplateController {
                 t.getUpdatedAt()
         );
     }
+
 }

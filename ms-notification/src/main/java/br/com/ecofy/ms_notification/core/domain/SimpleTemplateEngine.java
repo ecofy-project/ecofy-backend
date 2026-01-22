@@ -1,16 +1,13 @@
 package br.com.ecofy.ms_notification.core.domain;
 
-
 import java.util.Map;
 
 final class SimpleTemplateEngine {
 
+    // Impede instanciação: classe utilitária.
     private SimpleTemplateEngine() {}
 
-    /**
-     * Placeholder "senior": simples e seguro.
-     * Substitui {{key}} por valor (toString), sem executar código.
-     */
+    // Renderiza o template substituindo placeholders {{key}} pelos valores do map.
     static String render(String template, Map<String, Object> vars) {
         if (template == null) return null;
         String out = template;
@@ -23,4 +20,5 @@ final class SimpleTemplateEngine {
         }
         return out;
     }
+
 }

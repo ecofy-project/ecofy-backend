@@ -76,6 +76,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         Objects.requireNonNull(props.getIdempotency(), "props.idempotency must not be null");
     }
 
+    // Cria e envia uma notificação a partir do template ativo, resolve destino (override ou contatos do usuário), persiste e tenta entregar com idempotência.
     @Override
     public NotificationResult send(SendNotificationCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -152,6 +153,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         return toResult(delivered);
     }
 
+    // Reenvia uma notificação existente: aplica idempotência, carrega por id, reseta status para PENDING e executa uma nova tentativa de entrega.
     @Override
     public NotificationResult resend(ResendNotificationCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -199,6 +201,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         return toResult(delivered);
     }
 
+    // Executa a entrega para o canal configurado (EMAIL/WHATSAPP/PUSH), grava tentativa (sucesso/erro), atualiza status e publica evento "sent" quando aplicável.
     private Notification attemptDelivery(Notification notification) {
         Objects.requireNonNull(notification, "notification must not be null");
 
@@ -291,6 +294,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         }
     }
 
+    // Publica o evento "notification.sent" no Kafka quando o publisher estiver disponível, sem quebrar o fluxo principal em caso de falha downstream.
     private void publishSentEventIfEnabled(Notification saved) {
         if (publishNotificationEventPort == null) return;
 
@@ -310,6 +314,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         }
     }
 
+    // Resolve o destino final da notificação usando override (se informado) ou consultando contatos do usuário conforme o canal (email/telefone/token).
     private String resolveDestination(String override, NotificationChannel channel, UserId userId) {
         if (override != null && !override.isBlank()) {
             String trimmed = override.trim();
@@ -344,6 +349,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         };
     }
 
+    // Aplica a política de idempotência (se habilitada): normaliza/gera chave, tenta adquirir no repositório e falha com conflito se já utilizada.
     private void acquireIdempotencyIfEnabled(String idempotencyKey) {
         if (!props.getIdempotency().isEnabled()) return;
 
@@ -370,6 +376,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         );
     }
 
+    // Gera/normaliza uma chave de idempotência para a operação (send/resend), anexando um sufixo estável para diferenciar cenários.
     private String resolveIdempotencyKey(String provided, String suffix) {
         String base = (provided == null || provided.isBlank())
                 ? UUID.randomUUID().toString()
@@ -378,6 +385,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         return base + ":" + suffix;
     }
 
+    // Cria um objeto DeliveryAttempt de sucesso com metadados do provider (nome e messageId) para auditoria e rastreabilidade.
     private static DeliveryAttempt successAttempt(Notification notification, int attemptNumber, String provider, String providerMessageId) {
         return DeliveryAttempt.success(
                 notification.getId(),
@@ -388,6 +396,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         );
     }
 
+    // Cria um objeto DeliveryAttempt de falha com código/mensagem de erro e provider (placeholder quando indisponível) para diagnóstico e histórico.
     private static DeliveryAttempt failureAttempt(
             Notification notification,
             int attemptNumber,
@@ -405,21 +414,25 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         );
     }
 
+    // Protege o comando contra payload nulo/vazio, retornando Map imutável para evitar mutações externas durante o processamento.
     private static Map<String, Object> safePayload(Map<String, Object> payload) {
         if (payload == null || payload.isEmpty()) return Map.of();
         return Map.copyOf(payload);
     }
 
+    // Normaliza strings convertendo branco/blank em null e removendo espaços para manter consistência de persistência e comparação.
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
 
+    // Extrai uma mensagem de erro segura para logs (fallback para nome da exceção quando message está ausente).
     private static String safeErrorMessage(Throwable ex) {
         if (ex == null) return "<unknown>";
         String msg = ex.getMessage();
         return (msg == null || msg.isBlank()) ? ex.getClass().getSimpleName() : msg;
     }
 
+    // Mascara/normaliza destinos sensíveis para logs conforme o canal (email/telefone/token), evitando vazamento de PII.
     private static String safeDestination(String raw, NotificationChannel channel) {
         if (raw == null || raw.isBlank()) return "<empty>";
 
@@ -444,11 +457,13 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         };
     }
 
+    // Valida string obrigatória em tempo de execução (e.g., subject/body por canal) e lança BusinessValidationException com mensagem adequada.
     private static String requireNonNull(String v, String message) {
         if (v == null) throw new BusinessValidationException(message);
         return v;
     }
 
+    // Converte a entidade de domínio Notification para DTO de saída (NotificationResult) usado por camadas externas (REST/queries).
     private static NotificationResult toResult(Notification n) {
         return new NotificationResult(
                 n.getId().value(),
@@ -465,4 +480,5 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
                 n.getUpdatedAt()
         );
     }
+
 }

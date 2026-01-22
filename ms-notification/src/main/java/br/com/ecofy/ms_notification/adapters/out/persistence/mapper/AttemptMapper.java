@@ -11,6 +11,7 @@ import java.util.UUID;
 @Component
 public class AttemptMapper {
 
+    // Converte o objeto de domínio DeliveryAttempt para o documento Mongo DeliveryAttemptDocument, normalizando campos opcionais e validando notificationId.
     public DeliveryAttemptDocument toDoc(DeliveryAttempt a) {
         if (a == null) throw new IllegalArgumentException("attempt must not be null");
         UUID notificationId = requireNotificationId(a);
@@ -29,6 +30,7 @@ public class AttemptMapper {
                 .build();
     }
 
+    // Converte o documento Mongo DeliveryAttemptDocument para o objeto de domínio DeliveryAttempt, recriando NotificationId e normalizando strings em branco.
     public DeliveryAttempt toDomain(DeliveryAttemptDocument d) {
         if (d == null) throw new IllegalArgumentException("document must not be null");
         UUID notificationId = Objects.requireNonNull(d.getNotificationId(), "document.notificationId must not be null");
@@ -47,6 +49,7 @@ public class AttemptMapper {
                 .build();
     }
 
+    // Extrai e valida o UUID de notificationId do domínio (NotificationId.value), falhando rápido caso esteja ausente/nulo.
     private static UUID requireNotificationId(DeliveryAttempt a) {
         if (a.getNotificationId() == null) throw new IllegalArgumentException("attempt.notificationId must not be null");
         UUID id = a.getNotificationId().value();
@@ -54,7 +57,9 @@ public class AttemptMapper {
         return id;
     }
 
+    // Normaliza strings removendo espaços e convertendo valores nulos/em branco para null (útil para persistência e índices).
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
+
 }

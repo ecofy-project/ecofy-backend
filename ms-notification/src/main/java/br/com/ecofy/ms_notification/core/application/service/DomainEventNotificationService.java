@@ -34,6 +34,7 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
         Objects.requireNonNull(props.getTemplates().getDefaultChannels(), "props.templates.defaultChannels must not be null");
     }
 
+    // Orquestra o tratamento de um evento de domínio: valida entrada, resolve canal padrão, normaliza payload/idempotency e dispara o caso de uso de envio.
     @Override
     public void handle(HandleDomainEventCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -67,6 +68,7 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
         sendNotificationUseCase.send(sendCmd);
     }
 
+    // Resolve o canal padrão configurado para um tipo de evento, aplicando fallback seguro e tolerância a configuração inválida.
     private NotificationChannel resolveDefaultChannel(DomainEventType type) {
         String raw = props.getTemplates().getDefaultChannels().get(type.name());
 
@@ -94,13 +96,16 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
         }
     }
 
+    // Normaliza e protege o payload: garante mapa imutável/cópia defensiva para evitar mutações externas após o recebimento.
     private static Map<String, Object> safePayload(Map<String, Object> payload) {
         if (payload == null || payload.isEmpty()) return Map.of();
         // cópia defensiva: evita que mutações externas afetem o comando
         return Map.copyOf(new HashMap<>(payload));
     }
 
+    // Converte strings vazias/em branco em null para padronizar persistência/logs/validações.
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
+
 }

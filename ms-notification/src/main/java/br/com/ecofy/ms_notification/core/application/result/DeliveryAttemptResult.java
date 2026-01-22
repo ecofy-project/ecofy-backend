@@ -7,14 +7,25 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record DeliveryAttemptResult(
+
         UUID id,
+
         UUID notificationId,
+
         NotificationChannel channel,
+
         int attemptNumber,
+
         AttemptStatus status,
+
         String provider,
+
         String providerMessageId,
+
         String errorCode,
+
         String errorMessage,
+
         Instant createdAt
-) {}
+
+) { }

@@ -39,4 +39,5 @@ public class NotificationDocument {
 
     private Instant createdAt;
     private Instant updatedAt;
+
 }

@@ -7,6 +7,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
+import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -34,11 +35,14 @@ public class NotificationIndexes implements ApplicationRunner {
     }
 
     void ensureIndexes() {
+        IndexOperations ops = mongoTemplate.indexOps(NotificationDocument.class);
+
         try {
             String collection = mongoTemplate.getCollectionName(NotificationDocument.class);
 
-            String idx1 = mongoTemplate.indexOps(NotificationDocument.class).createIndex(userCreatedAtIndex());
-            String idx2 = mongoTemplate.indexOps(NotificationDocument.class).createIndex(idempotencyKeyUniqueIndex());
+            // createIndex é idempotente: se já existir com a mesma definição, apenas retorna o nome.
+            String idx1 = ops.createIndex(userCreatedAtIndex());
+            String idx2 = ops.createIndex(idempotencyKeyUniqueIndex());
 
             log.info(
                     "[NotificationIndexes] - [ensureIndexes] -> ensured indexes collection={} idx1={} idx2={}",
@@ -55,6 +59,7 @@ public class NotificationIndexes implements ApplicationRunner {
         }
     }
 
+    // Index para consultas por usuário ordenadas por data de criação (últimos primeiro).
     private static Index userCreatedAtIndex() {
         return new Index()
                 .on(FIELD_USER_ID, Sort.Direction.ASC)
@@ -62,6 +67,7 @@ public class NotificationIndexes implements ApplicationRunner {
                 .named(IDX_USER_CREATED_AT);
     }
 
+    // Unique para garantir idempotência no write (chave opcional).
     private static Index idempotencyKeyUniqueIndex() {
         return new Index()
                 .on(FIELD_IDEMPOTENCY_KEY, Sort.Direction.ASC)
@@ -69,4 +75,5 @@ public class NotificationIndexes implements ApplicationRunner {
                 .sparse()
                 .named(UX_IDEMPOTENCY_KEY);
     }
+
 }

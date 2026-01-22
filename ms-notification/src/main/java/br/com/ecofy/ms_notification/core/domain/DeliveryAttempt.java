@@ -29,11 +29,14 @@ public class DeliveryAttempt {
 
     private final Instant createdAt;
 
-    public static DeliveryAttempt success(NotificationId notificationId,
-                                          NotificationChannel channel,
-                                          int attemptNumber,
-                                          String provider,
-                                          String providerMessageId) {
+    // Factory method para criar uma tentativa de entrega bem-sucedida com dados do provedor.
+    public static DeliveryAttempt success(
+            NotificationId notificationId,
+            NotificationChannel channel,
+            int attemptNumber,
+            String provider,
+            String providerMessageId
+    ) {
         return DeliveryAttempt.builder()
                 .id(UUID.randomUUID())
                 .notificationId(notificationId)
@@ -46,12 +49,15 @@ public class DeliveryAttempt {
                 .build();
     }
 
-    public static DeliveryAttempt failure(NotificationId notificationId,
-                                          NotificationChannel channel,
-                                          int attemptNumber,
-                                          String provider,
-                                          String errorCode,
-                                          String errorMessage) {
+    // Factory method para criar uma tentativa de entrega com falha, registrando código e mensagem de erro.
+    public static DeliveryAttempt failure(
+            NotificationId notificationId,
+            NotificationChannel channel,
+            int attemptNumber,
+            String provider,
+            String errorCode,
+            String errorMessage
+    ) {
         return DeliveryAttempt.builder()
                 .id(UUID.randomUUID())
                 .notificationId(notificationId)

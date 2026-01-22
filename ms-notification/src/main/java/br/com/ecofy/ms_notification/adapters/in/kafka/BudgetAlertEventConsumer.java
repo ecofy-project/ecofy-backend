@@ -21,6 +21,7 @@ public class BudgetAlertEventConsumer {
     private final InboundEventMapper mapper;
     private final HandleDomainEventNotificationUseCase useCase;
 
+    // Consome eventos eco.budget.alert do Kafka, mapeia para comando de aplicação e delega o processamento ao caso de uso de notificação com logs e fail-fast.
     @KafkaListener(
             id = "budgetAlertEventConsumer",
             // Evita dependência de SpEL/bean (resiliente e padrão Spring)
@@ -69,7 +70,9 @@ public class BudgetAlertEventConsumer {
         }
     }
 
+    // Normaliza valores nulos para string segura em logs, evitando NPE e mantendo logs consistentes.
     private static String safe(Object value) {
         return value == null ? "null" : String.valueOf(value);
     }
+
 }

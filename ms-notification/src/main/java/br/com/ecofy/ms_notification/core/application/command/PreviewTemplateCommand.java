@@ -8,8 +8,13 @@ import java.util.Map;
 import java.util.UUID;
 
 public record PreviewTemplateCommand(
+
         UUID userId,
+
         DomainEventType eventType,
+
         NotificationChannel channel,
+
         Map<String, Object> payload
-) {}
+
+) { }

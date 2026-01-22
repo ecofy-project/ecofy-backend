@@ -21,6 +21,7 @@ public class RetryPolicyService {
         Objects.requireNonNull(retryProps.getBaseBackoff(), "props.retry.baseBackoff must not be null");
     }
 
+    // Verifica se ainda é permitido re-tentar com base no attemptCount atual e no maxAttempts configurado.
     public boolean canRetry(int attemptCount) {
         int safeAttempts = Math.max(0, attemptCount);
         int maxAttempts = Math.max(1, retryProps.getMaxAttempts());
@@ -37,6 +38,7 @@ public class RetryPolicyService {
         return can;
     }
 
+    // Calcula o backoff exponencial (baseBackoff * multiplier^attemptCount) com proteção contra overflow e limite máximo.
     public Duration computeBackoff(int attemptCount) {
         int safeAttempts = Math.max(0, attemptCount);
 
@@ -61,12 +63,14 @@ public class RetryPolicyService {
         return backoff;
     }
 
+    // Normaliza o multiplier de retry para um valor válido (fallback 1.0) quando configurado inválido (NaN/Infinity/<=0).
     private double retryMultiplier() {
         double m = retryProps.getMultiplier();
         if (Double.isNaN(m) || Double.isInfinite(m) || m <= 0d) return 1d;
         return m;
     }
 
+    // Multiplica baseMs por um fator double de forma segura, evitando resultados inválidos e saturando em Long.MAX_VALUE quando necessário.
     private static long safeMultiply(long baseMs, double factor) {
         if (baseMs <= 0L) return 0L;
         if (Double.isNaN(factor) || Double.isInfinite(factor) || factor <= 0d) return 0L;
@@ -76,9 +80,11 @@ public class RetryPolicyService {
         return (long) v;
     }
 
+    // Garante que a Duration calculada seja não-negativa e não ultrapasse o limite máximo configurado.
     private static Duration clamp(Duration value, Duration max) {
         if (value == null) return Duration.ZERO;
         if (value.isNegative()) return Duration.ZERO;
         return value.compareTo(max) > 0 ? max : value;
     }
+
 }

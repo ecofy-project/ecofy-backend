@@ -14,6 +14,7 @@ public class PushProviderAdapter implements PushSenderPort {
 
     private static final String PROVIDER_NAME = "push-stub";
 
+    // Envia push via provedor (stub), validando parâmetros, gerando messageId e retornando um SendResult com rastreabilidade mínima.
     @Override
     public SendResult sendPush(ChannelAddress to, String title, String body) {
         Objects.requireNonNull(to, "to must not be null");
@@ -34,9 +35,11 @@ public class PushProviderAdapter implements PushSenderPort {
         return new SendResult(PROVIDER_NAME, messageId);
     }
 
+    // Mascara parcialmente o device token para logs, reduzindo exposição de credenciais/PII e preservando depuração.
     private static String safeToken(String token) {
         if (token == null || token.isBlank()) return "<empty>";
         if (token.length() <= 8) return "***";
         return token.substring(0, 4) + "..." + token.substring(token.length() - 4);
     }
+
 }

@@ -14,6 +14,7 @@ import java.util.UUID;
 @Component
 public class InboundEventMapper {
 
+    // Converte a mensagem de budget alert (Kafka) em um comando de aplicação normalizado para o handler de eventos de domínio.
     public HandleDomainEventCommand fromBudgetAlert(BudgetAlertEventMessage msg) {
         Objects.requireNonNull(msg, "msg must not be null");
 
@@ -32,6 +33,7 @@ public class InboundEventMapper {
         return toCommand(DomainEventType.BUDGET_ALERT, userId, payload, eventId);
     }
 
+    // Converte a mensagem de insight.created (Kafka) em um comando de aplicação normalizado para o handler de eventos de domínio.
     public HandleDomainEventCommand fromInsightCreated(InsightCreatedEventMessage msg) {
         Objects.requireNonNull(msg, "msg must not be null");
 
@@ -48,6 +50,7 @@ public class InboundEventMapper {
         return toCommand(DomainEventType.INSIGHT_CREATED, userId, payload, eventId);
     }
 
+    // Centraliza a criação do HandleDomainEventCommand incluindo tipo, userId, payload imutável e chave de idempotência derivada do eventId.
     private static HandleDomainEventCommand toCommand(DomainEventType type,
                                                       UUID userId,
                                                       Map<String, Object> payload,
@@ -57,17 +60,21 @@ public class InboundEventMapper {
         return new HandleDomainEventCommand(type, userId, Map.copyOf(payload), idempotencyKey);
     }
 
+    // Valida e retorna o userId obrigatório para processamento do evento.
     private static UUID requireUserId(UUID userId) {
         return Objects.requireNonNull(userId, "userId must not be null");
     }
 
+    // Resolve a chave de idempotência priorizando eventId estável (quando presente) e gerando UUID apenas como fallback.
     private static String resolveIdempotencyKey(String eventId) {
         return (eventId != null && !eventId.isBlank())
                 ? eventId
                 : UUID.randomUUID().toString();
     }
 
+    // Adiciona um par chave/valor ao payload somente quando o valor não é nulo, evitando ruído e mantendo compatibilidade.
     private static void putIfNotNull(Map<String, Object> target, String key, Object value) {
         if (value != null) target.put(key, value);
     }
+
 }

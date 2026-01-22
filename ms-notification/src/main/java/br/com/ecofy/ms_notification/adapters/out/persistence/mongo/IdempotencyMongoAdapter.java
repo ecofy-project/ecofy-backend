@@ -5,9 +5,9 @@ import br.com.ecofy.ms_notification.adapters.out.persistence.repository.Idempote
 import br.com.ecofy.ms_notification.config.NotificationProperties;
 import br.com.ecofy.ms_notification.core.domain.valueobject.IdempotencyKey;
 import br.com.ecofy.ms_notification.core.port.out.IdempotencyPort;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -26,6 +26,7 @@ public class IdempotencyMongoAdapter implements IdempotencyPort {
         Objects.requireNonNull(props.getIdempotency().getTtl(), "props.idempotency.ttl must not be null");
     }
 
+    // Tenta adquirir uma chave de idempotência via insert (garantido por unique index), calculando expiresAt com TTL e retornando true/false conforme sucesso/duplicidade.
     @Override
     public boolean tryAcquire(IdempotencyKey key) {
         if (key == null) throw new IllegalArgumentException("key must not be null");
@@ -66,4 +67,5 @@ public class IdempotencyMongoAdapter implements IdempotencyPort {
             throw ex;
         }
     }
+
 }

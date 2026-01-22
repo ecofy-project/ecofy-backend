@@ -45,12 +45,15 @@ public class NotificationTemplate {
         return this;
     }
 
+    // Renderiza o subject (apenas se houver subjectTemplate); retorna null quando o template de assunto não existe.
     public String renderSubject(Map<String, Object> vars) {
-        if (subjectTemplate == null) return null;
-        return SimpleTemplateEngine.render(subjectTemplate, vars);
+        if (subjectTemplate == null) return null; // Sem template de assunto -> sem subject (ex.: canais que não usam subject).
+        return SimpleTemplateEngine.render(subjectTemplate, vars); // Aplica as variáveis no template do subject e devolve o texto final.
     }
 
+    // Renderiza o body a partir do bodyTemplate usando as variáveis fornecidas.
     public String renderBody(Map<String, Object> vars) {
-        return SimpleTemplateEngine.render(bodyTemplate, vars);
+        return SimpleTemplateEngine.render(bodyTemplate, vars); // Aplica as variáveis no template do corpo e devolve a mensagem final.
     }
+
 }

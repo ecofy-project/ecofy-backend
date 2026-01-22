@@ -21,6 +21,7 @@ public class InsightCreatedEventConsumer {
     private final InboundEventMapper mapper;
     private final HandleDomainEventNotificationUseCase useCase;
 
+    // Consome eventos eco.insight.created do Kafka, transforma a mensagem em comando de domínio e dispara o caso de uso de notificação com observabilidade e propagação de falhas.
     @KafkaListener(
             id = "insightCreatedEventConsumer",
             topics = "${notification.topics.insight-created:eco.insight.created}",
@@ -44,10 +45,10 @@ public class InsightCreatedEventConsumer {
                 safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId)
         );
 
-        // Se você quiser detalhes mínimos de payload sem poluir INFO:
-         if (log.isDebugEnabled()) {
-             log.debug("[InsightCreatedEventConsumer] - [consume] -> hasMetadata={}", message.metadata() != null);
-         }
+        // Em DEBUG, registra metadados mínimos para troubleshooting sem poluir logs em INFO.
+        if (log.isDebugEnabled()) {
+            log.debug("[InsightCreatedEventConsumer] - [consume] -> hasMetadata={}", message.metadata() != null);
+        }
 
         try {
             final HandleDomainEventCommand command = mapper.fromInsightCreated(message);
@@ -73,10 +74,9 @@ public class InsightCreatedEventConsumer {
         }
     }
 
-    /**
-     * Normaliza valores para logs: evita "null" literal e facilita leitura em observabilidade.
-     */
+    // Normaliza valores para logs, substituindo null por "-" e evitando ruído/ambiguidade em observabilidade.
     private static String safe(Object value) {
         return value == null ? "-" : String.valueOf(value);
     }
+
 }

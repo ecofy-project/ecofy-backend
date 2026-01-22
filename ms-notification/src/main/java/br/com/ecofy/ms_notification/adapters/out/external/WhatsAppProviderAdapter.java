@@ -14,6 +14,7 @@ public class WhatsAppProviderAdapter implements WhatsAppSenderPort {
 
     private static final String PROVIDER_NAME = "whatsapp-stub";
 
+    // Envia mensagem via WhatsApp (stub), validando parâmetros, gerando messageId e retornando um SendResult para rastreabilidade.
     @Override
     public SendResult sendWhatsApp(ChannelAddress to, String body) {
         Objects.requireNonNull(to, "to must not be null");
@@ -32,6 +33,7 @@ public class WhatsAppProviderAdapter implements WhatsAppSenderPort {
         return new SendResult(PROVIDER_NAME, messageId);
     }
 
+    // Mascara parcialmente o telefone para logs (remove não-dígitos e oculta o miolo) evitando exposição de PII.
     private static String safePhone(String phone) {
         if (phone == null || phone.isBlank()) return "<empty>";
         String digits = phone.replaceAll("\\D+", "");
@@ -40,4 +42,5 @@ public class WhatsAppProviderAdapter implements WhatsAppSenderPort {
         String suffix = digits.substring(digits.length() - 2);
         return prefix + "****" + suffix;
     }
+
 }

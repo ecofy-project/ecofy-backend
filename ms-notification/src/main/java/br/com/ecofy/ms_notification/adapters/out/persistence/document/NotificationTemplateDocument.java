@@ -33,4 +33,5 @@ public class NotificationTemplateDocument {
 
     private Instant createdAt;
     private Instant updatedAt;
+
 }

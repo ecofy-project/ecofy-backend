@@ -14,6 +14,7 @@ public class EmailProviderAdapter implements EmailSenderPort {
 
     private static final String PROVIDER_NAME = "email-stub";
 
+    // Envia e-mail via provedor (stub), validando parâmetros, gerando messageId e retornando um SendResult com rastreabilidade mínima.
     @Override
     public SendResult sendEmail(ChannelAddress to, String subject, String body) {
         Objects.requireNonNull(to, "to must not be null");
@@ -34,6 +35,7 @@ public class EmailProviderAdapter implements EmailSenderPort {
         return new SendResult(PROVIDER_NAME, messageId);
     }
 
+    // Mascara parcialmente o endereço para logs, reduzindo exposição de PII e mantendo utilidade de troubleshooting.
     private static String safeAddress(String address) {
         if (address == null || address.isBlank()) return "<empty>";
         int at = address.indexOf('@');
@@ -41,4 +43,5 @@ public class EmailProviderAdapter implements EmailSenderPort {
         String domain = address.substring(at + 1);
         return address.charAt(0) + "***@" + domain;
     }
+
 }

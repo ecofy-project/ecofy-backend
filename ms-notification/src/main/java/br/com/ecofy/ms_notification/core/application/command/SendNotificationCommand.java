@@ -7,10 +7,17 @@ import java.util.Map;
 import java.util.UUID;
 
 public record SendNotificationCommand(
+
         UUID userId,
+
         DomainEventType eventType,
+
         NotificationChannel channel,
+
         String destinationOverride,
+
         Map<String, Object> payload,
+
         String idempotencyKey
-) {}
+
+) { }

@@ -1,8 +1,8 @@
 package br.com.ecofy.ms_notification.adapters.in.web;
 
-import br.com.ecofy.ms_notification.adapters.in.web.dto.NotificationResponse;
-import br.com.ecofy.ms_notification.adapters.in.web.dto.ResendRequest;
-import br.com.ecofy.ms_notification.adapters.in.web.dto.SendNotificationRequest;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.response.NotificationResponse;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.request.ResendRequest;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.request.SendNotificationRequest;
 import br.com.ecofy.ms_notification.core.application.command.ResendNotificationCommand;
 import br.com.ecofy.ms_notification.core.application.command.SendNotificationCommand;
 import br.com.ecofy.ms_notification.core.application.result.NotificationResult;
@@ -209,4 +209,5 @@ public class NotificationController {
                 r.createdAt(), r.updatedAt()
         );
     }
+
 }

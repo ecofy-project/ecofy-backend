@@ -7,10 +7,11 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
+import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -31,18 +32,21 @@ public class IdempotencyIndexes implements ApplicationRunner {
     }
 
     void ensureIndexes() {
+        IndexOperations ops = mongoTemplate.indexOps(IdempotencyKeyDocument.class);
+
         try {
-            String indexName = mongoTemplate.indexOps(IdempotencyKeyDocument.class)
-                    .createIndex(ttlIndexDefinition());
+            // createIndex é idempotente: se já existir com a mesma definição, apenas retorna o nome.
+            String createdOrExisting = ops.createIndex(ttlIndexDefinition());
 
             log.info(
-                    "[IdempotencyIndexes] - [ensureIndexes] -> ensured TTL index name={} createdOrExisting={}",
+                    "[IdempotencyIndexes] - [ensureIndexes] -> ensured TTL index indexName={} createdOrExisting={}",
                     TTL_INDEX_NAME,
-                    indexName
+                    createdOrExisting
             );
+
         } catch (Exception ex) {
             log.error(
-                    "[IdempotencyIndexes] - [ensureIndexes] -> failed to ensure TTL index name={}",
+                    "[IdempotencyIndexes] - [ensureIndexes] -> failed to ensure TTL index indexName={}",
                     TTL_INDEX_NAME,
                     ex
             );
@@ -50,10 +54,14 @@ public class IdempotencyIndexes implements ApplicationRunner {
         }
     }
 
+    // TTL index:
+    // - expireAfter = 0: expira exatamente no timestamp do campo expiresAt.
+    // - Requer que expiresAt seja Date/Instant.
     private static Index ttlIndexDefinition() {
         return new Index()
                 .on(FIELD_EXPIRES_AT, Sort.Direction.ASC)
-                .expire(0, TimeUnit.SECONDS)
+                .expire(Duration.ZERO) // Spring Data MongoDB: preferível a TimeUnit p/ APIs mais novas
                 .named(TTL_INDEX_NAME);
     }
+
 }

@@ -27,6 +27,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    // Persiste um NotificationTemplate no Mongo (doc -> repo.save -> domain) com logs de sucesso/falha e rethrow em erro.
     public NotificationTemplate save(NotificationTemplate template) {
         if (template == null) throw new IllegalArgumentException("template must not be null");
 
@@ -58,6 +59,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
         }
     }
 
+    // Carrega um template por TemplateId, retornando Optional e registrando em log se foi encontrado ou não (com tratamento de erro).
     @Override
     public Optional<NotificationTemplate> loadById(TemplateId id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -83,6 +85,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
         }
     }
 
+    // Resolve o template ativo por (userId opcional, eventType, channel), priorizando template do usuário e fazendo fallback para template global (ownerUserId null).
     @Override
     public Optional<NotificationTemplate> loadActiveTemplate(
             UserId userIdOrNull,
@@ -136,4 +139,5 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
             throw ex;
         }
     }
+
 }

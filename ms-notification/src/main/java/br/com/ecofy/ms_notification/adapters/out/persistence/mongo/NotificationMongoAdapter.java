@@ -29,6 +29,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort {
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    // Persiste uma Notification no Mongo (doc -> repo.save -> domain) com logs de sucesso/falha e rethrow em erro.
     @Override
     public Notification save(Notification notification) {
         if (notification == null) throw new IllegalArgumentException("notification must not be null");
@@ -60,6 +61,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort {
         }
     }
 
+    // Carrega uma Notification por NotificationId, retornando Optional e registrando em log se foi encontrada ou não (com tratamento de erro).
     @Override
     public Optional<Notification> loadById(NotificationId id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -85,6 +87,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort {
         }
     }
 
+    // Lista notificações do usuário ordenadas por createdAt desc, aplicando clamp no limit e retornando DTOs NotificationResult (com logs e rethrow em erro).
     public List<NotificationResult> listByUser(UUID userId, int limit) {
         Objects.requireNonNull(userId, "userId must not be null");
 
@@ -115,6 +118,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort {
         }
     }
 
+    // Converte NotificationDocument (Mongo) em NotificationResult (DTO de saída), sem dependência do domínio.
     private static NotificationResult toResult(br.com.ecofy.ms_notification.adapters.out.persistence.document.NotificationDocument d) {
         return new NotificationResult(
                 d.getId(),
@@ -132,8 +136,10 @@ public class NotificationMongoAdapter implements SaveNotificationPort {
         );
     }
 
+    // Normaliza o limit (null/<=0 -> default; acima do máximo -> max) para proteger o repositório e evitar cargas excessivas.
     private static int clamp(Integer value, int defaultValue, int max) {
         if (value == null || value < 1) return defaultValue;
         return Math.min(value, max);
     }
+
 }

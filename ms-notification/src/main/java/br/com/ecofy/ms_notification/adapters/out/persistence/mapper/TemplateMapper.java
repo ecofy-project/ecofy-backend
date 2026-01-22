@@ -12,6 +12,7 @@ import java.util.UUID;
 @Component
 public class TemplateMapper {
 
+    // Converte o domínio NotificationTemplate em NotificationTemplateDocument (Mongo), validando id e normalizando strings/opcionais.
     public NotificationTemplateDocument toDoc(NotificationTemplate t) {
         if (t == null) throw new IllegalArgumentException("template must not be null");
 
@@ -31,6 +32,7 @@ public class TemplateMapper {
                 .build();
     }
 
+    // Converte NotificationTemplateDocument (Mongo) em NotificationTemplate (domínio), reconstruindo value objects e normalizando strings.
     public NotificationTemplate toDomain(NotificationTemplateDocument d) {
         if (d == null) throw new IllegalArgumentException("document must not be null");
 
@@ -50,6 +52,7 @@ public class TemplateMapper {
                 .build();
     }
 
+    // Extrai e valida o UUID do TemplateId no domínio, falhando rápido se id/value estiver ausente.
     private static UUID requireId(NotificationTemplate t) {
         if (t.getId() == null) throw new IllegalArgumentException("template.id must not be null");
         UUID id = t.getId().value();
@@ -57,15 +60,19 @@ public class TemplateMapper {
         return id;
     }
 
+    // Converte UserId (owner) em UUID persistível, retornando null quando o template não tem owner (ex.: template global).
     private static UUID toOwnerUserIdValue(UserId owner) {
         return owner == null ? null : owner.value();
     }
 
+    // Converte UUID persistido em UserId (owner), retornando null quando não existe owner (ex.: template global).
     private static UserId toOwnerUserId(UUID ownerUserId) {
         return ownerUserId == null ? null : new UserId(ownerUserId);
     }
 
+    // Normaliza strings removendo espaços e convertendo valores nulos/em branco para null.
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
+
 }

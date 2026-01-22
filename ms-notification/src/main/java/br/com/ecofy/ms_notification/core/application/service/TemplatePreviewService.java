@@ -72,12 +72,15 @@ public class TemplatePreviewService implements PreviewTemplateUseCase {
         return new TemplatePreviewResult(subject, body);
     }
 
+    // Converte um UUID opcional em UserId; retorna null quando userId não é informado (template global).
     private static UserId toUserIdOrNull(UUID userId) {
         return userId == null ? null : new UserId(userId);
     }
 
+    // Normaliza o payload para um Map imutável e nunca nulo (fallback Map.of()).
     private static Map<String, Object> safePayload(Map<String, Object> payload) {
         if (payload == null || payload.isEmpty()) return Map.of();
         return Map.copyOf(payload);
     }
+
 }

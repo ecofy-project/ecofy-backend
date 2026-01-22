@@ -9,20 +9,14 @@ import java.util.UUID;
 @Component
 public class EventMapper {
 
-    /**
-     * Overload recomendado: quem chama não precisa se preocupar com ids.
-     * Gera publishId (runId) e um eventId padrão.
-     */
+    // Constrói um NotificationSentEvent a partir do Notification gerando publishId/eventId automaticamente (API simples para quem publica).
     public NotificationSentEvent toSentEvent(Notification notification) {
         UUID publishId = UUID.randomUUID();
         String eventId = UUID.randomUUID().toString();
         return toSentEvent(notification, publishId, eventId, null);
     }
 
-    /**
-     * Overload intermediário: permite passar correlationId.
-     * Útil quando existe trace/correlation vindo do fluxo anterior (ex.: Kafka inbound).
-     */
+    // Constrói um NotificationSentEvent permitindo propagar correlationId, mantendo publishId/eventId gerados internamente.
     public NotificationSentEvent toSentEvent(
             Notification notification,
             String correlationId
@@ -32,10 +26,7 @@ public class EventMapper {
         return toSentEvent(notification, publishId, eventId, correlationId);
     }
 
-    /**
-     * Overload completo: permite controlar publishId/eventId/correlationId explicitamente.
-     * Deixa o mapper pronto para uma futura evolução do DTO com metadados.
-     */
+    // Constrói um NotificationSentEvent com controle total de publishId/eventId/correlationId, validando entrada e preparando evolução para metadados.
     public NotificationSentEvent toSentEvent(
             Notification notification,
             UUID publishId,
@@ -60,7 +51,9 @@ public class EventMapper {
         return base;
     }
 
+    // Normaliza strings opcionais (trim) convertendo branco/vazio para null para evitar valores “lixo” em logs/metadados.
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
+
 }

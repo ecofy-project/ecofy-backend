@@ -9,16 +9,29 @@ import java.util.Map;
 import java.util.UUID;
 
 public record NotificationResult(
+
         UUID id,
+
         UUID userId,
+
         DomainEventType eventType,
+
         NotificationChannel channel,
+
         String destination,
+
         String subject,
+
         String body,
+
         NotificationStatus status,
+
         int attemptCount,
+
         Map<String, Object> payload,
+
         Instant createdAt,
+
         Instant updatedAt
-) {}
+
+) { }

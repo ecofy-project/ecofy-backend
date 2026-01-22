@@ -15,6 +15,8 @@ import java.util.UUID;
 @Component
 public class NotificationEventsKafkaAdapter implements PublishNotificationEventPort {
 
+    private static final String EVENT_TYPE_NOTIFICATION_SENT = "notification.sent";
+
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final String notificationSentTopic;
 
@@ -23,9 +25,9 @@ public class NotificationEventsKafkaAdapter implements PublishNotificationEventP
         Objects.requireNonNull(props, "props must not be null");
         Objects.requireNonNull(props.getTopics(), "props.topics must not be null");
 
-        this.notificationSentTopic = Objects.requireNonNull(
+        this.notificationSentTopic = requireNonBlank(
                 props.getTopics().getNotificationSent(),
-                "props.topics.notificationSent must not be null"
+                "props.topics.notificationSent"
         );
     }
 
@@ -33,32 +35,58 @@ public class NotificationEventsKafkaAdapter implements PublishNotificationEventP
     public void publish(NotificationSentEvent event) {
         Objects.requireNonNull(event, "event must not be null");
 
-        String key = event.notificationId() != null
-                ? event.notificationId().toString()
-                : UUID.randomUUID().toString();
+        final String topic = notificationSentTopic;
+        final String key = resolveKey(event);
 
-        kafkaTemplate.send(notificationSentTopic, key, event)
+        // Publica o objeto (serialização configurada via ProducerFactory / JsonSerializer etc.)
+        kafkaTemplate.send(topic, key, event)
                 .whenComplete((SendResult<String, Object> result, Throwable ex) -> {
                     if (ex != null) {
                         log.error(
-                                "[NotificationEventsKafkaAdapter] - [publish] -> failed to publish notification.sent topic={} key={} notificationId={}",
-                                notificationSentTopic,
+                                "[NotificationEventsKafkaAdapter] - [publish] -> status=failed eventType={} topic={} key={} notificationId={} userId={}",
+                                EVENT_TYPE_NOTIFICATION_SENT,
+                                topic,
                                 key,
-                                event.notificationId(),
+                                safe(event.notificationId()),
+                                safe(event.userId()),
                                 ex
                         );
                         return;
                     }
 
                     var meta = result.getRecordMetadata();
-                    log.debug(
-                            "[NotificationEventsKafkaAdapter] - [publish] -> published notification.sent topic={} key={} notificationId={} partition={} offset={}",
-                            notificationSentTopic,
+                    log.info(
+                            "[NotificationEventsKafkaAdapter] - [publish] -> status=published eventType={} topic={} key={} notificationId={} userId={} partition={} offset={}",
+                            EVENT_TYPE_NOTIFICATION_SENT,
+                            topic,
                             key,
-                            event.notificationId(),
+                            safe(event.notificationId()),
+                            safe(event.userId()),
                             meta.partition(),
                             meta.offset()
                     );
                 });
     }
+
+    // Resolve a chave do Kafka: preferencialmente notificationId; fallback UUID para evitar chave vazia.
+    private static String resolveKey(NotificationSentEvent event) {
+        if (event.notificationId() != null) {
+            return event.notificationId().toString();
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    // Valida string obrigatória e normaliza (trim).
+    private static String requireNonBlank(String v, String field) {
+        if (v == null || v.trim().isEmpty()) {
+            throw new IllegalArgumentException(field + " must not be blank");
+        }
+        return v.trim();
+    }
+
+    // Normaliza valores em logs (evita null literal e facilita observabilidade).
+    private static String safe(Object v) {
+        return v == null ? "-" : String.valueOf(v);
+    }
+
 }
