@@ -30,18 +30,21 @@ public class PersistenceConfig {
      * Garante que existe um ObjectMapper no contexto (e evita NPE no ConnectionMapper).
      * Se o Spring Boot já tiver um ObjectMapper auto-configurado, este @Bean não será criado.
      */
+    // Disponibiliza um ObjectMapper no contexto para ser usado por mappers/serialização na camada de persistência.
     @Bean
     ObjectMapper objectMapper() {
         log.info("[PersistenceConfig] - [objectMapper] -> wiring ObjectMapper");
         return new ObjectMapper().findAndRegisterModules();
     }
 
+    // Disponibiliza o UserProfileMapper (entity <-> domain) no contexto.
     @Bean
     UserProfileMapper userProfileMapper() {
         log.info("[PersistenceConfig] - [userProfileMapper] -> wiring UserProfileMapper");
         return new UserProfileMapper();
     }
 
+    // Disponibiliza o ConnectionMapper (entity <-> domain) no contexto, com suporte a metadata JSON via ObjectMapper.
     @Bean
     ConnectionMapper connectionMapper(ObjectMapper objectMapper) {
         Objects.requireNonNull(objectMapper, "objectMapper must not be null");
@@ -49,18 +52,21 @@ public class PersistenceConfig {
         return new ConnectionMapper(objectMapper);
     }
 
+    // Disponibiliza o PreferenceMapper (entity <-> domain) no contexto.
     @Bean
     PreferenceMapper preferenceMapper() {
         log.info("[PersistenceConfig] - [preferenceMapper] -> wiring PreferenceMapper");
         return new PreferenceMapper();
     }
 
+    // Disponibiliza o LinkedAccountMapper (entity <-> domain) no contexto.
     @Bean
     LinkedAccountMapper linkedAccountMapper() {
         log.info("[PersistenceConfig] - [linkedAccountMapper] -> wiring LinkedAccountMapper");
         return new LinkedAccountMapper();
     }
 
+    // Registra o UserProfileJpaAdapter e o expõe também como SaveUserProfilePort e LoadUserProfilePort via aliases de bean.
     @Bean(name = { "userProfileJpaAdapter", "saveUserProfilePort", "loadUserProfilePort" })
     UserProfileJpaAdapter userProfileJpaAdapter(UserProfileRepository repo, UserProfileMapper mapper) {
         Objects.requireNonNull(repo, "userProfileRepository must not be null");
@@ -70,6 +76,7 @@ public class PersistenceConfig {
         return new UserProfileJpaAdapter(repo, mapper);
     }
 
+    // Registra o ConnectionJpaAdapter e o expõe também como SaveConnectionPort e LoadConnectionsPort via aliases de bean.
     @Bean(name = { "connectionJpaAdapter", "saveConnectionPort", "loadConnectionsPort" })
     ConnectionJpaAdapter connectionJpaAdapter(ConnectionRepository repo, ConnectionMapper mapper) {
         Objects.requireNonNull(repo, "connectionRepository must not be null");
@@ -79,6 +86,7 @@ public class PersistenceConfig {
         return new ConnectionJpaAdapter(repo, mapper);
     }
 
+    // Registra o UserPreferenceJpaAdapter e o expõe também como SaveUserPreferencePort e LoadUserPreferencesPort via aliases de bean.
     @Bean(name = { "userPreferenceJpaAdapter", "saveUserPreferencePort", "loadUserPreferencesPort" })
     UserPreferenceJpaAdapter userPreferenceJpaAdapter(UserPreferenceRepository repo, PreferenceMapper mapper) {
         Objects.requireNonNull(repo, "userPreferenceRepository must not be null");
@@ -88,6 +96,7 @@ public class PersistenceConfig {
         return new UserPreferenceJpaAdapter(repo, mapper);
     }
 
+    // Registra o LinkedAccountJpaAdapter e o expõe também como SaveLinkedAccountPort e LoadLinkedAccountsPort via aliases de bean.
     @Bean(name = { "linkedAccountJpaAdapter", "saveLinkedAccountPort", "loadLinkedAccountsPort" })
     LinkedAccountJpaAdapter linkedAccountJpaAdapter(LinkedAccountRepository repo, LinkedAccountMapper mapper) {
         Objects.requireNonNull(repo, "linkedAccountRepository must not be null");
@@ -97,6 +106,7 @@ public class PersistenceConfig {
         return new LinkedAccountJpaAdapter(repo, mapper);
     }
 
+    // Registra o IdempotencyJpaAdapter responsável pela persistência/consulta de chaves de idempotência.
     @Bean
     IdempotencyJpaAdapter idempotencyJpaAdapter(IdempotencyRepository repo) {
         Objects.requireNonNull(repo, "idempotencyRepository must not be null");
@@ -104,9 +114,11 @@ public class PersistenceConfig {
         return new IdempotencyJpaAdapter(repo);
     }
 
+    // Expõe o IdempotencyJpaAdapter como IdempotencyPort para a camada de aplicação/domínio.
     @Bean(name = { "idempotencyPort" })
     IdempotencyPort idempotencyPort(IdempotencyJpaAdapter adapter) {
         log.info("[PersistenceConfig] - [idempotencyPort] -> exposing IdempotencyPort");
         return adapter;
     }
+
 }

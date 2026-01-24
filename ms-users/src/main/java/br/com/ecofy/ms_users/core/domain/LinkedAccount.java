@@ -11,10 +11,12 @@ import java.util.UUID;
 @Getter
 @Builder(toBuilder = true)
 public class LinkedAccount {
+
     private final UUID id;
     private final UserId userId;
     private final AccountProvider provider;
     private final String externalAccountRef;
     private final boolean active;
     private final Instant linkedAt;
+
 }

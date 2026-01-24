@@ -19,6 +19,7 @@ public class ContactInfoResolverService implements ResolveContactInfoUseCase {
     private final LoadUserProfilePort loadUserProfilePort;
     private final LoadUserPreferencesPort loadUserPreferencesPort;
 
+    // Inicializa o serviço de resolução de contato, injetando portas de leitura de perfil e preferências do usuário.
     public ContactInfoResolverService(LoadUserProfilePort loadUserProfilePort,
                                       LoadUserPreferencesPort loadUserPreferencesPort) {
         this.loadUserProfilePort = Objects.requireNonNull(loadUserProfilePort, "loadUserProfilePort must not be null");
@@ -26,6 +27,7 @@ public class ContactInfoResolverService implements ResolveContactInfoUseCase {
                 Objects.requireNonNull(loadUserPreferencesPort, "loadUserPreferencesPort must not be null");
     }
 
+    // Resolve e retorna as informações de contato do usuário (email/telefone/canais), combinando dados do perfil e preferências.
     @Override
     public ContactInfoResult resolve(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -64,9 +66,11 @@ public class ContactInfoResolverService implements ResolveContactInfoUseCase {
         );
     }
 
+    // Normaliza uma string opcional, retornando null quando vazia/em branco e trimando quando presente.
     private static String blankToNull(String v) {
         if (v == null) return null;
         String t = v.trim();
         return t.isBlank() ? null : t;
     }
+
 }

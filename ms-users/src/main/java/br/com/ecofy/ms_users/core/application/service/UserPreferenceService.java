@@ -32,6 +32,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
     private final IdempotencyPort idempotencyPort;
     private final UsersProperties.Idempotency idempotencyProps;
 
+    // Inicializa o serviço de preferências do usuário, injetando portas de persistência/consulta e configurações de idempotência.
     public UserPreferenceService(SaveUserPreferencePort savePort,
                                  LoadUserPreferencesPort loadPort,
                                  IdempotencyPort idempotencyPort,
@@ -43,6 +44,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
         this.idempotencyProps = Objects.requireNonNull(props.idempotency(), "props.idempotency must not be null");
     }
 
+    // Atualiza preferências do usuário com idempotência, normaliza entradas, realiza upsert em lote e retorna o estado consolidado.
     @Override
     public UserPreferencesResult update(UpdatePreferencesCommand command) {
         validate(command);
@@ -91,6 +93,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
         return getByUserId(userId);
     }
 
+    // Recupera as preferências do usuário pelo userId e retorna um resultado estável (Map ordenado) para consumo externo.
     @Override
     public UserPreferencesResult getByUserId(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -108,6 +111,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
         return new UserPreferencesResult(userId, out);
     }
 
+    // Valida campos obrigatórios do comando de atualização de preferências e lança BusinessValidationException quando inválidos.
     private static void validate(UpdatePreferencesCommand c) {
         if (c == null) throw new BusinessValidationException("command must not be null");
         if (c.userId() == null) throw new BusinessValidationException("userId is required");
@@ -117,6 +121,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
             throw new BusinessValidationException("idempotencyKey is required");
     }
 
+    // Normaliza o mapa de preferências (remove chaves nulas, trim em valores) e garante que existe pelo menos uma chave válida.
     private static Map<PreferenceKey, String> normalizePreferences(Map<PreferenceKey, String> prefs) {
         // Remove chaves nulas e normaliza valores (trim). Mantém ordem por enum natural (EnumMap).
         EnumMap<PreferenceKey, String> out = new EnumMap<>(PreferenceKey.class);
@@ -128,6 +133,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
         return out;
     }
 
+    // Monta uma representação determinística das preferências (ordenada) para uso em hashing de idempotência.
     private static String stablePrefsHashInput(Map<PreferenceKey, String> prefs) {
         // String estável para hash: KEY=VALUE;KEY=VALUE (ordenado por enum)
         // Evita depender de toString() de Map (não determinístico em HashMap).
@@ -140,18 +146,21 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
         return sb.toString();
     }
 
+    // Normaliza string opcional, retornando null quando vazia/em branco e trimando quando presente.
     private static String blankToNull(String v) {
         if (v == null) return null;
         String t = v.trim();
         return t.isEmpty() ? null : t;
     }
 
+    // Normaliza string opcional, retornando string vazia quando ausente/vazia e trimando quando presente.
     private static String blankToEmpty(String v) {
         if (v == null) return "";
         String t = v.trim();
         return t.isEmpty() ? "" : t;
     }
 
+    // Calcula SHA-256 de uma string e retorna o hex; em falha, retorna um placeholder.
     private static String sha256(String s) {
         try {
             var md = MessageDigest.getInstance("SHA-256");
@@ -161,4 +170,5 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
             return "sha256_error";
         }
     }
+
 }

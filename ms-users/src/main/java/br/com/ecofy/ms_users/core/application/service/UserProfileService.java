@@ -47,6 +47,7 @@ public class UserProfileService implements
     private final IdempotencyPort idempotencyPort;
     private final UsersProperties.Idempotency idempotencyProps;
 
+    // Inicializa o serviço de perfil do usuário, injetando portas de persistência/consulta, publicação de eventos e configurações de idempotência.
     public UserProfileService(SaveUserProfilePort savePort,
                               LoadUserProfilePort loadPort,
                               PublishUserEventPort publishUserEventPort,
@@ -60,6 +61,7 @@ public class UserProfileService implements
         this.idempotencyProps = Objects.requireNonNull(props.idempotency(), "props.idempotency must not be null");
     }
 
+    // Cria um novo perfil de usuário com idempotência, persistindo-o e publicando o evento de "profile created".
     @Override
     public UserProfileResult create(CreateUserProfileCommand command) {
         validateCreate(command);
@@ -126,6 +128,7 @@ public class UserProfileService implements
         return toResult(saved);
     }
 
+    // Atualiza campos do perfil de usuário com idempotência, persistindo mudanças e publicando o evento de "profile updated".
     @Override
     public UserProfileResult update(UpdateUserProfileCommand command) {
         validateUpdate(command);
@@ -181,6 +184,7 @@ public class UserProfileService implements
         return toResult(saved);
     }
 
+    // Recupera o perfil do usuário pelo userId e retorna o resultado, lançando UserProfileNotFoundException quando não encontrado.
     @Override
     public UserProfileResult getById(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -191,6 +195,7 @@ public class UserProfileService implements
         return toResult(profile);
     }
 
+    // Valida campos obrigatórios do comando de criação de perfil e lança BusinessValidationException quando inválidos.
     private static void validateCreate(CreateUserProfileCommand c) {
         if (c == null) throw new BusinessValidationException("command must not be null");
         if (c.userId() == null) throw new BusinessValidationException("userId is required");
@@ -200,6 +205,7 @@ public class UserProfileService implements
             throw new BusinessValidationException("idempotencyKey is required");
     }
 
+    // Valida campos obrigatórios do comando de atualização e garante que pelo menos um campo mutável foi informado.
     private static void validateUpdate(UpdateUserProfileCommand c) {
         if (c == null) throw new BusinessValidationException("command must not be null");
         if (c.userId() == null) throw new BusinessValidationException("userId is required");
@@ -216,6 +222,7 @@ public class UserProfileService implements
         if (!hasAnyUpdate) throw new BusinessValidationException("at least one field must be provided to update");
     }
 
+    // Resolve e valida o status enviado (String) para UserStatus, usando um fallback quando ausente e rejeitando valores inválidos.
     private static UserStatus resolveStatus(String raw, UserStatus fallback) {
         if (raw == null || raw.isBlank()) return fallback != null ? fallback : UserStatus.PENDING;
         try {
@@ -225,17 +232,20 @@ public class UserProfileService implements
         }
     }
 
+    // Retorna a primeira string não-vazia entre preferida e fallback, útil para merge de atualizações parciais.
     private static String firstNonBlank(String preferred, String fallback) {
         String p = blankToNull(preferred);
         return p != null ? p : fallback;
     }
 
+    // Normaliza uma string opcional, retornando null quando vazia/em branco e trimando quando presente.
     private static String blankToNull(String v) {
         if (v == null) return null;
         String t = v.trim();
         return t.isEmpty() ? null : t;
     }
 
+    // Monta uma string determinística a partir de partes ordenadas para hashing de idempotência.
     private static String stableHashInput(Object... parts) {
         // input estável p/ idempotência (evita NPE e mantém ordem)
         StringBuilder sb = new StringBuilder();
@@ -245,6 +255,7 @@ public class UserProfileService implements
         return sb.toString();
     }
 
+    // Converte um EcoUserProfile (domínio) para UserProfileResult (DTO de saída/publicação).
     private static UserProfileResult toResult(EcoUserProfile p) {
         return new UserProfileResult(
                 p.getId().value(),
@@ -258,6 +269,7 @@ public class UserProfileService implements
         );
     }
 
+    // Calcula SHA-256 de uma string e retorna o hex; em falha, retorna um placeholder.
     private static String sha256(String s) {
         try {
             var md = MessageDigest.getInstance("SHA-256");
@@ -267,4 +279,5 @@ public class UserProfileService implements
             return "sha256_error";
         }
     }
+
 }

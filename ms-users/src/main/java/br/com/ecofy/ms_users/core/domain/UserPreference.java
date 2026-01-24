@@ -11,9 +11,11 @@ import java.util.UUID;
 @Getter
 @Builder(toBuilder = true)
 public class UserPreference {
+
     private final UUID id;
     private final UserId userId;
     private final PreferenceKey key;
     private final String value;
     private final Instant updatedAt;
+
 }

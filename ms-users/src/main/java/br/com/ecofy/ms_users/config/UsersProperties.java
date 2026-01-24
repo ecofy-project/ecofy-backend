@@ -6,10 +6,15 @@ import java.time.Duration;
 
 @ConfigurationProperties(prefix = "ecofy.users")
 public record UsersProperties(
+
         Topics topics,
+
         Idempotency idempotency,
+
         ExternalAuth externalAuth
+
 ) {
+
     public record Topics(
             String authUserCreated,
             String ecoUserEvent
@@ -24,4 +29,5 @@ public record UsersProperties(
             Duration connectTimeout,
             Duration readTimeout
     ) {}
+
 }

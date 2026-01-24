@@ -17,10 +17,12 @@ public final class ConnectionMapper {
 
     private final ObjectMapper objectMapper;
 
+    // Inicializa o mapper com o ObjectMapper usado para serializar/deserializar metadata (JSON <-> Map).
     public ConnectionMapper(ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
     }
 
+    // Converte a ConnectionEntity (persistência) para Connection (domínio), incluindo metadata JSON convertida para Map.
     public Connection toDomain(ConnectionEntity e) {
         Objects.requireNonNull(e, "entity must not be null");
 
@@ -34,6 +36,7 @@ public final class ConnectionMapper {
                 .build();
     }
 
+    // Converte a Connection (domínio) para ConnectionEntity (persistência), serializando metadata Map para JSON.
     public ConnectionEntity toEntity(Connection d) {
         Objects.requireNonNull(d, "domain must not be null");
         Objects.requireNonNull(d.getUserId(), "domain.userId must not be null");
@@ -48,6 +51,7 @@ public final class ConnectionMapper {
         return e;
     }
 
+    // Desserializa um JSON em Map<String, Object>, retornando Map vazio quando o JSON é ausente/ inválido.
     private Map<String, Object> readJsonToMap(String json) {
         if (json == null || json.isBlank()) return Collections.emptyMap();
 
@@ -61,6 +65,7 @@ public final class ConnectionMapper {
         }
     }
 
+    // Serializa um Map<String, Object> em JSON, retornando "{}" quando o Map é nulo/vazio ou ocorre erro de serialização.
     private String writeMapToJson(Map<String, Object> map) {
         if (map == null || map.isEmpty()) return EMPTY_JSON_OBJECT;
 
@@ -71,4 +76,5 @@ public final class ConnectionMapper {
             return EMPTY_JSON_OBJECT;
         }
     }
+
 }

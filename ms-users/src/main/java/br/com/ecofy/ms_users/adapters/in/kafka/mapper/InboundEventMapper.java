@@ -11,6 +11,7 @@ import java.util.Objects;
 @Component
 public class InboundEventMapper {
 
+    // Converte o payload inbound em AuthUserCreatedEventMessage, validando o tipo e lançando erro claro quando incompatível.
     public AuthUserCreatedEventMessage toAuthUserCreated(Object payload) {
         Objects.requireNonNull(payload, "payload must not be null");
 
@@ -60,13 +61,14 @@ public class InboundEventMapper {
         );
     }
 
+    // Gera uma prévia sanitizada e limitada do conteúdo textual para logs/mensagens de erro.
     private static String preview(String s) {
         if (s == null) return "<null>";
         String v = s.replaceAll("\\s+", " ").trim();
         return v.length() <= 200 ? v : v.substring(0, 200) + "...";
     }
 
-    // Ajuste os getters conforme o DTO real (record vs class). Mantive defensivo.
+    // Obtém o userId do evento de forma defensiva para uso em logs, evitando falhas por diferença de getters/records.
     private static Object safeUserId(AuthUserCreatedEventMessage msg) {
         try {
             return msg.userId();
@@ -75,6 +77,7 @@ public class InboundEventMapper {
         }
     }
 
+    // Verifica de forma defensiva se o evento possui email preenchido, sem lançar exceções.
     private static boolean safeEmailPresent(AuthUserCreatedEventMessage msg) {
         try {
             var email = msg.email();
@@ -83,4 +86,5 @@ public class InboundEventMapper {
             return false;
         }
     }
+
 }

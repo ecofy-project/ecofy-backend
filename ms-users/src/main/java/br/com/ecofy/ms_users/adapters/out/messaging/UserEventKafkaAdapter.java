@@ -19,6 +19,7 @@ public class UserEventKafkaAdapter implements PublishUserEventPort {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final String ecoUserEventTopic;
 
+    // Inicializa o adapter de publicação em Kafka, validando dependências e resolvendo o tópico ecoUserEvent via UsersProperties.
     public UserEventKafkaAdapter(KafkaTemplate<String, Object> kafkaTemplate, UsersProperties props) {
         this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate must not be null");
         Objects.requireNonNull(props, "props must not be null");
@@ -30,16 +31,19 @@ public class UserEventKafkaAdapter implements PublishUserEventPort {
         );
     }
 
+    // Publica o evento de criação de perfil de usuário no tópico ecoUserEvent.
     @Override
     public void publishUserProfileCreated(String key, Object payload) {
         publish("publishUserProfileCreated", key, payload);
     }
 
+    // Publica o evento de atualização de perfil de usuário no tópico ecoUserEvent.
     @Override
     public void publishUserProfileUpdated(String key, Object payload) {
         publish("publishUserProfileUpdated", key, payload);
     }
 
+    // Centraliza a publicação em Kafka (gera key quando ausente, envia via KafkaTemplate e registra sucesso/falha).
     private void publish(String operation, String key, Object payload) {
         Objects.requireNonNull(payload, "payload must not be null");
 
@@ -79,4 +83,5 @@ public class UserEventKafkaAdapter implements PublishUserEventPort {
                     );
                 });
     }
+
 }

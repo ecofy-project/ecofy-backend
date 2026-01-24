@@ -36,6 +36,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
     private final IdempotencyPort idempotencyPort;
     private final UsersProperties.Idempotency idempotencyProps;
 
+    // Inicializa o serviço de vinculação de contas, injetando portas de persistência/consulta e configurações de idempotência.
     public LinkedAccountService(SaveLinkedAccountPort saveLinkedAccountPort,
                                 LoadUserProfilePort loadUserProfilePort,
                                 SaveUserProfilePort saveUserProfilePort,
@@ -49,6 +50,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
         this.idempotencyProps = Objects.requireNonNull(props.idempotency(), "props.idempotency must not be null");
     }
 
+    // Vincula uma conta externa ao usuário com idempotência, validando entrada, persistindo o LinkedAccount e atualizando o updatedAt do perfil.
     @Override
     public UserProfileResult linkAccount(LinkAccountCommand command) {
         validate(command);
@@ -118,6 +120,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
         return toResult(savedProfile);
     }
 
+    // Valida campos obrigatórios do comando de vinculação de conta e lança BusinessValidationException quando inválidos.
     private static void validate(LinkAccountCommand c) {
         if (c == null) throw new BusinessValidationException("command must not be null");
         if (c.userId() == null) throw new BusinessValidationException("userId is required");
@@ -128,6 +131,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
             throw new BusinessValidationException("idempotencyKey is required");
     }
 
+    // Converte o provider informado para AccountProvider, retornando OTHER quando ausente ou inválido.
     private static AccountProvider parseProviderOrDefault(String raw) {
         if (raw == null) return AccountProvider.OTHER;
         try {
@@ -137,6 +141,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
         }
     }
 
+    // Converte um EcoUserProfile (domínio) para UserProfileResult (DTO de saída).
     private static UserProfileResult toResult(br.com.ecofy.ms_users.core.domain.EcoUserProfile p) {
         return new UserProfileResult(
                 p.getId().value(),
@@ -150,6 +155,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
         );
     }
 
+    // Mascara o externalAccountRef para logging seguro, evitando expor o identificador completo.
     private static String safeRef(String ref) {
         if (ref == null || ref.isBlank()) return "<empty>";
         String t = ref.trim();
@@ -157,6 +163,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
         return t.substring(0, 3) + "..." + t.substring(t.length() - 2);
     }
 
+    // Calcula SHA-256 de uma string e retorna o hex; em falha, retorna um placeholder.
     private static String sha256(String s) {
         try {
             var md = MessageDigest.getInstance("SHA-256");
@@ -166,4 +173,5 @@ public class LinkedAccountService implements LinkAccountUseCase {
             return "sha256_error";
         }
     }
+
 }

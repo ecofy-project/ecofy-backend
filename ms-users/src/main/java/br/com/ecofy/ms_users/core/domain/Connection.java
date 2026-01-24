@@ -13,10 +13,14 @@ import java.util.UUID;
 @Getter
 @Builder(toBuilder = true)
 public class Connection {
+
     private final UUID id;
     private final UserId userId;
     private final ConnectionType type;
     private final AccountProvider provider;
     private final Map<String, Object> metadata;
     private final Instant createdAt;
+
+
+
 }

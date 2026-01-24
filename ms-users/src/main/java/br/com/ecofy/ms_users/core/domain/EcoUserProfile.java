@@ -13,6 +13,7 @@ import java.time.Instant;
 @Getter
 @Builder(toBuilder = true)
 public class EcoUserProfile {
+
     private final UserId id;
     private final ExternalAuthId externalAuthId;
     private final String fullName;
@@ -21,4 +22,5 @@ public class EcoUserProfile {
     private final UserStatus status;
     private final Instant createdAt;
     private final Instant updatedAt;
+
 }

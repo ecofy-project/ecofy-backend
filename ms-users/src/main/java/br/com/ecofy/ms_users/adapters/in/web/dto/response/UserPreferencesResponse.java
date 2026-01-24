@@ -1,4 +1,4 @@
-package br.com.ecofy.ms_users.adapters.in.web.dto;
+package br.com.ecofy.ms_users.adapters.in.web.dto.response;
 
 import java.util.Map;
 import java.util.UUID;

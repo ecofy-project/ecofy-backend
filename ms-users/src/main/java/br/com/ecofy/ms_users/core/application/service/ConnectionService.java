@@ -38,6 +38,7 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
     private final IdempotencyPort idempotencyPort;
     private final Duration idempotencyTtl;
 
+    // Inicializa o serviço de conexões, injetando portas de persistência/consulta e política de TTL para idempotência.
     public ConnectionService(
             SaveConnectionPort savePort,
             LoadConnectionsPort loadPort,
@@ -50,6 +51,7 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
         this.idempotencyTtl = Objects.requireNonNull(idempotencyTtl, "idempotencyTtl must not be null");
     }
 
+    // Cria uma Connection para o usuário, aplicando validações, controle de idempotência e persistindo via SaveConnectionPort.
     @Override
     public ConnectionResult create(CreateConnectionCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -104,6 +106,7 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
         return toResult(saved);
     }
 
+    // Lista as Connections de um usuário e converte os resultados de domínio para ConnectionResult.
     @Override
     public List<ConnectionResult> listByUserId(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -120,6 +123,7 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
         return out;
     }
 
+    // Valida campos obrigatórios do comando de criação de Connection e lança BusinessValidationException quando inválidos.
     private static void validate(CreateConnectionCommand c) {
         if (c.userId() == null) throw new BusinessValidationException("userId is required");
         if (c.type() == null || c.type().isBlank()) throw new BusinessValidationException("type is required");
@@ -128,6 +132,7 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
             throw new BusinessValidationException("idempotencyKey is required");
     }
 
+    // Converte o tipo de conexão (String) para ConnectionType, lançando BusinessValidationException quando inválido.
     private static ConnectionType parseConnectionType(String raw) {
         final String v = raw == null ? null : raw.trim();
         try {
@@ -137,6 +142,7 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
         }
     }
 
+    // Converte o provider (String) para AccountProvider, usando OTHER como fallback quando inválido.
     private static AccountProvider parseAccountProvider(String raw) {
         final String v = raw == null ? null : raw.trim();
         try {
@@ -146,10 +152,12 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
         }
     }
 
+    // Gera um hash determinístico do conteúdo relevante da requisição para suportar validações de idempotência.
     private static String requestHash(UUID userId, ConnectionType type, AccountProvider provider) {
         return sha256(userId + "|" + type.name() + "|" + provider.name());
     }
 
+    // Converte uma Connection (domínio) para ConnectionResult (DTO de saída).
     private static ConnectionResult toResult(Connection c) {
         return new ConnectionResult(
                 c.getId(),
@@ -161,6 +169,7 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
         );
     }
 
+    // Calcula SHA-256 de uma string e retorna o hex; em falha, retorna um placeholder.
     private static String sha256(String s) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -170,4 +179,5 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
             return "sha256_error";
         }
     }
+
 }

@@ -19,11 +19,13 @@ public class ConnectionJpaAdapter implements SaveConnectionPort, LoadConnections
     private final ConnectionRepository repo;
     private final ConnectionMapper mapper;
 
+    // Inicializa o adapter JPA de Connection com o repositório e o mapper (entity <-> domain).
     public ConnectionJpaAdapter(ConnectionRepository repo, ConnectionMapper mapper) {
         this.repo = Objects.requireNonNull(repo, "repo must not be null");
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    // Persiste uma Connection no banco via JPA e retorna a entidade salva convertida para domínio.
     @Override
     public Connection save(Connection connection) {
         Objects.requireNonNull(connection, "connection must not be null");
@@ -49,6 +51,7 @@ public class ConnectionJpaAdapter implements SaveConnectionPort, LoadConnections
         return mapper.toDomain(saved);
     }
 
+    // Carrega todas as Connections associadas a um userId, convertendo de entity para domínio.
     @Override
     public List<Connection> findByUserId(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -67,4 +70,5 @@ public class ConnectionJpaAdapter implements SaveConnectionPort, LoadConnections
 
         return list;
     }
+
 }

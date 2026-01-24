@@ -23,21 +23,24 @@ public class AuthUserCreatedEventConsumer {
             topics = "${ecofy.users.topics.auth-user-created:auth.user.created}",
             containerFactory = "kafkaListenerContainerFactory"
     )
+    // Consome o evento AuthUserCreated do Kafka e delega a sincronização do usuário para o AuthUserSyncService, com logs e tratamento de falhas para retry/DLT.
     public void consume(
             AuthUserCreatedEventMessage msg,
             @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
             @Header(name = KafkaHeaders.RECEIVED_PARTITION, required = false) Integer partition,
-            @Header(name = KafkaHeaders.OFFSET, required = false) Long offset
+            @Header(name = KafkaHeaders.OFFSET, required = false) Long offset,
+            @Header(name = KafkaHeaders.RECEIVED_TIMESTAMP, required = false) Long timestamp
     ) {
         Objects.requireNonNull(msg, "msg must not be null");
 
         final long startNs = System.nanoTime();
 
         log.info(
-                "[AuthUserCreatedEventConsumer] - [consume] -> status=received topic={} partition={} offset={} userId={} extAuthId={} hasEmail={} hasPhone={} hasFullName={}",
+                "[AuthUserCreatedEventConsumer] consume status=received topic={} partition={} offset={} ts={} userId={} extAuthId={} hasEmail={} hasPhone={} hasFullName={}",
                 v(topic),
                 v(partition),
                 v(offset),
+                v(timestamp),
                 v(msg.userId()),
                 v(msg.externalAuthId()),
                 hasText(msg.email()),
@@ -57,7 +60,7 @@ public class AuthUserCreatedEventConsumer {
             final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
 
             log.info(
-                    "[AuthUserCreatedEventConsumer] - [consume] -> status=processed topic={} partition={} offset={} userId={} extAuthId={} elapsedMs={}",
+                    "[AuthUserCreatedEventConsumer] consume status=processed topic={} partition={} offset={} userId={} extAuthId={} elapsedMs={}",
                     v(topic),
                     v(partition),
                     v(offset),
@@ -65,11 +68,12 @@ public class AuthUserCreatedEventConsumer {
                     v(msg.externalAuthId()),
                     elapsedMs
             );
-        } catch (Exception ex) {
+
+        } catch (RuntimeException ex) {
             final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
 
             log.error(
-                    "[AuthUserCreatedEventConsumer] - [consume] -> status=failed topic={} partition={} offset={} userId={} extAuthId={} elapsedMs={}",
+                    "[AuthUserCreatedEventConsumer] consume status=failed topic={} partition={} offset={} userId={} extAuthId={} elapsedMs={}",
                     v(topic),
                     v(partition),
                     v(offset),
@@ -79,16 +83,36 @@ public class AuthUserCreatedEventConsumer {
                     ex
             );
 
-            // Re-throw para retry/backoff/DLT funcionar corretamente (se configurado no container)
+            // rethrow para retry/backoff/DLT funcionar (via error handler do container)
             throw ex;
+
+        } catch (Exception ex) {
+            final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
+
+            log.error(
+                    "[AuthUserCreatedEventConsumer] consume status=failed topic={} partition={} offset={} userId={} extAuthId={} elapsedMs={}",
+                    v(topic),
+                    v(partition),
+                    v(offset),
+                    v(msg.userId()),
+                    v(msg.externalAuthId()),
+                    elapsedMs,
+                    ex
+            );
+
+            // Exception checked -> encapsula para permitir rethrow
+            throw new RuntimeException(ex);
         }
     }
 
+    // Valida se a string possui conteúdo útil (não nula e não em branco).
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
+    // Normaliza valores para log, substituindo null por "-" para facilitar leitura e evitar NPE.
     private static String v(Object value) {
         return value == null ? "-" : String.valueOf(value);
     }
+
 }

@@ -79,7 +79,6 @@ public class SecurityConfig {
                         ))
                 );
 
-        // ✅ IMPORTANTÍSSIMO: só configure Resource Server quando NÃO estiver em permit-all
         if (!devPermitAll) {
             http
                     .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
@@ -91,4 +90,5 @@ public class SecurityConfig {
 
         return http.build();
     }
+
 }

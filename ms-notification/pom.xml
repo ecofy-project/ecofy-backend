@@ -2,7 +2,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -13,10 +12,10 @@
     </parent>
 
     <groupId>br.com.ecofy</groupId>
-    <artifactId>ms-notification</artifactId>
+    <artifactId>ms-users</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>ms-notification</name>
-    <description>Orquestra notificações multicanal; consome alertas/insights. MongoDB + Kafka.</description>
+    <name>ms-users</name>
+    <description>CRUD de perfil/preferências/conexões/linked accounts; resolve contact info; consome auth.user.created.</description>
 
     <properties>
         <java.version>25</java.version>
@@ -36,19 +35,17 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- Web / REST -->
+        <!-- Web + Validation -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-
-        <!-- Validação -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- Segurança -->
+        <!-- Security (Resource Server JWT) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
@@ -58,10 +55,25 @@
             <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
         </dependency>
 
-        <!-- MongoDB -->
+        <!-- Persistence -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Flyway (Boot 4: use o starter) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
         <!-- Kafka (use starter) -->
@@ -70,7 +82,7 @@
             <artifactId>spring-boot-starter-kafka</artifactId>
         </dependency>
 
-        <!-- OpenAPI / Swagger UI (Boot 4 => springdoc 3.x) -->
+        <!-- OpenAPI -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -110,7 +122,13 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+            <artifactId>spring-boot-starter-data-jpa-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -141,5 +159,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>

@@ -23,6 +23,7 @@ public class AuthUserSyncService {
     private final LoadUserProfilePort loadUserProfilePort;
     private final SaveUserProfilePort saveUserProfilePort;
 
+    // Inicializa o serviço de sincronização de usuário do Auth, injetando portas de leitura e escrita de perfil.
     public AuthUserSyncService(
             LoadUserProfilePort loadUserProfilePort,
             SaveUserProfilePort saveUserProfilePort
@@ -31,6 +32,7 @@ public class AuthUserSyncService {
         this.saveUserProfilePort = Objects.requireNonNull(saveUserProfilePort, "saveUserProfilePort must not be null");
     }
 
+    // Sincroniza o EcoUserProfile a partir do evento "AuthUserCreated", criando um novo perfil ou atualizando o existente (merge) e persistindo via ports.
     public void onAuthUserCreated(UUID userIdRaw,
                                   String externalAuthIdRaw,
                                   String fullNameRaw,
@@ -99,6 +101,7 @@ public class AuthUserSyncService {
         );
     }
 
+    // Faz merge de dados do evento no perfil existente, preenchendo apenas campos ausentes e atualizando updatedAt.
     private static EcoUserProfile mergeIntoExisting(EcoUserProfile cur,
                                                     ExternalAuthId externalAuthId,
                                                     String fullName,
@@ -118,24 +121,29 @@ public class AuthUserSyncService {
                 .build();
     }
 
+    // Converte externalAuthId raw em Value Object, retornando null quando ausente/em branco.
     private static ExternalAuthId safeExternalAuthId(String raw) {
         String v = blankToNull(raw);
         return v == null ? null : ExternalAuthId.of(v);
     }
 
+    // Converte email raw em Value Object, retornando null quando ausente/em branco.
     private static EmailAddress safeEmail(String raw) {
         String v = blankToNull(raw);
         return v == null ? null : EmailAddress.of(v);
     }
 
+    // Converte phone raw em Value Object, retornando null quando ausente/em branco.
     private static PhoneNumber safePhone(String raw) {
         String v = blankToNull(raw);
         return v == null ? null : PhoneNumber.of(v);
     }
 
+    // Normaliza uma string opcional, retornando null quando vazia/em branco e trimando quando presente.
     private static String blankToNull(String v) {
         if (v == null) return null;
         String t = v.trim();
         return t.isEmpty() ? null : t;
     }
+
 }

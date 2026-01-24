@@ -6,7 +6,11 @@ import java.util.Map;
 import java.util.UUID;
 
 public record UpdatePreferencesCommand(
+
         UUID userId,
+
         Map<PreferenceKey, String> preferences,
+
         String idempotencyKey
-) {}
+
+) { }

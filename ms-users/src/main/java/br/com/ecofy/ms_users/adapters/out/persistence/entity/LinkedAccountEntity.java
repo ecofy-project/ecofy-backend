@@ -34,4 +34,5 @@ public class LinkedAccountEntity {
 
     @Column(name = "linked_at", nullable = false)
     private Instant linkedAt;
+
 }

@@ -20,11 +20,13 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
     private final UserProfileRepository repo;
     private final UserProfileMapper mapper;
 
+    // Inicializa o adapter JPA de perfil de usuário com o repositório e o mapper (entity <-> domain).
     public UserProfileJpaAdapter(UserProfileRepository repo, UserProfileMapper mapper) {
         this.repo = Objects.requireNonNull(repo, "repo must not be null");
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    // Persiste o EcoUserProfile via JPA e retorna o perfil salvo convertido para domínio.
     @Override
     @Transactional
     public EcoUserProfile save(EcoUserProfile profile) {
@@ -51,6 +53,7 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
         return mapper.toDomain(saved);
     }
 
+    // Busca um EcoUserProfile pelo userId (UUID) e retorna Optional com o domínio quando encontrado.
     @Override
     public Optional<EcoUserProfile> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -68,6 +71,7 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
         return found;
     }
 
+    // Busca um EcoUserProfile pelo externalAuthId (ID do provedor de autenticação) e retorna Optional com o domínio quando encontrado.
     @Override
     public Optional<EcoUserProfile> findByExternalAuthId(String externalAuthId) {
         String ext = blankToNull(externalAuthId);
@@ -89,14 +93,17 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
         return found;
     }
 
+    // Normaliza string opcional, retornando null quando vazia/em branco e trimando quando presente.
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
 
+    // Mascara o externalAuthId para logging seguro, evitando expor o identificador completo.
     private static String safeExtId(String externalAuthId) {
         // Evita logar IDs externos completos (podem ser sensíveis dependendo do provedor).
         if (externalAuthId == null || externalAuthId.isBlank()) return "<empty>";
         if (externalAuthId.length() <= 8) return "***";
         return externalAuthId.substring(0, 4) + "..." + externalAuthId.substring(externalAuthId.length() - 4);
     }
+
 }

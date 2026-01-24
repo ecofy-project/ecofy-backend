@@ -12,9 +12,11 @@ import java.util.Objects;
  */
 public final class PreferenceMapper {
 
+    // Cria uma instância do mapper (sem estado) para conversões entre Entity e Domain.
     public PreferenceMapper() {
     }
 
+    // Converte UserPreferenceEntity (persistência) para UserPreference (domínio), realizando o mapeamento explícito dos campos.
     public UserPreference toDomain(UserPreferenceEntity e) {
         Objects.requireNonNull(e, "entity must not be null");
 
@@ -27,6 +29,7 @@ public final class PreferenceMapper {
                 .build();
     }
 
+    // Converte UserPreference (domínio) para UserPreferenceEntity (persistência), realizando o mapeamento explícito dos campos.
     public static UserPreferenceEntity toEntity(UserPreference d) {
         Objects.requireNonNull(d, "domain must not be null");
         Objects.requireNonNull(d.getUserId(), "domain.userId must not be null");
@@ -39,4 +42,5 @@ public final class PreferenceMapper {
         e.setUpdatedAt(d.getUpdatedAt());
         return e;
     }
+
 }

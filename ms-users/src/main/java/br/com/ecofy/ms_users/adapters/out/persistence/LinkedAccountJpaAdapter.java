@@ -21,11 +21,13 @@ public class LinkedAccountJpaAdapter implements SaveLinkedAccountPort, LoadLinke
     private final LinkedAccountRepository repo;
     private final LinkedAccountMapper mapper;
 
+    // Inicializa o adapter JPA de LinkedAccount com o repositório e o mapper (entity <-> domain).
     public LinkedAccountJpaAdapter(LinkedAccountRepository repo, LinkedAccountMapper mapper) {
         this.repo = Objects.requireNonNull(repo, "repo must not be null");
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    // Persiste (cria/atualiza via chave natural userId+provider+externalAccountRef) um LinkedAccount e retorna o resultado no domínio.
     @Override
     public LinkedAccount save(LinkedAccount acc) {
         Objects.requireNonNull(acc, "acc must not be null");
@@ -78,6 +80,7 @@ public class LinkedAccountJpaAdapter implements SaveLinkedAccountPort, LoadLinke
         return mapper.toDomain(saved);
     }
 
+    // Carrega todas as contas vinculadas (LinkedAccount) de um usuário pelo userId, convertendo de entity para domínio.
     @Override
     public List<LinkedAccount> findByUserId(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -97,7 +100,9 @@ public class LinkedAccountJpaAdapter implements SaveLinkedAccountPort, LoadLinke
         return list;
     }
 
+    // Retorna o tamanho da string de forma segura (0 quando nula) para uso em logs.
     private static int safeLen(String v) {
         return (v == null) ? 0 : v.length();
     }
+
 }

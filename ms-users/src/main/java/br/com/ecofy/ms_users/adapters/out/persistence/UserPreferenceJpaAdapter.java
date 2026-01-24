@@ -23,11 +23,13 @@ public class UserPreferenceJpaAdapter implements SaveUserPreferencePort, LoadUse
     private final UserPreferenceRepository repo;
     private final PreferenceMapper mapper;
 
+    // Inicializa o adapter JPA de preferências do usuário com o repositório e o mapper (entity <-> domain).
     public UserPreferenceJpaAdapter(UserPreferenceRepository repo, PreferenceMapper mapper) {
         this.repo = Objects.requireNonNull(repo, "repo must not be null");
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    // Realiza upsert em lote (por userId+key) de preferências do usuário e retorna a lista persistida no domínio.
     @Override
     @Transactional
     public List<UserPreference> upsertAll(List<UserPreference> prefs) {
@@ -87,6 +89,7 @@ public class UserPreferenceJpaAdapter implements SaveUserPreferencePort, LoadUse
         return out;
     }
 
+    // Carrega todas as preferências (UserPreference) de um usuário pelo userId, convertendo de entity para domínio.
     @Override
     public List<UserPreference> findByUserId(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -105,4 +108,5 @@ public class UserPreferenceJpaAdapter implements SaveUserPreferencePort, LoadUse
 
         return list;
     }
+
 }

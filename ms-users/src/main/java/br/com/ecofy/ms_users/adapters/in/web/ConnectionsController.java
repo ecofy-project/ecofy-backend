@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_users.adapters.in.web;
 
-import br.com.ecofy.ms_users.adapters.in.web.dto.ConnectionResponse;
-import br.com.ecofy.ms_users.adapters.in.web.dto.CreateConnectionRequest;
+import br.com.ecofy.ms_users.adapters.in.web.dto.response.ConnectionResponse;
+import br.com.ecofy.ms_users.adapters.in.web.dto.request.CreateConnectionRequest;
 import br.com.ecofy.ms_users.core.application.command.CreateConnectionCommand;
 import br.com.ecofy.ms_users.core.application.result.ConnectionResult;
 import br.com.ecofy.ms_users.core.port.in.CreateConnectionUseCase;
@@ -153,4 +153,5 @@ public class ConnectionsController {
                 r.createdAt()
         );
     }
+
 }

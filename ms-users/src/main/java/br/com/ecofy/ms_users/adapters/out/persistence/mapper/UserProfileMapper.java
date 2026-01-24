@@ -15,9 +15,11 @@ import java.util.Objects;
  */
 public final class UserProfileMapper {
 
+    // Cria uma instância do mapper (sem estado) para conversões entre Entity e Domain.
     public UserProfileMapper() {
     }
 
+    // Converte UserProfileEntity (persistência) para EcoUserProfile (domínio), incluindo conversão de campos opcionais para Value Objects.
     public EcoUserProfile toDomain(UserProfileEntity e) {
         Objects.requireNonNull(e, "entity must not be null");
 
@@ -33,6 +35,7 @@ public final class UserProfileMapper {
                 .build();
     }
 
+    // Converte EcoUserProfile (domínio) para UserProfileEntity (persistência), incluindo “flatten” dos Value Objects opcionais.
     public static UserProfileEntity toEntity(EcoUserProfile d) {
         Objects.requireNonNull(d, "domain must not be null");
         Objects.requireNonNull(d.getId(), "domain.id must not be null");
@@ -49,30 +52,37 @@ public final class UserProfileMapper {
         return e;
     }
 
+    // Converte uma String opcional em ExternalAuthId (VO) ou retorna null quando ausente/vazia.
     private static ExternalAuthId toExternalAuthIdOrNull(String raw) {
         if (raw == null || raw.isBlank()) return null;
         return ExternalAuthId.of(raw.trim());
     }
 
+    // Converte uma String opcional em EmailAddress (VO) ou retorna null quando ausente/vazia.
     private static EmailAddress toEmailOrNull(String raw) {
         if (raw == null || raw.isBlank()) return null;
         return EmailAddress.of(raw.trim());
     }
 
+    // Converte uma String opcional em PhoneNumber (VO) ou retorna null quando ausente/vazia.
     private static PhoneNumber toPhoneOrNull(String raw) {
         if (raw == null || raw.isBlank()) return null;
         return PhoneNumber.of(raw.trim());
     }
 
+    // Converte ExternalAuthId (VO) opcional para String (persistência) ou retorna null.
     private static String fromExternalAuthIdOrNull(ExternalAuthId id) {
         return id == null ? null : id.value();
     }
 
+    // Converte EmailAddress (VO) opcional para String (persistência) ou retorna null.
     private static String fromEmailOrNull(EmailAddress email) {
         return email == null ? null : email.value();
     }
 
+    // Converte PhoneNumber (VO) opcional para String (persistência) ou retorna null.
     private static String fromPhoneOrNull(PhoneNumber phone) {
         return phone == null ? null : phone.value();
     }
+
 }

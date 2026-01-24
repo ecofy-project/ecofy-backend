@@ -20,10 +20,12 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
 
     private final IdempotencyRepository repo;
 
+    // Inicializa o adapter JPA de idempotência com o repositório responsável por persistir as chaves.
     public IdempotencyJpaAdapter(IdempotencyRepository repo) {
         this.repo = Objects.requireNonNull(repo, "repo must not be null");
     }
 
+    // Registra uma chave de idempotência uma única vez para uma operação, retornando true se registrou e false se já existia.
     @Override
     public boolean registerOnce(String operation, String key, String requestHash, Duration ttl) {
         String op = normalizeRequired(operation, "operation");
@@ -81,6 +83,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         return true;
     }
 
+    // Normaliza e valida um campo obrigatório (não nulo/não em branco), retornando o valor trimado.
     private static String normalizeRequired(String v, String field) {
         if (v == null || v.isBlank()) {
             throw new IllegalArgumentException(field + " must not be null/blank");
@@ -88,8 +91,10 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         return v.trim();
     }
 
+    // Normaliza um campo opcional, retornando null quando ausente/vazio e trimando quando presente.
     private static String normalizeOptional(String v) {
         if (v == null || v.isBlank()) return null;
         return v.trim();
     }
+
 }

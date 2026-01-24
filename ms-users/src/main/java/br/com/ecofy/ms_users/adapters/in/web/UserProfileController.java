@@ -1,8 +1,8 @@
 package br.com.ecofy.ms_users.adapters.in.web;
 
-import br.com.ecofy.ms_users.adapters.in.web.dto.CreateProfileRequest;
-import br.com.ecofy.ms_users.adapters.in.web.dto.UpdateProfileRequest;
-import br.com.ecofy.ms_users.adapters.in.web.dto.UserProfileResponse;
+import br.com.ecofy.ms_users.adapters.in.web.dto.request.CreateProfileRequest;
+import br.com.ecofy.ms_users.adapters.in.web.dto.request.UpdateProfileRequest;
+import br.com.ecofy.ms_users.adapters.in.web.dto.response.UserProfileResponse;
 import br.com.ecofy.ms_users.core.application.command.CreateUserProfileCommand;
 import br.com.ecofy.ms_users.core.application.command.UpdateUserProfileCommand;
 import br.com.ecofy.ms_users.core.application.result.UserProfileResult;
@@ -195,4 +195,5 @@ public class UserProfileController {
                 r.updatedAt()
         );
     }
+
 }

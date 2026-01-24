@@ -1,4 +1,4 @@
-package br.com.ecofy.ms_users.adapters.in.web.dto;
+package br.com.ecofy.ms_users.adapters.in.web.dto.response;
 
 import java.time.Instant;
 import java.util.UUID;

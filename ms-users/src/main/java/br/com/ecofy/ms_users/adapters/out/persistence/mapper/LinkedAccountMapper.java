@@ -12,9 +12,11 @@ import java.util.Objects;
  */
 public final class LinkedAccountMapper {
 
+    // Cria uma instância do mapper (sem estado) para conversões entre Entity e Domain.
     public LinkedAccountMapper() {
     }
 
+    // Converte LinkedAccountEntity (persistência) para LinkedAccount (domínio), realizando o mapeamento explícito dos campos.
     public LinkedAccount toDomain(LinkedAccountEntity e) {
         Objects.requireNonNull(e, "entity must not be null");
 
@@ -28,6 +30,7 @@ public final class LinkedAccountMapper {
                 .build();
     }
 
+    // Converte LinkedAccount (domínio) para LinkedAccountEntity (persistência), realizando o mapeamento explícito dos campos.
     public static LinkedAccountEntity toEntity(LinkedAccount d) {
         Objects.requireNonNull(d, "domain must not be null");
         Objects.requireNonNull(d.getUserId(), "domain.userId must not be null");
@@ -41,4 +44,5 @@ public final class LinkedAccountMapper {
         e.setLinkedAt(d.getLinkedAt());
         return e;
     }
+
 }

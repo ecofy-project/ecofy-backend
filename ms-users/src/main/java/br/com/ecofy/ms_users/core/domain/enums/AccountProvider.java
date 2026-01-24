@@ -1,6 +1,7 @@
 package br.com.ecofy.ms_users.core.domain.enums;
 
 public enum AccountProvider {
+
     ITAU,
     NUBANK,
     BRADESCO,
@@ -10,4 +11,5 @@ public enum AccountProvider {
     INTER,
     C6,
     OTHER
+
 }

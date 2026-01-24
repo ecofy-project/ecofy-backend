@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_users.adapters.in.web;
 
-import br.com.ecofy.ms_users.adapters.in.web.dto.UpdatePreferencesRequest;
-import br.com.ecofy.ms_users.adapters.in.web.dto.UserPreferencesResponse;
+import br.com.ecofy.ms_users.adapters.in.web.dto.request.UpdatePreferencesRequest;
+import br.com.ecofy.ms_users.adapters.in.web.dto.response.UserPreferencesResponse;
 import br.com.ecofy.ms_users.core.application.command.UpdatePreferencesCommand;
 import br.com.ecofy.ms_users.core.domain.enums.PreferenceKey;
 import br.com.ecofy.ms_users.core.port.in.GetUserPreferencesUseCase;
@@ -147,4 +147,5 @@ public class PreferencesController {
 
         return map;
     }
+
 }
