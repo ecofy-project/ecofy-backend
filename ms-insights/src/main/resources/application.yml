@@ -3,7 +3,7 @@
 server:
   port: 8085
   servlet:
-    context-path: /
+    context-path: /insights
   shutdown: graceful
   compression:
     enabled: true
@@ -96,24 +96,24 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 # Business properties for ms-insights
 ecofy:
   insights:
     topics:
-      categorized-transaction-topic: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
-      budget-alert-topic: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
-      insight-created-topic: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
-      report-ready-topic: ${INS_TOPIC_REPORT_READY:eco.report.ready}
+      categorized-transaction: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
+      budget-alert: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
+      insight-created: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
+      report-ready: ${INS_TOPIC_REPORT_READY:eco.report.ready}
 
-      idempotency:
-        ttl-seconds: ${INS_IDEMPOTENCY_TTL_SECONDS:86400}
+    idempotency:
+      ttl-seconds: ${INS_IDEMPOTENCY_TTL_SECONDS:86400}
 
-      engine:
-        max-transactions-to-analyze: ${INS_MAX_TX_TO_ANALYZE:2000}
-        min-score-to-publish: ${INS_MIN_SCORE_TO_PUBLISH:60}
-        publish-reports: ${INS_PUBLISH_REPORTS:false}
+    engine:
+      max-transactions-to-analyze: ${INS_MAX_TX_TO_ANALYZE:2000}
+      min-score-to-publish: ${INS_MIN_SCORE_TO_PUBLISH:60}
+      publish-reports: ${INS_PUBLISH_REPORTS:false}
 
     generation:
       max-transactions-per-period: ${INS_MAX_TX_PER_PERIOD:2000}
@@ -129,15 +129,10 @@ ecofy:
     clients:
       categorization:
         enabled: ${INS_CLIENT_CATEGORIZATION_ENABLED:false}
-        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL:http://localhost:8083}
-        connect-timeout-ms: ${INS_CLIENT_CATEGORIZATION_CONNECT_TIMEOUT_MS:800}
-        read-timeout-ms: ${INS_CLIENT_CATEGORIZATION_READ_TIMEOUT_MS:1500}
-
+        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL:http://localhost:8083/categorization}
       budgeting:
         enabled: ${INS_CLIENT_BUDGETING_ENABLED:false}
-        base-url: ${INS_CLIENT_BUDGETING_BASE_URL:http://localhost:8084}
-        connect-timeout-ms: ${INS_CLIENT_BUDGETING_CONNECT_TIMEOUT_MS:800}
-        read-timeout-ms: ${INS_CLIENT_BUDGETING_READ_TIMEOUT_MS:1500}
+        base-url: ${INS_CLIENT_BUDGETING_BASE_URL:http://localhost:8084/budgeting}
 
 # Actuator / Observability
 management:

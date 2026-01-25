@@ -3,7 +3,7 @@
 server:
   port: 8087
   servlet:
-    context-path: /
+    context-path: /users
   shutdown: graceful
   compression:
     enabled: true
@@ -111,7 +111,7 @@ ecofy:
     idempotency:
       ttl: ${USR_IDEMPOTENCY_TTL:PT24H}
     external-auth:
-      base-url: ${AUTH_MS_BASE_URL:http://localhost:8081}
+      base-url: ${AUTH_MS_BASE_URL:http://localhost:8081/auth}
       connect-timeout: ${AUTH_MS_CONNECT_TIMEOUT:2s}
       read-timeout: ${AUTH_MS_READ_TIMEOUT:3s}
 
@@ -233,7 +233,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 logging:
   level:

@@ -3,7 +3,7 @@
 server:
   port: 8086
   servlet:
-    context-path: /
+    context-path: /notification
   shutdown: graceful
   compression:
     enabled: true
@@ -65,7 +65,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 # Propriedades de negócio do ms-notification
 ecofy:
@@ -89,7 +89,7 @@ ecofy:
     clients:
       user-profile:
         enabled: ${NTF_USER_PROFILE_CLIENT_ENABLED:false}
-        base-url: ${NTF_USER_PROFILE_BASE_URL:http://localhost:8087}
+        base-url: ${NTF_USER_PROFILE_BASE_URL:http://localhost:8087/users}
         connect-timeout-ms: ${NTF_USER_PROFILE_CONNECT_TIMEOUT_MS:800}
         read-timeout-ms: ${NTF_USER_PROFILE_READ_TIMEOUT_MS:1500}
 

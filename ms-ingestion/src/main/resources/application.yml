@@ -3,7 +3,7 @@
 server:
   port: 8082
   servlet:
-    context-path: /
+    context-path: /ingestion
   shutdown: graceful
   compression:
     enabled: true
@@ -92,8 +92,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # normalmente apontando para o ms-auth
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 # Propriedades de negócio para ingestão
 ecofy:
@@ -104,8 +103,8 @@ ecofy:
 
     topics:
       # usado pelos adapters Kafka (PublishTransactionForCategorizationPort / PublishIngestionEventPort)
-      categorize-transactions: ${ING_TOPIC_CATEGORIZE:ecofy.tx.to-categorize}
-      ingestion-events: ${ING_TOPIC_EVENTS:ecofy.ingestion.events}
+      categorize-transactions: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}
+      ingestion-events: ${ING_TOPIC_EVENTS:eco.ingestion.events}
 
     storage:
       # StorageProperties (base path do filesystem/local, etc.)
@@ -200,7 +199,7 @@ ecofy:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI_TEST:http://localhost:8081/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/auth/.well-known/jwks.json}
 
 # PROFILE: prod
 ---

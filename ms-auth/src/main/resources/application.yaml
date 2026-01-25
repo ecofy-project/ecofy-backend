@@ -2,7 +2,7 @@
 server:
   port: 8081
   servlet:
-    context-path: /
+    context-path: /auth
   shutdown: graceful
   compression:
     enabled: true
@@ -96,7 +96,7 @@ spring:
 # JWT / OIDC – usado pela JwtProperties
 security:
   jwt:
-    issuer: ${JWT_ISSUER:http://localhost:8081}
+    issuer: ${JWT_ISSUER:http://localhost:8080/auth}
     audience: ${JWT_AUDIENCE:ecofy-api}
     key-id: ${JWT_KEY_ID:ecofy-auth-key-1}
     private-key-location: ${JWT_PRIVATE_KEY_LOCATION:classpath:keys/ecofy-auth-private.pem}

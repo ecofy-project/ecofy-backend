@@ -3,7 +3,7 @@
 server:
   port: 8084
   servlet:
-    context-path: /
+    context-path: /budgeting
   shutdown: graceful
   compression:
     enabled: true
@@ -96,9 +96,9 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
-# Propriedades de negócio do ms-budgeting
+# Propriedades de negï¿½cio do ms-budgeting
 ecofy:
   budgeting:
     topics:
@@ -233,7 +233,7 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     properties:
       security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      # SASL/SSL via env se necessário:
+      # SASL/SSL via env se necessï¿½rio:
       # sasl.mechanism: PLAIN
       # sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
 

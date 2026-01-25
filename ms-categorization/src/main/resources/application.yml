@@ -3,7 +3,7 @@
 server:
   port: 8083
   servlet:
-    context-path: /
+    context-path: /categorization
   shutdown: graceful
   compression:
     enabled: true
@@ -86,7 +86,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 # Propriedades de neg�cio do ms-categorization
 ecofy:
