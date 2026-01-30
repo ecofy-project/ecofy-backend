@@ -245,6 +245,149 @@ Todos os microsserviços seguem Arquitetura Hexagonal (Ports & Adapters), garant
 
 ---
 
+## 🚀 Quickstart (5 minutes) | Quickstart (5 minutos)
+
+### ✅ Prerequisites | Pré-requisitos
+- Docker + Docker Compose  
+- Java 21 *(optional if you only run containers | opcional se rodar tudo em container)*  
+- Maven *(optional | opcional)*
+
+---
+
+### 1) Configure env | Configure o ambiente
+
+**EN:**  
+Copy the example env file and adjust if needed.
+
+**PT:**  
+Copie o arquivo de exemplo e ajuste se necessário.
+
+```bash
+cp infra/docker/.env.example infra/docker/.env
+```
+
+### 2) Start the full local stack | Subir o stack local completo
+
+**EN:**  
+Run the full stack from the infra folder.
+
+**PT:**  
+Suba o stack completo a partir da pasta de infra.
+
+```bash
+docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d
+```
+
+EN: Check containers:
+PT: Verifique containers:
+```bash
+docker ps
+```
+
+### 3) Open the entrypoint | Abrir o ponto de entrada (Gateway)
+
+**Base URL (Gateway):**
+- http://localhost:8080
+
+**Gateway routes (by design):**
+- `/auth/**` → ms-auth  
+- `/ingestion/**` → ms-ingestion  
+- `/categorization/**` → ms-categorization  
+- `/budgeting/**` → ms-budgeting  
+- `/insights/**` → ms-insights  
+- `/notification/**` → ms-notification  
+- `/users/**` → ms-user
+
+### 4) Local credentials | Credenciais locais
+
+**Important | Importante:** These are local-only defaults for running the project quickly in a recruiter-friendly way.
+
+---
+
+#### Postgres (per microservice)
+
+Each Postgres DB uses:
+- **host:** `localhost`
+- **port:** `5432`
+- **user/pass:** same as db name *(defaults)*
+
+**DB names:**
+- `ecofy_auth` *(user/pass: `ecofy_auth`)*
+- `ecofy_ingestion` *(user/pass: `ecofy_ingestion`)*
+- `ecofy_categorization` *(user/pass: `ecofy_categorization`)*
+- `ecofy_budgeting` *(user/pass: `ecofy_budgeting`)*
+- `ecofy_insights` *(user/pass: `ecofy_insights`)*
+- `ecofy_users` *(user/pass: `ecofy_users`)*
+
+If you split DBs into multiple containers/ports, document it here and keep `.env.example` aligned.
+
+---
+
+#### MongoDB (ms-notification)
+- `mongodb://localhost:27017/ecofy_notification`
+
+---
+
+#### Kafka
+- `localhost:9092`
+
+---
+
+#### Mail (ms-auth dev)
+
+If enabled via compose (MailDev):
+- **Mail UI:** http://localhost:1080  
+- **SMTP:** `localhost:1025`
+
+
+---
+
+### 5) Create Kafka topics (optional) | Criar tópicos Kafka (opcional)
+
+**EN:** If auto-create is disabled, create topics with the scripts.  
+**PT:** Se auto-create estiver desabilitado, crie tópicos via scripts.
+
+```bash
+bash infra/kafka/scripts/wait-for-kafka.sh
+bash infra/kafka/scripts/create-topics.sh
+```
+
+---
+
+### 6) Get a token and call an API | Gerar token e chamar a API
+
+**NOTE | Nota:** Replace the endpoints below with the real ones from ms-auth (Swagger) if your current implementation differs.  
+The key is to make the flow executable for a recruiter.
+
+---
+
+#### 6.1 Discover ms-auth Swagger | Abrir Swagger do ms-auth
+- http://localhost:8080/auth/swagger-ui.html
+
+---
+
+#### 6.2 Generate JWT | Gerar JWT
+
+**EN:** Use the login endpoint in Swagger to obtain `access_token`.  
+**PT:** Use o endpoint de login no Swagger para obter `access_token`.
+
+Then call any protected route via gateway:
+
+```bash
+export TOKEN="PASTE_YOUR_JWT_HERE"
+
+curl -i http://localhost:8080/users/health \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### 7) Stop | Parar
+```bash
+docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env down
+```
+
+---
 
 # 🐳 Local Execution | Execução Local
 
