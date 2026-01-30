@@ -1,0 +1,5 @@
+name: ecofy
+
+include:
+  - infra/docker/docker-compose.infra.yml
+  - infra/docker/docker-compose.apps.yml

@@ -1,0 +1,216 @@
+services:
+
+  # Kafka (único)
+  kafka:
+    image: apache/kafka:latest
+    container_name: ecofy-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      # dentro do docker os serviços vão usar: kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: "Mk3OEYBSD34fcwNTJENDM2Qk"
+    volumes:
+      - ecofy-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'unset JMX_PORT; /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks: [ecofy-net]
+
+  kafka-init:
+    image: apache/kafka:latest
+    container_name: ecofy-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ../kafka/scripts:/scripts:ro
+    entrypoint: ["bash", "-lc", "/scripts/create-topics.sh"]
+    networks: [ecofy-net]
+    restart: "no"
+
+  # Postgres (um por MS)
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: ecofy-postgres-auth
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecofy_auth
+      POSTGRES_USER: ecofy_auth
+      POSTGRES_PASSWORD: ecofy_auth
+      TZ: UTC
+
+    ports:
+      - "5432:5432"
+    volumes:
+      - ecofy-auth-db-data:/var/lib/postgresql/data
+      - ../postgres/init/auth:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecofy_auth -d ecofy_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  postgres-ingestion:
+    image: postgres:16-alpine
+    container_name: ecofy-postgres-ingestion
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecofy_ingestion
+      POSTGRES_USER: ecofy_ingestion
+      POSTGRES_PASSWORD: ecofy_ingestion
+      TZ: UTC
+    ports:
+      - "5434:5432"
+    volumes:
+      - ecofy-ingestion-db-data:/var/lib/postgresql/data
+      - ../postgres/init/ingestion:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecofy_ingestion -d ecofy_ingestion"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  postgres-categorization:
+    image: postgres:16-alpine
+    container_name: ecofy-postgres-categorization
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecofy_categorization
+      POSTGRES_USER: ecofy_categorization
+      POSTGRES_PASSWORD: ecofy_categorization
+      TZ: UTC
+    ports:
+      - "5435:5432"
+    volumes:
+      - ecofy-categorization-db-data:/var/lib/postgresql/data
+      - ../postgres/init/categorization:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecofy_categorization -d ecofy_categorization"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  postgres-budgeting:
+    image: postgres:16-alpine
+    container_name: ecofy-postgres-budgeting
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecofy_budgeting
+      POSTGRES_USER: ecofy_budgeting
+      POSTGRES_PASSWORD: ecofy_budgeting
+      TZ: UTC
+    ports:
+      - "5436:5432"
+    volumes:
+      - ecofy-budgeting-db-data:/var/lib/postgresql/data
+      - ../postgres/init/budgeting:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecofy_budgeting -d ecofy_budgeting"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  postgres-insights:
+    image: postgres:16-alpine
+    container_name: ecofy-postgres-insights
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecofy_insights
+      POSTGRES_USER: ecofy_insights
+      POSTGRES_PASSWORD: ecofy_insights
+      TZ: UTC
+    ports:
+      - "5437:5432"
+    volumes:
+      - ecofy-insights-db-data:/var/lib/postgresql/data
+      - ../postgres/init/insights:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecofy_insights -d ecofy_insights"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  postgres-users:
+    image: postgres:16-alpine
+    container_name: ecofy-postgres-users
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecofy_users
+      POSTGRES_USER: ecofy_users
+      POSTGRES_PASSWORD: ecofy_users
+      TZ: UTC
+    ports:
+      - "5438:5432"
+    volumes:
+      - ecofy-users-db-data:/var/lib/postgresql/data
+      - ../postgres/init/users:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecofy_users -d ecofy_users"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  # Mongo (notification)
+  mongo-notification:
+    image: mongo:7
+    container_name: ecofy-mongo-notification
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      MONGO_INITDB_DATABASE: ecofy_notification
+    ports:
+      - "27017:27017"
+    volumes:
+      - ecofy-notification-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 })' >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  # Mail (ms-auth)
+  maildev:
+    image: maildev/maildev
+    container_name: ecofy-maildev
+    restart: unless-stopped
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+    networks: [ecofy-net]
+
+networks:
+  ecofy-net:
+
+volumes:
+  ecofy-kafka-data:
+  ecofy-auth-db-data:
+  ecofy-ingestion-db-data:
+  ecofy-categorization-db-data:
+  ecofy-budgeting-db-data:
+  ecofy-insights-db-data:
+  ecofy-users-db-data:
+  ecofy-notification-mongo-data:

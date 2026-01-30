@@ -11,6 +11,39 @@ spring:
       import-check:
         enabled: false
 
+# Opção para em dockeer, trocar de "localhost:808x" para hostnames.
+
+#    gateway:
+#      routes:
+#        - id: ecofy-auth
+#          uri: http://ms-auth:8081
+#          predicates: [ Path=/auth/** ]
+#
+#        - id: ecofy-ingestion
+#          uri: http://ms-ingestion:8082
+#          predicates: [ Path=/ingestion/** ]
+#
+#        - id: ecofy-categorization
+#          uri: http://ms-categorization:8083
+#          predicates: [ Path=/categorization/** ]
+#
+#        - id: ecofy-budgeting
+#          uri: http://ms-budgeting:8084
+#          predicates: [ Path=/budgeting/** ]
+#
+#        - id: ecofy-insights
+#          uri: http://ms-insights:8085
+#          predicates: [ Path=/insights/** ]
+#
+#        - id: ecofy-notification
+#          uri: http://ms-notification:8086
+#          predicates: [ Path=/notification/** ]
+#
+#        - id: ecofy-users
+#          uri: http://ms-users:8087
+#          predicates: [ Path=/users/** ]
+
+
     gateway:
       default-filters:
         - RemoveRequestHeader=Cookie

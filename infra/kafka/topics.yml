@@ -1,0 +1,81 @@
+# infra/kafka/topics.yml
+version: 1
+
+# Padrão sugerido:
+# - name: nome do tópico
+# - partitions: quantidade de partições
+# - replicationFactor: 1 (dev/local)
+# - config: configs opcionais do tópico
+
+topics:
+  - name: eco.categorization.request
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"   # 7 dias
+      cleanup.policy: "delete"
+
+  - name: eco.transaction.categorized
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  - name: eco.ingestion.events
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  - name: eco.budget.alert
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  - name: eco.insight.created
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  - name: eco.report.ready
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  - name: eco.notification.sent
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  # opcional (gateway access log)
+  - name: gateway.access.log
+    partitions: 1
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  # ms-users (do seu yml atual)
+  - name: auth.user.created
+    partitions: 1
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  - name: eco.user.event
+    partitions: 1
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
