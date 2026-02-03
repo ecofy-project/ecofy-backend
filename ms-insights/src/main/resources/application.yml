@@ -1,22 +1,21 @@
-# BASE / DEV (default profile)
-
+# BASE / DEV (default)
 server:
-  port: 8085
+  port: 8085                 # porta do ms-insights
   servlet:
-    context-path: /insights
-  shutdown: graceful
+    context-path: /insights   # base path do serviço
+  shutdown: graceful          # encerra com segurança
   compression:
-    enabled: true
+    enabled: true             # compressão HTTP
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024
-  forward-headers-strategy: framework
+    min-response-size: 1024   # só comprime acima disso
+  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
 
 spring:
   application:
-    name: ms-insights
+    name: ms-insights         # nome do serviço
 
   main:
     allow-bean-definition-overriding: false
@@ -24,10 +23,10 @@ spring:
     web-application-type: servlet
     threads:
       virtual:
-        enabled: true
+        enabled: true         # threads virtuais (Java 21+/Boot 4)
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ecofy_insights}
+    url: ${DB_URL:jdbc:postgresql://localhost:5437/ecofy_insights} # dev local
     username: ${DB_USER:ecofy_insights}
     password: ${DB_PASS:ecofy_insights}
     driver-class-name: org.postgresql.Driver
@@ -35,15 +34,15 @@ spring:
       pool-name: MsInsightsHikariPool
       maximum-pool-size: ${DB_POOL_MAX:10}
       minimum-idle: ${DB_POOL_MIN:2}
-      idle-timeout: 300000        # 5 min
-      max-lifetime: 1800000       # 30 min
-      connection-timeout: 30000   # 30s
-      leak-detection-threshold: 0
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      leak-detection-threshold: 0   # 0 desliga
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: validate        # não cria tabelas (usa Flyway)
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -54,15 +53,15 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: true   # baseline automático (evite em prod)
     default-schema: ${DB_SCHEMA:ecofy_insights}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
     client-id: ms-insights
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
 
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
@@ -80,10 +79,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        enable.idempotence: true
+        enable.idempotence: true   # evita duplicar publish
 
     listener:
-      ack-mode: record
+      ack-mode: record             # commit por mensagem
 
   jackson:
     time-zone: UTC
@@ -96,16 +95,15 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
 
-# Business properties for ms-insights
 ecofy:
   insights:
     topics:
-      categorized-transaction: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
-      budget-alert: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
-      insight-created: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
-      report-ready: ${INS_TOPIC_REPORT_READY:eco.report.ready}
+      categorized-transaction-topic: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
+      budget-alert-topic: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
+      insight-created-topic: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
+      report-ready-topic: ${INS_TOPIC_REPORT_READY:eco.report.ready} # opcional
 
     idempotency:
       ttl-seconds: ${INS_IDEMPOTENCY_TTL_SECONDS:86400}
@@ -129,12 +127,16 @@ ecofy:
     clients:
       categorization:
         enabled: ${INS_CLIENT_CATEGORIZATION_ENABLED:false}
-        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL:http://localhost:8083/categorization}
+        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL:http://localhost:8083/categorization} # dev
+        connect-timeout-ms: ${INS_CLIENT_CATEGORIZATION_CONNECT_TIMEOUT_MS:800}
+        read-timeout-ms: ${INS_CLIENT_CATEGORIZATION_READ_TIMEOUT_MS:1500}
+
       budgeting:
         enabled: ${INS_CLIENT_BUDGETING_ENABLED:false}
-        base-url: ${INS_CLIENT_BUDGETING_BASE_URL:http://localhost:8084/budgeting}
+        base-url: ${INS_CLIENT_BUDGETING_BASE_URL:http://localhost:8084/budgeting} # dev
+        connect-timeout-ms: ${INS_CLIENT_BUDGETING_CONNECT_TIMEOUT_MS:800}
+        read-timeout-ms: ${INS_CLIENT_BUDGETING_READ_TIMEOUT_MS:1500}
 
-# Actuator / Observability
 management:
   endpoints:
     web:
@@ -149,7 +151,6 @@ management:
     kafka:
       enabled: true
 
-# Springdoc OpenAPI / Swagger
 springdoc:
   api-docs:
     enabled: true
@@ -161,7 +162,6 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
-# Logging (dev/base)
 logging:
   level:
     root: INFO
@@ -170,6 +170,7 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
 
 # PROFILE: test
 ---
@@ -181,11 +182,11 @@ spring:
   datasource:
     url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_insights_test}
     username: ${DB_USER_TEST:ecofy_insights_test}
-    password: ${DB_PASS_TEST:change_me_test}
+    password: ${DB_PASS_TEST:}   # sem default fraco
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create-drop       # cria e apaga no fim
     show-sql: false
     open-in-view: false
 
@@ -193,7 +194,7 @@ spring:
     enabled: false
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:9093}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-insights-test}
 
@@ -214,6 +215,7 @@ ecofy:
       budgeting:
         enabled: false
 
+
 # PROFILE: prod
 ---
 spring:
@@ -222,9 +224,9 @@ spring:
       on-profile: prod
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5434/ecofy_insights}
-    username: ${DB_USER:ecofy_insights}
-    password: ${DB_PASS:change_me}
+    url: ${DB_URL}               # sem default local
+    username: ${DB_USER}
+    password: ${DB_PASS}
     hikari:
       pool-name: MsInsightsHikariPool
       maximum-pool-size: ${DB_POOL_MAX:20}
@@ -241,55 +243,56 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
     default-schema: ${DB_SCHEMA:ecofy_insights}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      # SASL/SSL via env if needed:
-      # sasl.mechanism: PLAIN
-      # sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
 
 logging:
   level:
     root: INFO
     br.com.ecofy.ms_insights: INFO
-    org.springframework.security: INFO
-    org.springframework.web: INFO
     org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+    org.springframework.web: WARN
 
 ecofy:
   insights:
     topics:
-      categorized-transaction: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
-      budget-alert: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
-      insight-created: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
-      report-ready: ${INS_TOPIC_REPORT_READY:eco.report.ready}
+      categorized-transaction-topic: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
+      budget-alert-topic: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
+      insight-created-topic: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
+      report-ready-topic: ${INS_TOPIC_REPORT_READY:eco.report.ready}
+
     idempotency:
       ttl: ${INS_IDEMPOTENCY_TTL:PT24H}
+
     generation:
       max-transactions-per-period: ${INS_MAX_TX_PER_PERIOD:2000}
       default-lookback-days: ${INS_DEFAULT_LOOKBACK_DAYS:30}
       min-anomaly-score: ${INS_MIN_ANOMALY_SCORE:75}
       persist-metric-snapshots: ${INS_PERSIST_METRICS:true}
       persist-trends: ${INS_PERSIST_TRENDS:true}
+
     clients:
       categorization:
         enabled: ${INS_CLIENT_CATEGORIZATION_ENABLED:false}
-        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL:http://ms-categorization:8080}
+        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL}      # obrigatório se enabled=true
         connect-timeout-ms: ${INS_CLIENT_CATEGORIZATION_CONNECT_TIMEOUT_MS:800}
         read-timeout-ms: ${INS_CLIENT_CATEGORIZATION_READ_TIMEOUT_MS:1500}
+
       budgeting:
         enabled: ${INS_CLIENT_BUDGETING_ENABLED:false}
-        base-url: ${INS_CLIENT_BUDGETING_BASE_URL:http://ms-budgeting:8080}
+        base-url: ${INS_CLIENT_BUDGETING_BASE_URL}            # obrigatório se enabled=true
         connect-timeout-ms: ${INS_CLIENT_BUDGETING_CONNECT_TIMEOUT_MS:800}
         read-timeout-ms: ${INS_CLIENT_BUDGETING_READ_TIMEOUT_MS:1500}

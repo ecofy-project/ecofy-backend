@@ -1,103 +1,127 @@
 server:
+  # Porta do API Gateway (ponto de entrada do stack local e/ou prod)
   port: 8080
 
 spring:
   application:
+    # Nome do serviço (identificação em logs/observabilidade)
     name: api-gateway
 
   cloud:
     config:
+      # Desabilita Spring Cloud Config (útil quando não há Config Server)
       enabled: false
       import-check:
+        # Evita falha ao iniciar caso não exista config import/config server
         enabled: false
 
-# Opção para em dockeer, trocar de "localhost:808x" para hostnames.
-
-#    gateway:
-#      routes:
-#        - id: ecofy-auth
-#          uri: http://ms-auth:8081
-#          predicates: [ Path=/auth/** ]
-#
-#        - id: ecofy-ingestion
-#          uri: http://ms-ingestion:8082
-#          predicates: [ Path=/ingestion/** ]
-#
-#        - id: ecofy-categorization
-#          uri: http://ms-categorization:8083
-#          predicates: [ Path=/categorization/** ]
-#
-#        - id: ecofy-budgeting
-#          uri: http://ms-budgeting:8084
-#          predicates: [ Path=/budgeting/** ]
-#
-#        - id: ecofy-insights
-#          uri: http://ms-insights:8085
-#          predicates: [ Path=/insights/** ]
-#
-#        - id: ecofy-notification
-#          uri: http://ms-notification:8086
-#          predicates: [ Path=/notification/** ]
-#
-#        - id: ecofy-users
-#          uri: http://ms-users:8087
-#          predicates: [ Path=/users/** ]
-
-
     gateway:
+      # Filtros globais aplicados em todas as rotas
       default-filters:
+        # Remove o header Cookie para reduzir vazamento acidental de sessão entre serviços
         - RemoveRequestHeader=Cookie
+        # Preserva Host (útil quando backend depende de host original)
         - PreserveHostHeader
 
+      # Rotas do Gateway (Path -> service URI)
+      # Local/dev: use localhost:808x
+      # Docker/Compose: use hostnames (ms-auth, ms-ingestion, etc.) -> veja exemplo abaixo
       routes:
         - id: ecofy-auth
+          # Local: ms-auth exposto em 8081
           uri: http://localhost:8081
           predicates:
             - Path=/auth/**
 
         - id: ecofy-ingestion
+          # Local: ms-ingestion exposto em 8082
           uri: http://localhost:8082
           predicates:
             - Path=/ingestion/**
 
         - id: ecofy-categorization
+          # Local: ms-categorization exposto em 8083
           uri: http://localhost:8083
           predicates:
             - Path=/categorization/**
 
         - id: ecofy-budgeting
+          # Local: ms-budgeting exposto em 8084
           uri: http://localhost:8084
           predicates:
             - Path=/budgeting/**
 
         - id: ecofy-insights
+          # Local: ms-insights exposto em 8085
           uri: http://localhost:8085
           predicates:
             - Path=/insights/**
 
         - id: ecofy-notification
+          # Local: ms-notification exposto em 8086
           uri: http://localhost:8086
           predicates:
             - Path=/notification/**
 
         - id: ecofy-users
+          # Local: ms-users exposto em 8087
           uri: http://localhost:8087
           predicates:
             - Path=/users/**
 
-# Logging de access (Kafka opcional)
+      # Exemplo (Docker/Compose):
+      # Use hostnames do network do Docker no lugar de localhost.
+      #
+      # routes:
+      #   - id: ecofy-auth
+      #     uri: http://ms-auth:8081
+      #     predicates: [ Path=/auth/** ]
+      #
+      #   - id: ecofy-ingestion
+      #     uri: http://ms-ingestion:8082
+      #     predicates: [ Path=/ingestion/** ]
+      #
+      #   - id: ecofy-categorization
+      #     uri: http://ms-categorization:8083
+      #     predicates: [ Path=/categorization/** ]
+      #
+      #   - id: ecofy-budgeting
+      #     uri: http://ms-budgeting:8084
+      #     predicates: [ Path=/budgeting/** ]
+      #
+      #   - id: ecofy-insights
+      #     uri: http://ms-insights:8085
+      #     predicates: [ Path=/insights/** ]
+      #
+      #   - id: ecofy-notification
+      #     uri: http://ms-notification:8086
+      #     predicates: [ Path=/notification/** ]
+      #
+      #   - id: ecofy-users
+      #     uri: http://ms-users:8087
+      #     predicates: [ Path=/users/** ]
+
+# Configuração interna do EcoFy Gateway (features do projeto)
 ecofy:
   gateway:
     logging:
+      # Liga/desliga o access logging do Gateway (registro de chamadas por rota)
       enabled: true
-      topic-name: gateway.access.log
-      kafka:
-        enabled: false  # mude para true quando quiser publicar no Kafka
 
-# Config Kafka (somente necessário se ecofy.gateway.logging.kafka.enabled=true)
+      # Tópico para publicação de logs (quando Kafka estiver habilitado)
+      topic-name: gateway.access.log
+
+      kafka:
+        # Se true, publica logs no Kafka (requer bloco ecofy.kafka configurado)
+        enabled: false
+
   kafka:
+    # Kafka usado APENAS pela feature de logging (acima)
+    # Necessário somente quando ecofy.gateway.logging.kafka.enabled=true
     bootstrap-servers: localhost:9092
+
     producer:
+      # Serializadores padrão para mensagem simples (String key/value)
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
@@ -105,7 +129,10 @@ management:
   endpoints:
     web:
       exposure:
+        # Exposição mínima recomendada (evita expor endpoints sensíveis)
         include: health,info
+
   endpoint:
     health:
+      # Em produção, não expor detalhes por padrão
       show-details: never

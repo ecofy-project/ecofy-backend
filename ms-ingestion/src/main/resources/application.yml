@@ -1,23 +1,21 @@
-# BASE / DEV (perfil default)
-
+# BASE / DEV (default)
 server:
-  port: 8082
+  port: 8082                  # porta do ms-ingestion
   servlet:
-    context-path: /ingestion
-  shutdown: graceful
+    context-path: /ingestion   # base path do serviço
+  shutdown: graceful           # encerra com segurança
   compression:
-    enabled: true
+    enabled: true              # compressão HTTP
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024
-
-  forward-headers-strategy: framework  # respeita X-Forwarded-* do gateway
+    min-response-size: 1024    # só comprime acima disso
+  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
 
 spring:
   application:
-    name: ms-ingestion
+    name: ms-ingestion         # nome do serviço
 
   main:
     allow-bean-definition-overriding: false
@@ -25,10 +23,10 @@ spring:
     web-application-type: servlet
     threads:
       virtual:
-        enabled: true
+        enabled: true          # threads virtuais (Java 21+/Boot 4)
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ecofy_ingestion}
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/ecofy_ingestion} # dev local
     username: ${DB_USER:ecofy_ingestion}
     password: ${DB_PASS:ecofy_ingestion}
     driver-class-name: org.postgresql.Driver
@@ -36,15 +34,15 @@ spring:
       pool-name: MsIngestionHikariPool
       maximum-pool-size: 10
       minimum-idle: 2
-      idle-timeout: 300000        # 5 min
-      max-lifetime: 1800000       # 30 min
-      connection-timeout: 30000   # 30s
-      leak-detection-threshold: 0
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      leak-detection-threshold: 0   # 0 desliga
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate           # schema via Flyway
+      ddl-auto: validate        # não cria tabelas (usa Flyway)
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -55,14 +53,14 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: true   # baseline automático (evite em prod)
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
     client-id: ms-ingestion
     properties:
-      security.protocol: PLAINTEXT
+      security.protocol: PLAINTEXT # dev (prod usa SSL/SASL_SSL)
 
     consumer:
       group-id: ms-ingestion-tx-consumer
@@ -79,9 +77,6 @@ spring:
         spring.json.add.type.headers: false
 
   jackson:
-    # ajuste fino depois se precisar
-    # serialization:
-    #   write-dates-as-timestamps: false
     time-zone: UTC
 
   sql:
@@ -92,27 +87,22 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
 
-# Propriedades de negócio para ingestão
 ecofy:
   ingestion:
-    # usado em ImportProcessingService
-    max-errors-per-job: ${ING_MAX_ERRORS_PER_JOB:100}
-    async-processing-enabled: ${ING_ASYNC_ENABLED:true}
+    max-errors-per-job: ${ING_MAX_ERRORS_PER_JOB:100}           # limite por job
+    async-processing-enabled: ${ING_ASYNC_ENABLED:true}         # processamento async
 
     topics:
-      # usado pelos adapters Kafka (PublishTransactionForCategorizationPort / PublishIngestionEventPort)
       categorize-transactions: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}
       ingestion-events: ${ING_TOPIC_EVENTS:eco.ingestion.events}
 
     storage:
-      # StorageProperties (base path do filesystem/local, etc.)
-      base-path: ${ING_STORAGE_BASE_PATH:./data/ms-ingestion}
-      tmp-dir: ${ING_STORAGE_TMP_DIR:./data/ms-ingestion/tmp}
-      max-file-size-bytes: ${ING_STORAGE_MAX_FILE_SIZE:10485760} # 10 MB
+      base-path: ${ING_STORAGE_BASE_PATH:./data/ms-ingestion}       # pasta base
+      tmp-dir: ${ING_STORAGE_TMP_DIR:./data/ms-ingestion/tmp}       # temporários
+      max-file-size-bytes: ${ING_STORAGE_MAX_FILE_SIZE:10485760}    # 10 MB
 
-# Actuator / Observability
 management:
   endpoints:
     web:
@@ -127,7 +117,6 @@ management:
     kafka:
       enabled: true
 
-# Springdoc OpenAPI / Swagger
 springdoc:
   api-docs:
     enabled: true
@@ -139,13 +128,11 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
-# CORS básico (ajusta se for sempre atrás do gateway)
 cors:
-  allowed-origins: "http://localhost:3000"
+  allowed-origins: "http://localhost:3000"  # dev
   allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
   allowed-headers: "*"
 
-# Logging (dev/base)
 logging:
   level:
     root: INFO
@@ -154,6 +141,7 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
 
 # PROFILE: test
 ---
@@ -165,10 +153,11 @@ spring:
   datasource:
     url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_ingestion_test}
     username: ${DB_USER_TEST:ecofy_ingestion_test}
-    password: ${DB_PASS_TEST:change_me_test}
+    password: ${DB_PASS_TEST:}   # sem default fraco
+
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create-drop       # cria e apaga no fim
     show-sql: false
     open-in-view: false
 
@@ -176,9 +165,15 @@ spring:
     enabled: false
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:9093}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
     consumer:
-      group-id: ms-ingestion-tx-consumer-test
+      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-ingestion-tx-consumer-test}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWT_JWKS_URI_TEST:http://localhost:8081/auth/.well-known/jwks.json} # test/local
 
 logging:
   level:
@@ -192,14 +187,8 @@ ecofy:
     storage:
       base-path: ./data/ms-ingestion-test
       tmp-dir: ./data/ms-ingestion-test/tmp
-      max-file-size-bytes: 5242880  # 5 MB
+      max-file-size-bytes: 5242880 # 5 MB
 
-# Em test geralmente você pode apontar pra um JWKS fake/local
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/auth/.well-known/jwks.json}
 
 # PROFILE: prod
 ---
@@ -209,9 +198,9 @@ spring:
       on-profile: prod
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:ecofy_ingestion}
-    username: ${DB_USER:ecofy_ingestion}
-    password: ${DB_PASS:change_me}
+    url: ${DB_URL}               # sem default local
+    username: ${DB_USER}
+    password: ${DB_PASS}
     hikari:
       pool-name: MsIngestionHikariPool
       maximum-pool-size: ${DB_POOL_MAX:20}
@@ -228,30 +217,26 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      # se usar SASL_SSL, adicionar via env:
-      # sasl.mechanism: PLAIN
-      # sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
-
-logging:
-  level:
-    root: INFO
-    br.com.ecofy.ms_ingestion: INFO
-    org.springframework.security: INFO
-    org.springframework.web: INFO
-    org.hibernate.SQL: WARN
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          # aqui normalmente apontando para o endpoint público do ms-auth
-          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
+
+logging:
+  level:
+    root: INFO
+    br.com.ecofy.ms_ingestion: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+    org.springframework.web: WARN
 
 ecofy:
   ingestion:

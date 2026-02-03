@@ -1,22 +1,21 @@
-# BASE / DEV (default profile)
-
+# BASE / DEV (default)
 server:
-  port: 8087
+  port: 8087                # porta do ms-users
   servlet:
-    context-path: /users
-  shutdown: graceful
+    context-path: /users     # base path do serviço
+  shutdown: graceful         # encerra com segurança
   compression:
-    enabled: true
+    enabled: true            # compressão HTTP
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024
-  forward-headers-strategy: framework
+    min-response-size: 1024  # só comprime acima disso
+  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
 
 spring:
   application:
-    name: ms-users
+    name: ms-users           # nome do serviço
 
   main:
     allow-bean-definition-overriding: false
@@ -24,7 +23,7 @@ spring:
     web-application-type: servlet
     threads:
       virtual:
-        enabled: true
+        enabled: true        # threads virtuais (Java 21+/Boot 4)
 
   jackson:
     time-zone: UTC
@@ -34,7 +33,7 @@ spring:
       mode: never
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ecofy_users}
+    url: ${DB_URL:jdbc:postgresql://localhost:5438/ecofy_users} # dev local
     username: ${DB_USER:ecofy_users}
     password: ${DB_PASS:ecofy_users}
     driver-class-name: org.postgresql.Driver
@@ -42,15 +41,15 @@ spring:
       pool-name: MsUsersHikariPool
       maximum-pool-size: ${DB_POOL_MAX:10}
       minimum-idle: ${DB_POOL_MIN:2}
-      idle-timeout: 300000        # 5 min
-      max-lifetime: 1800000       # 30 min
-      connection-timeout: 30000   # 30s
-      leak-detection-threshold: 0
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      leak-detection-threshold: 0  # 0 desliga
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: validate      # não cria tabelas (usa Flyway)
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -61,27 +60,22 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: true # baseline automático (evite em prod)
     default-schema: ${DB_SCHEMA:ecofy_users}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
     client-id: ms-users
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
 
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      # REMOVER a linha abaixo (não configure JsonDeserializer por YAML)
-      # value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      # não configure JsonDeserializer via YAML aqui
       auto-offset-reset: earliest
       max-poll-records: ${KAFKA_MAX_POLL_RECORDS:10}
-      # REMOVER o bloco abaixo (não configure spring.json.* por YAML)
-      # properties:
-      #   spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:br.com.ecofy.ms_users.adapters.in.kafka.dto}
-      #   spring.json.use.type.headers: false
 
     producer:
       acks: all
@@ -89,18 +83,17 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        enable.idempotence: true
+        enable.idempotence: true  # evita duplicar publish
 
     listener:
-      ack-mode: record
+      ack-mode: record            # commit por mensagem
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json} # dev local
 
-# Business properties for ms-users
 ecofy:
   users:
     security:
@@ -111,11 +104,10 @@ ecofy:
     idempotency:
       ttl: ${USR_IDEMPOTENCY_TTL:PT24H}
     external-auth:
-      base-url: ${AUTH_MS_BASE_URL:http://localhost:8081/auth}
+      base-url: ${AUTH_MS_BASE_URL:http://localhost:8081/auth} # dev
       connect-timeout: ${AUTH_MS_CONNECT_TIMEOUT:2s}
       read-timeout: ${AUTH_MS_READ_TIMEOUT:3s}
 
-# Actuator / Observability
 management:
   endpoints:
     web:
@@ -130,7 +122,6 @@ management:
     kafka:
       enabled: true
 
-# Springdoc OpenAPI / Swagger
 springdoc:
   api-docs:
     enabled: true
@@ -142,7 +133,6 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
-# Logging (dev/base)
 logging:
   level:
     root: INFO
@@ -152,6 +142,7 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
+
 # PROFILE: test
 ---
 spring:
@@ -160,21 +151,21 @@ spring:
       on-profile: test
 
   datasource:
-    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_users_test}
+    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5438/ecofy_users_test}
     username: ${DB_USER_TEST:ecofy_users_test}
-    password: ${DB_PASS_TEST:change_me_test}
+    password: ${DB_PASS_TEST:}    # sem default fraco
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create-drop        # cria e apaga no fim
     show-sql: false
 
   flyway:
     enabled: false
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:9093}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-users-test}
 
@@ -190,6 +181,7 @@ ecofy:
     idempotency:
       ttl: PT1M
 
+
 # PROFILE: prod
 ---
 spring:
@@ -198,9 +190,9 @@ spring:
       on-profile: prod
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://postgres:5432/ecofy_users}
-    username: ${DB_USER:ecofy_users}
-    password: ${DB_PASS:change_me}
+    url: ${DB_URL}                # sem default local
+    username: ${DB_USER}
+    password: ${DB_PASS}
     hikari:
       pool-name: MsUsersHikariPool
       maximum-pool-size: ${DB_POOL_MAX:20}
@@ -217,30 +209,27 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
     default-schema: ${DB_SCHEMA:ecofy_users}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      # SASL/SSL via env if needed:
-      # sasl.mechanism: PLAIN
-      # sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
 
 logging:
   level:
     root: INFO
     br.com.ecofy.ms_users: INFO
-    org.springframework.security: INFO
-    org.springframework.web: INFO
+    org.springframework.security: WARN
+    org.springframework.web: WARN
     org.hibernate.SQL: WARN
 
 ecofy:

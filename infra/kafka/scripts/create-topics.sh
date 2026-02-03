@@ -3,42 +3,115 @@
 set -euo pipefail
 
 BOOTSTRAP_SERVERS="${BOOTSTRAP_SERVERS:-kafka:9092}"
-TOPICS_FILE="${TOPICS_FILE:-/infra/kafka/topics.yml}"
 
-# Requer yq no container/ambiente onde rodar o script.
-command -v yq >/dev/null 2>&1 || {
-  echo "[create-topics] ERROR: 'yq' not found. Install yq or run this script in an image that contains yq."
-  exit 1
-}
+# ATENÇÃO: seu compose monta ../kafka/scripts em /scripts
+# então o default correto aqui é /scripts/../topics.yml
+TOPICS_FILE="${TOPICS_FILE:-/scripts/../topics.yml}"
 
 echo "[create-topics] Using bootstrap: ${BOOTSTRAP_SERVERS}"
 echo "[create-topics] Using topics file: ${TOPICS_FILE}"
 
-# garante que Kafka está pronto (se o script wait-for-kafka estiver disponível)
-if [ -x "/infra/kafka/scripts/wait-for-kafka.sh" ]; then
-  /infra/kafka/scripts/wait-for-kafka.sh "${BOOTSTRAP_SERVERS}"
+if [[ ! -f "${TOPICS_FILE}" ]]; then
+  echo "[create-topics] ERROR: topics file not found: ${TOPICS_FILE}"
+  exit 1
 fi
 
-count="$(yq '.topics | length' "${TOPICS_FILE}")"
-
-if [ "${count}" -eq 0 ]; then
-  echo "[create-topics] No topics found in ${TOPICS_FILE}"
-  exit 0
+# Se existir wait-for-kafka no mesmo mount, usa.
+if [[ -x "/scripts/wait-for-kafka.sh" ]]; then
+  /scripts/wait-for-kafka.sh "${BOOTSTRAP_SERVERS}"
+else
+  echo "[create-topics] wait-for-kafka.sh not found; doing simple readiness check..."
+  /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server "${BOOTSTRAP_SERVERS}" >/dev/null
 fi
 
-for i in $(seq 0 $((count - 1))); do
-  name="$(yq -r ".topics[${i}].name" "${TOPICS_FILE}")"
-  partitions="$(yq -r ".topics[${i}].partitions // 1" "${TOPICS_FILE}")"
-  rf="$(yq -r ".topics[${i}].replicationFactor // 1" "${TOPICS_FILE}")"
+# Parser simples para o formato atual do topics.yml:
+# - cada tópico começa com "- name:"
+# - partitions/replicationFactor são escalares
+# - config é um map identado, pares "k: v"
+#
+# Observação: o parser ignora comentários e linhas em branco.
+parse_topics() {
+  awk '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    function strip_quotes(s) { gsub(/^"|"$/, "", s); gsub(/^'\''|'\''$/, "", s); return s }
+    function flush() {
+      if (name != "") {
+        if (partitions == "") partitions = "1"
+        if (rf == "") rf = "1"
+        # imprime: name|partitions|rf|k=v,k2=v2
+        print name "|" partitions "|" rf "|" cfg
+      }
+      name=""; partitions=""; rf=""; cfg=""
+    }
+    /^[ \t]*#/ { next }
+    /^[ \t]*$/ { next }
 
-  if [ -z "${name}" ] || [ "${name}" = "null" ]; then
-    echo "[create-topics] Skipping topic index ${i}: invalid name"
+    /^[ \t]*-[ \t]*name:/ {
+      flush()
+      line=$0
+      sub(/^[ \t]*-[ \t]*name:[ \t]*/, "", line)
+      name=strip_quotes(trim(line))
+      next
+    }
+
+    /^[ \t]*partitions:/ {
+      line=$0
+      sub(/^[ \t]*partitions:[ \t]*/, "", line)
+      partitions=strip_quotes(trim(line))
+      next
+    }
+
+    /^[ \t]*replicationFactor:/ {
+      line=$0
+      sub(/^[ \t]*replicationFactor:[ \t]*/, "", line)
+      rf=strip_quotes(trim(line))
+      next
+    }
+
+    # Linha de config (dentro de "config:")
+    # Ex: "      retention.ms: "604800000"   # 7 dias"
+    /^[ \t]+[A-Za-z0-9_.-]+:[ \t]*/ {
+      # só consideramos config se já tem name aberto e se estamos dentro do bloco do tópico
+      if (name == "") next
+
+      # remove comentário inline
+      line=$0
+      sub(/[ \t]*#.*/, "", line)
+
+      # separa chave:valor
+      key=line
+      sub(/:.*/, "", key)
+      key=trim(key)
+
+      val=line
+      sub(/^[^:]*:[ \t]*/, "", val)
+      val=trim(val)
+      val=strip_quotes(val)
+
+      # se for linha do próprio "config:" (sem valor), ignora
+      if (key == "config" && val == "") next
+
+      # adiciona ao cfg "k=v,k2=v2"
+      if (key != "" && val != "") {
+        if (cfg == "") cfg = key "=" val
+        else cfg = cfg "," key "=" val
+      }
+      next
+    }
+
+    END { flush() }
+  ' "${TOPICS_FILE}"
+}
+
+# Processa cada tópico
+while IFS='|' read -r name partitions rf cfg; do
+  if [[ -z "${name}" ]]; then
+    echo "[create-topics] Skipping: empty name"
     continue
   fi
 
-  echo "[create-topics] Creating (or ensuring) topic: ${name} (partitions=${partitions}, rf=${rf})"
+  echo "[create-topics] Ensuring topic: ${name} (partitions=${partitions}, rf=${rf})"
 
-  # cria se não existir
   /opt/kafka/bin/kafka-topics.sh \
     --bootstrap-server "${BOOTSTRAP_SERVERS}" \
     --create --if-not-exists \
@@ -46,24 +119,15 @@ for i in $(seq 0 $((count - 1))); do
     --partitions "${partitions}" \
     --replication-factor "${rf}" >/dev/null
 
-  # aplica configs (se existirem)
-  # transforma o map "config" em argumentos --config k=v
-  cfg_len="$(yq ".topics[${i}].config | length" "${TOPICS_FILE}" 2>/dev/null || echo 0)"
-  if [ "${cfg_len}" != "0" ] && [ "${cfg_len}" != "null" ]; then
-
-    # extrai as configs como "k=v" e aplica via kafka-configs.sh
-    mapfile -t configs < <(yq -r ".topics[${i}].config | to_entries | .[] | \"\(.key)=\(.value)\"" "${TOPICS_FILE}")
-
-    if [ "${#configs[@]}" -gt 0 ]; then
-      echo "[create-topics] Applying configs to ${name}: ${configs[*]}"
-      /opt/kafka/bin/kafka-configs.sh \
-        --bootstrap-server "${BOOTSTRAP_SERVERS}" \
-        --entity-type topics \
-        --entity-name "${name}" \
-        --alter \
-        $(printf -- '--add-config %s ' "$(IFS=,; echo "${configs[*]}")") >/dev/null || true
-    fi
+  if [[ -n "${cfg}" ]]; then
+    echo "[create-topics] Applying configs to ${name}: ${cfg}"
+    /opt/kafka/bin/kafka-configs.sh \
+      --bootstrap-server "${BOOTSTRAP_SERVERS}" \
+      --entity-type topics \
+      --entity-name "${name}" \
+      --alter \
+      --add-config "${cfg}" >/dev/null || true
   fi
-done
+done < <(parse_topics)
 
 echo "[create-topics] Done."

@@ -2,6 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -12,10 +13,10 @@
     </parent>
 
     <groupId>br.com.ecofy</groupId>
-    <artifactId>ms-users</artifactId>
+    <artifactId>ms-notification</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>ms-users</name>
-    <description>CRUD de perfil/preferências/conexões/linked accounts; resolve contact info; consome auth.user.created.</description>
+    <name>ms-notification</name>
+    <description>Notificações (templates, tentativas, idempotência) com MongoDB e Kafka.</description>
 
     <properties>
         <java.version>25</java.version>
@@ -52,31 +53,16 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
-        <!-- Persistence -->
+        <!-- MongoDB -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
         </dependency>
 
-        <!-- Flyway (Boot 4: use o starter) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-flyway</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-        </dependency>
-
-        <!-- Kafka (use starter) -->
+        <!-- Kafka -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-kafka</artifactId>
@@ -104,7 +90,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- TESTES (Boot 4: starters por tecnologia) -->
+        <!-- TESTES -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
@@ -122,12 +108,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-flyway-test</artifactId>
+            <artifactId>spring-boot-starter-data-mongodb-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -143,6 +124,7 @@
                         <path>
                             <groupId>org.springframework.boot</groupId>
                             <artifactId>spring-boot-configuration-processor</artifactId>
+                            <version>4.0.1</version>
                         </path>
                         <path>
                             <groupId>org.projectlombok</groupId>
@@ -159,4 +141,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>

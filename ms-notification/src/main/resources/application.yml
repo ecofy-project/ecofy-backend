@@ -1,22 +1,21 @@
-# BASE / DEV (perfil default)
-
+# BASE / DEV (default)
 server:
-  port: 8086
+  port: 8086                   # porta do ms-notification
   servlet:
-    context-path: /notification
-  shutdown: graceful
+    context-path: /notification # base path do serviço
+  shutdown: graceful            # encerra com segurança
   compression:
-    enabled: true
+    enabled: true               # compressão HTTP
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024
-  forward-headers-strategy: framework
+    min-response-size: 1024     # só comprime acima disso
+  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
 
 spring:
   application:
-    name: ms-notification
+    name: ms-notification       # nome do serviço
 
   main:
     allow-bean-definition-overriding: false
@@ -24,21 +23,21 @@ spring:
     web-application-type: servlet
     threads:
       virtual:
-        enabled: true
+        enabled: true           # threads virtuais (Java 21+/Boot 4)
 
   jackson:
     time-zone: UTC
 
   data:
     mongodb:
-      uri: ${MONGO_URI:mongodb://localhost:27017/ecofy_notification}
-      auto-index-creation: false
+      uri: ${MONGO_URI:mongodb://localhost:27017/ecofy_notification} # dev local
+      auto-index-creation: false  # índices via migration/manual
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
     client-id: ms-notification
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
 
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
@@ -56,18 +55,17 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        enable.idempotence: true
+        enable.idempotence: true   # evita duplicar publish
 
     listener:
-      ack-mode: record
+      ack-mode: record             # commit por mensagem
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
 
-# Propriedades de negócio do ms-notification
 ecofy:
   notification:
     topics:
@@ -83,17 +81,14 @@ ecofy:
       max-attempts: ${NTF_RETRY_MAX:3}
       base-backoff: ${NTF_RETRY_BACKOFF:PT3S}
       multiplier: ${NTF_RETRY_MULT:2.0}
-      # se você quiser expor no código depois:
-      # max-backoff: ${NTF_RETRY_MAX_BACKOFF:PT60S}
 
     clients:
       user-profile:
         enabled: ${NTF_USER_PROFILE_CLIENT_ENABLED:false}
-        base-url: ${NTF_USER_PROFILE_BASE_URL:http://localhost:8087/users}
+        base-url: ${NTF_USER_PROFILE_BASE_URL:http://localhost:8087/users} # dev
         connect-timeout-ms: ${NTF_USER_PROFILE_CONNECT_TIMEOUT_MS:800}
         read-timeout-ms: ${NTF_USER_PROFILE_READ_TIMEOUT_MS:1500}
 
-# Actuator / Observability
 management:
   endpoints:
     web:
@@ -108,7 +103,6 @@ management:
     kafka:
       enabled: true
 
-# Springdoc OpenAPI / Swagger
 springdoc:
   api-docs:
     enabled: true
@@ -120,7 +114,6 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
-# Logging (dev/base)
 logging:
   level:
     root: INFO
@@ -129,6 +122,7 @@ logging:
     org.springframework.web: INFO
     org.springframework.data.mongodb.core.MongoTemplate: INFO
     org.springframework.kafka: INFO
+
 
 # PROFILE: test
 ---
@@ -142,7 +136,7 @@ spring:
       uri: ${MONGO_URI_TEST:mongodb://localhost:27018/ecofy_notification_test}
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:9093}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-notification-test}
 
@@ -156,6 +150,7 @@ ecofy:
     idempotency:
       ttl: PT1M
 
+
 # PROFILE: prod
 ---
 spring:
@@ -165,26 +160,23 @@ spring:
 
   data:
     mongodb:
-      uri: ${MONGO_URI:mongodb://mongo:27017/ecofy_notification}
+      uri: ${MONGO_URI}          # sem default local
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      # SASL/SSL via env se necessário:
-      # sasl.mechanism: PLAIN
-      # sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
 
 logging:
   level:
     root: INFO
     br.com.ecofy.ms_notification: INFO
-    org.springframework.security: INFO
-    org.springframework.web: INFO
+    org.springframework.security: WARN
+    org.springframework.web: WARN
     org.springframework.kafka: INFO

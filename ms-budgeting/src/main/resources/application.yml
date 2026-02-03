@@ -1,22 +1,21 @@
-# BASE / DEV (perfil default)
-
+# BASE / DEV (default)
 server:
-  port: 8084
+  port: 8084                  # porta do ms-budgeting
   servlet:
-    context-path: /budgeting
-  shutdown: graceful
+    context-path: /budgeting   # base path do serviço
+  shutdown: graceful           # encerra com segurança
   compression:
-    enabled: true
+    enabled: true              # compressão HTTP
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024
-  forward-headers-strategy: framework
+    min-response-size: 1024    # só comprime acima disso
+  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
 
 spring:
   application:
-    name: ms-budgeting
+    name: ms-budgeting         # nome do serviço
 
   main:
     allow-bean-definition-overriding: false
@@ -24,10 +23,10 @@ spring:
     web-application-type: servlet
     threads:
       virtual:
-        enabled: true
+        enabled: true          # threads virtuais (Java 21+/Boot 4)
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ecofy_budgeting}
+    url: ${DB_URL:jdbc:postgresql://localhost:5436/ecofy_budgeting} # dev local
     username: ${DB_USER:ecofy_budgeting}
     password: ${DB_PASS:ecofy_budgeting}
     driver-class-name: org.postgresql.Driver
@@ -35,15 +34,15 @@ spring:
       pool-name: MsBudgetingHikariPool
       maximum-pool-size: ${DB_POOL_MAX:10}
       minimum-idle: ${DB_POOL_MIN:2}
-      idle-timeout: 300000        # 5 min
-      max-lifetime: 1800000       # 30 min
-      connection-timeout: 30000   # 30s
-      leak-detection-threshold: 0
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      leak-detection-threshold: 0   # 0 desliga
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: validate        # não cria tabelas (usa Flyway)
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -54,15 +53,15 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: true   # baseline automático (evite em prod)
     default-schema: ${DB_SCHEMA:ecofy_budgeting}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
     client-id: ms-budgeting
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}      # dev (prod usa SSL/SASL_SSL)
 
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
@@ -80,10 +79,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        enable.idempotence: true
+        enable.idempotence: true  # evita duplicar publish
 
     listener:
-      ack-mode: record
+      ack-mode: record            # commit por mensagem
 
   jackson:
     time-zone: UTC
@@ -96,9 +95,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
 
-# Propriedades de neg�cio do ms-budgeting
 ecofy:
   budgeting:
     topics:
@@ -116,12 +114,10 @@ ecofy:
     schedulers:
       recalculation-enabled: ${BGT_SCHED_RECALC_ENABLED:true}
       cleanup-enabled: ${BGT_SCHED_CLEANUP_ENABLED:false}
-
       cleanup-retention-days: ${BGT_CLEANUP_RETENTION_DAYS:90}
       cleanup-cron: ${BGT_CLEANUP_CRON:0 0 3 * * *}
       recalculate-cron: ${BGT_RECALC_CRON:0 0/15 * * * *}
 
-# Actuator / Observability
 management:
   endpoints:
     web:
@@ -136,7 +132,6 @@ management:
     kafka:
       enabled: true
 
-# Springdoc OpenAPI / Swagger
 springdoc:
   api-docs:
     enabled: true
@@ -148,7 +143,6 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
-# Logging (dev/base)
 logging:
   level:
     root: INFO
@@ -157,6 +151,7 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
 
 # PROFILE: test
 ---
@@ -168,11 +163,11 @@ spring:
   datasource:
     url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_budgeting_test}
     username: ${DB_USER_TEST:ecofy_budgeting_test}
-    password: ${DB_PASS_TEST:change_me_test}
+    password: ${DB_PASS_TEST:}   # sem default fraco
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create-drop       # cria e apaga no fim
     show-sql: false
     open-in-view: false
 
@@ -180,7 +175,7 @@ spring:
     enabled: false
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:9093}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-budgeting-test}
 
@@ -198,6 +193,7 @@ ecofy:
       critical-threshold-pct: 95
       publish-on-every-update: false
 
+
 # PROFILE: prod
 ---
 spring:
@@ -206,9 +202,9 @@ spring:
       on-profile: prod
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5434/ecofy_budgeting}
-    username: ${DB_USER:ecofy_budgeting}
-    password: ${DB_PASS:change_me}
+    url: ${DB_URL}               # sem default local
+    username: ${DB_USER}
+    password: ${DB_PASS}
     hikari:
       pool-name: MsBudgetingHikariPool
       maximum-pool-size: ${DB_POOL_MAX:20}
@@ -225,39 +221,38 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
     default-schema: ${DB_SCHEMA:ecofy_budgeting}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      # SASL/SSL via env se necess�rio:
-      # sasl.mechanism: PLAIN
-      # sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:https://auth.ecofy.com/.well-known/jwks.json}
+          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
 
 logging:
   level:
     root: INFO
     br.com.ecofy.ms_budgeting: INFO
-    org.springframework.security: INFO
-    org.springframework.web: INFO
     org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+    org.springframework.web: WARN
 
 ecofy:
   budgeting:
     topics:
       categorized-transaction: ${BGT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
       budget-alert: ${BGT_TOPIC_BUDGET_ALERT:eco.budget.alert}
+
     idempotency:
       ttl: ${BGT_IDEMPOTENCY_TTL:PT24H}
+
     alerts:
       warning-threshold-pct: ${BGT_ALERT_WARNING_PCT:80}
       critical-threshold-pct: ${BGT_ALERT_CRITICAL_PCT:95}

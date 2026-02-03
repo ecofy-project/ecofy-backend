@@ -1,6 +1,5 @@
 package br.com.ecofy.auth.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,20 +20,14 @@ public class KafkaConfig {
 
     @Bean
     public ProducerFactory<String, Object> authEventProducerFactory(
-            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
-            ObjectMapper jsonMapper
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers
     ) {
         Map<String, Object> props = new HashMap<>();
-
-        // Config básica do producer
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
 
-        // Serializer de valor (Spring Kafka 4 / Jackson 3)
-        JacksonJsonSerializer<Object> valueSerializer = new JacksonJsonSerializer<>(jsonMapper);
-        valueSerializer.setAddTypeInfo(false); // equivalente ao setAddTypeInfo(false) do antigo JsonSerializer
+        JacksonJsonSerializer<Object> valueSerializer = new JacksonJsonSerializer<>();
+        valueSerializer.setAddTypeInfo(false); // não adiciona type headers
 
-        // Forma mais direta: injeta os serializers no factory
         return new DefaultKafkaProducerFactory<>(
                 props,
                 new StringSerializer(),
