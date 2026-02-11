@@ -4,8 +4,11 @@ import br.com.ecofy.auth.core.domain.enums.ClientType;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Set;
 
 @Entity
@@ -31,20 +34,19 @@ public class ClientApplicationEntity {
     private String name;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "client_type", nullable = false, length = 32)
     private ClientType clientType;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "auth_client_grants",
-            joinColumns = @JoinColumn(
-                    name = "client_id",
-                    referencedColumnName = "client_id"
-            )
+            joinColumns = @JoinColumn(name = "client_id", referencedColumnName = "client_id")
     )
+    @Column(name = "grant_type", nullable = false, columnDefinition = "grant_type")
     @Enumerated(EnumType.STRING)
-    @Column(name = "grant_type", length = 32)
-    private Set<GrantType> grantTypes;
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private Set<GrantType> grantTypes = new HashSet<>();
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(

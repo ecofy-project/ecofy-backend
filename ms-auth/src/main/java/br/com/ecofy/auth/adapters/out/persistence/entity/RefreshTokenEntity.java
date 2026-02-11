@@ -3,6 +3,7 @@ package br.com.ecofy.auth.adapters.out.persistence.entity;
 import br.com.ecofy.auth.core.domain.enums.TokenType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -39,6 +40,7 @@ public class RefreshTokenEntity {
     private boolean revoked;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)
     @Column(
             name = "type",
             nullable = false,
