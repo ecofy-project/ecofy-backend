@@ -23,40 +23,35 @@ spring:
               predicates:
                 - Path=/auth/**
 
-            - id: ms-users
-              uri: ${MS_USERS_URI:http://localhost:8082}
-              predicates:
-                - Path=/users/**
-
-            - id: ms-transactions
-              uri: ${MS_TRANSACTIONS_URI:http://localhost:8083}
-              predicates:
-                - Path=/transactions/**
-
             - id: ms-ingestion
-              uri: ${MS_INGESTION_URI:http://localhost:8084}
+              uri: ${MS_INGESTION_URI:http://localhost:8082}
               predicates:
                 - Path=/ingestion/**
 
             - id: ms-categorization
-              uri: ${MS_CATEGORIZATION_URI:http://localhost:8085}
+              uri: ${MS_CATEGORIZATION_URI:http://localhost:8083}
               predicates:
                 - Path=/categorization/**
 
             - id: ms-budgeting
-              uri: ${MS_BUDGETING_URI:http://localhost:8086}
+              uri: ${MS_BUDGETING_URI:http://localhost:8084}
               predicates:
                 - Path=/budgeting/**
 
             - id: ms-insights
-              uri: ${MS_INSIGHTS_URI:http://localhost:8087}
+              uri: ${MS_INSIGHTS_URI:http://localhost:8085}
               predicates:
                 - Path=/insights/**
 
             - id: ms-notification
-              uri: ${MS_NOTIFICATION_URI:http://localhost:8088}
+              uri: ${MS_NOTIFICATION_URI:http://localhost:8086}
               predicates:
                 - Path=/notification/**
+
+            - id: ms-users
+              uri: ${MS_USERS_URI:http://localhost:8087}
+              predicates:
+                - Path=/users/**
 
 management:
   endpoints:

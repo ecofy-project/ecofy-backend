@@ -5,9 +5,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -15,11 +13,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,36 +28,13 @@ public class KafkaConfig {
         return new IngestionTopics();
     }
 
-    // Configura a factory de produtores Kafka com serialização JSON (Jackson 3) e key String.
-    @Bean
-    public ProducerFactory<String, Object> producerFactory(
-            KafkaProperties kafkaProperties,
-            JsonMapper jsonMapper
-    ) {
-
-        Map<String, Object> props = new HashMap<>(kafkaProperties.buildProducerProperties());
-
-        props.putIfAbsent(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-
-        JacksonJsonSerializer<Object> valueSerializer = new JacksonJsonSerializer<>(jsonMapper);
-        valueSerializer.setAddTypeInfo(false); // sem type headers
-
-        log.info("[KafkaConfig] [producerFactory] bootstrapServers={}", kafkaProperties.getBootstrapServers());
-
-        return new DefaultKafkaProducerFactory<>(
-                props,
-                new StringSerializer(),
-                valueSerializer
-        );
-    }
-
-    // Fornece um KafkaTemplate para publicar mensagens/eventos.
-    @Bean
-    public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> pf) {
-        return new KafkaTemplate<>(pf);
-    }
-
-    // Configura a factory de consumidores Kafka para mensagens String (key/value).
+    /**
+     * Configura a factory de consumidores Kafka para mensagens String (key/value).
+     *
+     * Observação:
+     * - Producer/KafkaTemplate NÃO são configurados aqui; ficam 100% no application.yaml via autoconfig do Spring Boot.
+     * - Isso evita conflito de configuração (setters vs properties) no JsonSerializer.
+     */
     @Bean
     public ConsumerFactory<String, String> consumerFactory(KafkaProperties kafkaProperties) {
 
@@ -107,5 +77,4 @@ public class KafkaConfig {
         private String importJobStatusChanged = "eco.ingestion.import-job.status-changed";
         private String categorizationRequest = "eco.categorization.request";
     }
-
 }

@@ -107,6 +107,9 @@ ecofy:
       base-url: ${AUTH_MS_BASE_URL:http://localhost:8081/auth} # dev
       connect-timeout: ${AUTH_MS_CONNECT_TIMEOUT:2s}
       read-timeout: ${AUTH_MS_READ_TIMEOUT:3s}
+    internal:
+      enabled: true
+      token: ${INTERNAL_TOKEN:local-internal-token}
 
 management:
   endpoints:

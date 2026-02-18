@@ -131,8 +131,7 @@ public class InsightsController {
                 ))
                 .toList();
 
-        // Mantém compatível com seu DTO atual (lista com 1 item). Se quiser simplificar o contrato depois,
-        // troque o DTO para `MetricSnapshotResponse metrics` (objeto único), sem lista.
+        // 1 nível apenas: List<List<MetricSnapshotResult>>
         var metricsAsSingletonList = java.util.Collections.singletonList(bundle.metrics());
 
         List<GoalResponse> goals = bundle.goals().stream()
@@ -148,6 +147,7 @@ public class InsightsController {
                 ))
                 .toList();
 
+        // REMOVE o Collections.singletonList(...) extra
         return new InsightsBundleResponse(insights, Collections.singletonList(metricsAsSingletonList), goals);
     }
 

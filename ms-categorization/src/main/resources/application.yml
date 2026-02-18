@@ -59,26 +59,76 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
     client-id: ms-categorization
+
+    # Propriedades gerais do client Kafka (vale para producer/consumer)
     properties:
       security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
 
     consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
+      # IMPORTANTE: para evitar "ler do offset 0" quando o serviço ficou OFF e o grupo não tem offset commitado,
+      # use um group-id versionado e comece do latest.
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:ms-categorization-v2}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      auto-offset-reset: earliest
+      auto-offset-reset: latest
       max-poll-records: ${KAFKA_MAX_POLL_RECORDS:10}
+
+      # JSON Deserializer config (somente via YAML)
+      properties:
+        spring.json.trusted.packages: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto"
+        spring.json.value.default.type: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto.CategorizationRequestMessage"
+        spring.json.use.type.headers: false
+        # Opcional, mas ajuda quando chega payload "ruim" (sem quebrar por campos extras)
+        spring.json.fail.on.unknown.properties: false
 
     producer:
       acks: all
       retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+      # JSON Serializer config (somente via YAML)
       properties:
-        enable.idempotence: true     # evita duplicar publish
+        spring.json.add.type.headers: false
+        enable.idempotence: true
 
     listener:
       ack-mode: record               # commit por mensagem
+
+#  kafka:
+#    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
+#    client-id: ms-categorization
+#
+#    # Propriedades gerais do client Kafka (vale para producer/consumer)
+#    properties:
+#      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
+#
+#    consumer:
+#      group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
+#      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+#      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+#      auto-offset-reset: earliest
+#      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:10}
+#
+#      # JSON Deserializer config (somente via YAML)
+#      properties:
+#        spring.json.trusted.packages: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto"
+#        spring.json.value.default.type: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto.CategorizationRequestMessage"
+#        spring.json.use.type.headers: false
+#
+#    producer:
+#      acks: all
+#      retries: 3
+#      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+#      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+#
+#      # JSON Serializer config (somente via YAML)
+#      properties:
+#        spring.json.add.type.headers: false
+#        enable.idempotence: true
+#
+#    listener:
+#      ack-mode: record               # commit por mensagem
 
   sql:
     init:

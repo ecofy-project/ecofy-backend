@@ -13,7 +13,17 @@ server:
     min-response-size: 1024   # só comprime acima disso
   forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
 
+  error:
+    include-message: always
+    include-exception: true
+    include-binding-errors: always
+    include-stacktrace: always
+
 spring:
+
+  mvc:
+    log-resolved-exception: true
+
   application:
     name: ms-insights         # nome do serviço
 
@@ -200,8 +210,10 @@ spring:
 
 logging:
   level:
-    root: WARN
-    br.com.ecofy.ms_insights: INFO
+    org.springframework.web: DEBUG
+    org.springframework.http.converter: DEBUG
+    org.springframework.validation: DEBUG
+    org.springframework.boot.autoconfigure.web.servlet.error: DEBUG
 
 ecofy:
   insights:

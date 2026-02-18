@@ -4,6 +4,8 @@ public enum PreferenceKey {
 
     DEFAULT_CURRENCY,
     LOCALE,
-    NOTIFY_CHANNELS
-
+    NOTIFY_CHANNELS,
+    TIMEZONE,
+    DATE_FORMAT,
+    THEME
 }

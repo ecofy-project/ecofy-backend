@@ -1,46 +1,85 @@
 services:
-  ecofy-ingestion-db:
+
+  # Kafka (único)
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: ecofy-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"      # opcional manter, mas recomendo usar 19092 como externo
+      - "19092:19092"    # externo (host)
+      - "9093:9093"      # controller
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - ecofy-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -lc 'unset JMX_PORT; /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1'" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks: [ ecofy-net ]
+
+  kafka-init:
+    image: apache/kafka:4.1.1
+    container_name: ecofy-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: "kafka:9092"
+      TOPICS_FILE: "/scripts/../topics.yml"
+    volumes:
+      - ../kafka/scripts:/scripts:ro
+      - ../kafka/topics.yml:/topics.yml:ro
+    entrypoint: [ "bash", "-lc", "/scripts/create-topics.sh" ]
+    networks: [ ecofy-net ]
+    restart: "no"
+
+  # Postgres (ms-ingestion)
+  postgres-ingestion:
     image: postgres:16-alpine
-    container_name: ecofy-ingestion-db
+    container_name: ecofy-postgres-ingestion
     restart: unless-stopped
     environment:
       POSTGRES_DB: ecofy_ingestion
       POSTGRES_USER: ecofy_ingestion
       POSTGRES_PASSWORD: ecofy_ingestion
+      TZ: UTC
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - ecofy-ingestion-db-data:/var/lib/postgresql/data
+      # opcional (se você tiver scripts de init)
+      # - ../postgres/init/ingestion:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ecofy_ingestion -d ecofy_ingestion"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+    networks: [ ecofy-net ]
 
-  kafka:
-    image: apache/kafka:latest
-    container_name: kafka
-    restart: unless-stopped
-    ports:
-      - "9092:9092"
-      - "9093:9093"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      CLUSTER_ID: "Mk3OEYBSD34fcwNTJENDM2Qk"
-    volumes:
-      - ./data:/var/lib/kafka/data
 
 volumes:
   ecofy-ingestion-db-data:
+  ecofy-kafka-data:
+
+networks:
+  ecofy-net:
+    name: ecofy-net

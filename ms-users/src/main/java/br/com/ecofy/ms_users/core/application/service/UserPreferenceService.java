@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Slf4j
@@ -44,7 +46,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
         this.idempotencyProps = Objects.requireNonNull(props.idempotency(), "props.idempotency must not be null");
     }
 
-    // Atualiza preferências do usuário com idempotência, normaliza entradas, realiza upsert em lote e retorna o estado consolidado.
+    // Atualiza preferências do usuário com idempotência, normaliza entradas (inclui validações mínimas), realiza upsert em lote e retorna o estado consolidado.
     @Override
     public UserPreferencesResult update(UpdatePreferencesCommand command) {
         validate(command);
@@ -121,16 +123,144 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
             throw new BusinessValidationException("idempotencyKey is required");
     }
 
-    // Normaliza o mapa de preferências (remove chaves nulas, trim em valores) e garante que existe pelo menos uma chave válida.
+    // Normaliza o mapa de preferências (remove chaves nulas, trim em valores), valida entradas e garante que existe pelo menos uma chave válida.
     private static Map<PreferenceKey, String> normalizePreferences(Map<PreferenceKey, String> prefs) {
         // Remove chaves nulas e normaliza valores (trim). Mantém ordem por enum natural (EnumMap).
         EnumMap<PreferenceKey, String> out = new EnumMap<>(PreferenceKey.class);
+
         for (var e : prefs.entrySet()) {
-            if (e.getKey() == null) continue;
-            out.put(e.getKey(), e.getValue() == null ? null : e.getValue().trim());
+            PreferenceKey key = e.getKey();
+            if (key == null) continue;
+
+            String raw = e.getValue();
+            String value = raw == null ? null : raw.trim();
+
+            // Permite "limpar" preferência enviando vazio (persistirá null).
+            if (value != null && value.isBlank()) value = null;
+
+            // Validações mínimas por chave (fail-fast com mensagem clara).
+            validatePreference(key, value);
+
+            // Normalizações simples (ex.: moeda uppercase, locale padronizado, theme uppercase, channels normalizado).
+            value = normalizeValue(key, value);
+
+            out.put(key, value);
         }
+
         if (out.isEmpty()) throw new BusinessValidationException("preferences must contain at least one valid key");
         return out;
+    }
+
+    // Valida minimamente o valor conforme a chave. Se value for null, interpreta como "limpar preferência" (permitido).
+    private static void validatePreference(PreferenceKey key, String value) {
+        if (value == null) return;
+
+        switch (key) {
+            case DEFAULT_CURRENCY -> validateCurrency(value);
+            case LOCALE -> validateLocale(value);
+            case TIMEZONE -> validateTimezone(value);
+            case DATE_FORMAT -> validateDateFormat(value);
+            case THEME -> validateTheme(value);
+            case NOTIFY_CHANNELS -> validateNotifyChannels(value);
+        }
+    }
+
+    // Normaliza valores de preferências quando aplicável (sem alterar semântica).
+    private static String normalizeValue(PreferenceKey key, String value) {
+        if (value == null) return null;
+
+        return switch (key) {
+            case DEFAULT_CURRENCY -> value.toUpperCase(Locale.ROOT);
+            case LOCALE -> normalizeLocale(value);
+            case THEME -> value.toUpperCase(Locale.ROOT);
+            case NOTIFY_CHANNELS -> normalizeNotifyChannels(value);
+            case TIMEZONE, DATE_FORMAT -> value;
+        };
+    }
+
+    // Validação mínima: 3 letras (ISO-like) para código de moeda.
+    private static void validateCurrency(String v) {
+        String s = v.trim();
+        if (!s.matches("^[A-Za-z]{3}$")) {
+            throw new BusinessValidationException("DEFAULT_CURRENCY must be a 3-letter code (e.g., BRL, USD, EUR)");
+        }
+    }
+
+    // Validação mínima: "ll" ou "ll-CC" (ex.: pt-BR, en-US).
+    private static void validateLocale(String v) {
+        String s = v.trim();
+        if (!s.matches("^[a-zA-Z]{2}(-[a-zA-Z]{2})?$")) {
+            throw new BusinessValidationException("LOCALE must be in format ll or ll-CC (e.g., pt-BR, en-US)");
+        }
+    }
+
+    // Normaliza locale para "ll" ou "ll-CC" (minúsculo/maiúsculo).
+    private static String normalizeLocale(String v) {
+        String s = v.trim();
+        if (s.matches("^[a-zA-Z]{2}$")) {
+            return s.toLowerCase(Locale.ROOT);
+        }
+        String[] parts = s.split("-");
+        return parts[0].toLowerCase(Locale.ROOT) + "-" + parts[1].toUpperCase(Locale.ROOT);
+    }
+
+    // Validação mínima: precisa ser um ZoneId IANA válido.
+    private static void validateTimezone(String v) {
+        try {
+            ZoneId.of(v.trim());
+        } catch (Exception ex) {
+            throw new BusinessValidationException("TIMEZONE must be a valid IANA ZoneId (e.g., America/Sao_Paulo)");
+        }
+    }
+
+    // Validação mínima: pattern aceito por DateTimeFormatter.
+    private static void validateDateFormat(String v) {
+        try {
+            DateTimeFormatter.ofPattern(v.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessValidationException("DATE_FORMAT must be a valid DateTimeFormatter pattern (e.g., yyyy-MM-dd)");
+        }
+    }
+
+    // Validação mínima: tema deve estar dentro do conjunto permitido (case-insensitive).
+    private static void validateTheme(String v) {
+        String s = v.trim().toUpperCase(Locale.ROOT);
+        if (!(s.equals("LIGHT") || s.equals("DARK") || s.equals("SYSTEM"))) {
+            throw new BusinessValidationException("THEME must be one of: LIGHT, DARK, SYSTEM");
+        }
+    }
+
+    // Validação mínima: lista CSV com valores permitidos. Também aceita "NONE".
+    private static void validateNotifyChannels(String v) {
+        String s = v.trim();
+        if (s.isBlank()) return;
+
+        String[] parts = s.split(",");
+        for (String p : parts) {
+            String token = p.trim().toUpperCase(Locale.ROOT);
+            if (token.isEmpty()) continue;
+
+            if (!(token.equals("EMAIL")
+                    || token.equals("SMS")
+                    || token.equals("PUSH")
+                    || token.equals("WHATSAPP")
+                    || token.equals("NONE"))) {
+                throw new BusinessValidationException(
+                        "NOTIFY_CHANNELS contains invalid value: " + token + " (allowed: EMAIL,SMS,PUSH,WHATSAPP,NONE)"
+                );
+            }
+        }
+    }
+
+    // Normaliza canais: uppercase, remove espaços redundantes e duplicados, preservando ordem.
+    private static String normalizeNotifyChannels(String v) {
+        String[] parts = v.split(",");
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String p : parts) {
+            String token = p.trim().toUpperCase(Locale.ROOT);
+            if (!token.isEmpty()) set.add(token);
+        }
+        return String.join(",", set);
     }
 
     // Monta uma representação determinística das preferências (ordenada) para uso em hashing de idempotência.
@@ -140,9 +270,7 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
         StringBuilder sb = new StringBuilder();
         prefs.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(Comparator.comparing(Enum::name)))
-                .forEach(e -> {
-                    sb.append(e.getKey().name()).append('=').append(blankToEmpty(e.getValue())).append(';');
-                });
+                .forEach(e -> sb.append(e.getKey().name()).append('=').append(blankToEmpty(e.getValue())).append(';'));
         return sb.toString();
     }
 
@@ -170,5 +298,4 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
             return "sha256_error";
         }
     }
-
 }

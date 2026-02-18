@@ -68,7 +68,8 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    // Orquestra a geração de insights para um usuário e período: aplica idempotência, carrega dados (tx/budgets/goals), calcula métricas/score, persiste e publica evento conforme limiar.
+    // Orquestra a geração de insights para um usuário e período: aplica idempotência, carrega dados (tx/budgets/goals),
+    // calcula métricas/score, persiste e publica evento conforme limiar.
     @Override
     @Transactional
     public InsightsBundleResult generate(GenerateInsightsCommand cmd) {
@@ -94,103 +95,127 @@ public class InsightGenerationService implements GenerateInsightsUseCase {
             throw new IdempotencyViolationException("Idempotency violation for key=" + idemKey);
         }
 
-        int maxTx = normalizeMaxTransactions(properties.engine() == null ? null : properties.engine().maxTransactionsToAnalyze());
+        try {
+            int maxTx = normalizeMaxTransactions(
+                    properties.engine() == null ? null : properties.engine().maxTransactionsToAnalyze()
+            );
 
-        List<CategorizedTxView> txs =
-                safeList(loadCategorizedTransactionsPort.loadForUserAndPeriod(userId.value(), period, maxTx));
+            List<CategorizedTxView> txs =
+                    safeList(loadCategorizedTransactionsPort.loadForUserAndPeriod(userId.value(), period, maxTx));
 
-        List<LoadBudgetsForUserPort.BudgetView> budgets =
-                safeList(loadBudgetsForUserPort.loadBudgets(userId.value()));
+            List<LoadBudgetsForUserPort.BudgetView> budgets =
+                    safeList(loadBudgetsForUserPort.loadBudgets(userId.value()));
 
-        List<br.com.ecofy.ms_insights.core.domain.Goal> goals =
-                safeList(loadGoalsPort.findByUserId(userId.value()));
+            List<br.com.ecofy.ms_insights.core.domain.Goal> goals =
+                    safeList(loadGoalsPort.findByUserId(userId.value()));
 
-        String currency = resolveCurrency(txs);
+            String currency = resolveCurrency(txs);
 
-        long totalSpentCents = txs.stream()
-                .filter(Objects::nonNull)
-                .filter(t -> !t.income())
-                .mapToLong(CategorizedTxView::amountCents)
-                .sum();
+            long totalSpentCents = txs.stream()
+                    .filter(Objects::nonNull)
+                    .filter(t -> !t.income())
+                    .mapToLong(CategorizedTxView::amountCents)
+                    .sum();
 
-        long totalIncomeCents = txs.stream()
-                .filter(Objects::nonNull)
-                .filter(CategorizedTxView::income)
-                .mapToLong(CategorizedTxView::amountCents)
-                .sum();
+            long totalIncomeCents = txs.stream()
+                    .filter(Objects::nonNull)
+                    .filter(CategorizedTxView::income)
+                    .mapToLong(CategorizedTxView::amountCents)
+                    .sum();
 
-        MetricSnapshot spentSnap = saveMetricSnapshotPort.save(new MetricSnapshot(
-                UUID.randomUUID(),
-                userId,
-                period,
-                MetricType.TOTAL_SPENT,
-                new Money(totalSpentCents, currency),
-                now
-        ));
+            MetricSnapshot spentSnap = saveMetricSnapshotPort.save(new MetricSnapshot(
+                    UUID.randomUUID(),
+                    userId,
+                    period,
+                    MetricType.TOTAL_SPENT,
+                    new Money(totalSpentCents, currency),
+                    now
+            ));
 
-        MetricSnapshot incomeSnap = saveMetricSnapshotPort.save(new MetricSnapshot(
-                UUID.randomUUID(),
-                userId,
-                period,
-                MetricType.INCOME,
-                new Money(totalIncomeCents, currency),
-                now
-        ));
+            MetricSnapshot incomeSnap = saveMetricSnapshotPort.save(new MetricSnapshot(
+                    UUID.randomUUID(),
+                    userId,
+                    period,
+                    MetricType.INCOME,
+                    new Money(totalIncomeCents, currency),
+                    now
+            ));
 
-        Map<UUID, Long> spentByCategory = buildSpentByCategory(txs);
+            Map<UUID, Long> spentByCategory = buildSpentByCategory(txs);
 
-        List<Map.Entry<UUID, Long>> topCategories = spentByCategory.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
-                .limit(10)
-                .toList();
+            List<Map.Entry<UUID, Long>> topCategories = spentByCategory.entrySet().stream()
+                    .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                    .limit(10)
+                    .toList();
 
-        int score = computeScore(totalSpentCents, budgets);
+            int score = computeScore(totalSpentCents, budgets);
 
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("periodStart", period.start().toString());
-        payload.put("periodEnd", period.end().toString());
-        payload.put("granularity", period.granularity().name());
-        payload.put("currency", currency);
-        payload.put("totalSpentCents", totalSpentCents);
-        payload.put("totalIncomeCents", totalIncomeCents);
-        payload.put("topCategories", topCategories.stream().map(e -> Map.of(
-                "categoryId", e.getKey() == null ? null : e.getKey().toString(),
-                "spentCents", e.getValue()
-        )).toList());
-        payload.put("budgetsCount", budgets.size());
-        payload.put("goalsCount", goals.size());
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("periodStart", period.start().toString());
+            payload.put("periodEnd", period.end().toString());
+            payload.put("granularity", period.granularity().name());
+            payload.put("currency", currency);
+            payload.put("totalSpentCents", totalSpentCents);
+            payload.put("totalIncomeCents", totalIncomeCents);
 
-        InsightKey key = new InsightKey(userId, DEFAULT_INSIGHT_TYPE, period);
+            // FIX: Map.of NÃO aceita null. Então filtramos categoryId nulo (ou poderia usar LinkedHashMap).
+            payload.put("topCategories",
+                    topCategories.stream()
+                            .filter(e -> e.getKey() != null)
+                            .map(e -> Map.of(
+                                    "categoryId", e.getKey().toString(),
+                                    "spentCents", e.getValue()
+                            ))
+                            .toList()
+            );
 
-        Insight insight = new Insight(
-                UUID.randomUUID(),
-                key,
-                DEFAULT_INSIGHT_TYPE,
-                score,
-                "Spending breakdown",
-                "Top spending categories for the selected period.",
-                payload,
-                now
-        );
+            payload.put("budgetsCount", budgets.size());
+            payload.put("goalsCount", goals.size());
 
-        Insight saved = saveInsightPort.save(insight);
+            InsightKey key = new InsightKey(userId, DEFAULT_INSIGHT_TYPE, period);
 
-        int minScoreToPublish = normalizeMinScore(properties.engine() == null ? null : properties.engine().minScoreToPublish());
-        boolean shouldPublish = saved.getScore() >= minScoreToPublish;
+            Insight insight = new Insight(
+                    UUID.randomUUID(),
+                    key,
+                    DEFAULT_INSIGHT_TYPE,
+                    score,
+                    "Spending breakdown",
+                    "Top spending categories for the selected period.",
+                    payload,
+                    now
+            );
 
-        log.info("[InsightGenerationService] - [generate] -> generated insightId={} userId={} type={} score={} shouldPublish={} minScoreToPublish={} txCount={} budgets={} goals={}",
-                saved.getId(), userId.value(), saved.getType(), saved.getScore(), shouldPublish, minScoreToPublish,
-                txs.size(), budgets.size(), goals.size());
+            Insight saved = saveInsightPort.save(insight);
 
-        if (shouldPublish) {
-            publishInsightCreatedEventPort.publish(saved);
+            int minScoreToPublish = normalizeMinScore(
+                    properties.engine() == null ? null : properties.engine().minScoreToPublish()
+            );
+            boolean shouldPublish = saved.getScore() >= minScoreToPublish;
+
+            log.info("[InsightGenerationService] - [generate] -> generated insightId={} userId={} type={} score={} shouldPublish={} minScoreToPublish={} txCount={} budgets={} goals={}",
+                    saved.getId(), userId.value(), saved.getType(), saved.getScore(), shouldPublish, minScoreToPublish,
+                    txs.size(), budgets.size(), goals.size());
+
+            if (shouldPublish) {
+                publishInsightCreatedEventPort.publish(saved);
+            }
+
+            return new InsightsBundleResult(
+                    List.of(toInsightResult(saved)),
+                    List.of(toMetricResult(spentSnap), toMetricResult(incomeSnap)),
+                    goals.stream().map(GoalService::toResult).toList()
+            );
+
+        } catch (Exception ex) {
+            // IMPORTANTE: se você tiver idempotência persistida (Redis/DB), você pode querer "release" aqui
+            // para permitir retry quando falhar no meio. Como seu port é tryAcquire, deixo apenas log/propagação.
+            log.error(
+                    "[InsightGenerationService] - [generate] -> FAILED userId={} start={} end={} g={} idemKey={}",
+                    userId.value(), period.start(), period.end(), period.granularity(), idemKey,
+                    ex
+            );
+            throw ex; // mantém o comportamento padrão (vira 500), mas agora com stacktrace no log
         }
-
-        return new InsightsBundleResult(
-                List.of(toInsightResult(saved)),
-                List.of(toMetricResult(spentSnap), toMetricResult(incomeSnap)),
-                goals.stream().map(GoalService::toResult).toList()
-        );
     }
 
     // Constrói a chave de idempotência final usando prefixo fixo e uma base derivada do rawKey (se informado) ou de user+período+granularidade.

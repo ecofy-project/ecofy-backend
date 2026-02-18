@@ -10,9 +10,13 @@ public record UserId(UUID value) {
         Objects.requireNonNull(value, "userId must not be null");
     }
 
-    // Fábrica estática para criar UserId a partir de um UUID.
+    // Fábrica estática para criar UserId a partir de um UUID existente.
     public static UserId of(UUID v) {
         return new UserId(v);
     }
 
+    // Gera um novo UserId (UUID aleatório), útil para criação de novos perfis no domínio.
+    public static UserId newId() {
+        return new UserId(UUID.randomUUID());
+    }
 }

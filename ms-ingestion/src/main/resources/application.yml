@@ -59,6 +59,8 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
     client-id: ms-ingestion
+
+    # Propriedades gerais do client Kafka (vale para producer/consumer)
     properties:
       security.protocol: PLAINTEXT # dev (prod usa SSL/SASL_SSL)
 
@@ -73,6 +75,8 @@ spring:
       retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+      # Configuração do JsonSerializer SOMENTE via properties (sem setters no Java)
       properties:
         spring.json.add.type.headers: false
 

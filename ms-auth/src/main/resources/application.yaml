@@ -88,7 +88,7 @@ spring:
 
 security:
   jwt:
-    issuer: ${JWT_ISSUER:http://localhost:8080/auth} # issuer local
+    issuer: ${JWT_ISSUER:http://localhost:8081/auth} # issuer local
     audience: ${JWT_AUDIENCE:ecofy-api}
     key-id: ${JWT_KEY_ID:ecofy-auth-key-1}
     private-key-location: ${JWT_PRIVATE_KEY_LOCATION:classpath:keys/ecofy-auth-private.pem}
@@ -98,6 +98,12 @@ security:
     clock-skew-seconds: 60
 
 ecofy:
+
+  users-ms:
+    enabled: true
+    base-url: ${USERS_MS_BASE_URL:http://localhost:8087/users}
+    internal-token: ${INTERNAL_TOKEN:local-internal-token}
+
   mail:
     from: ${MAIL_FROM:no-reply@ecofy.local}
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}

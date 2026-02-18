@@ -11,7 +11,9 @@ public record UsersProperties(
 
         Idempotency idempotency,
 
-        ExternalAuth externalAuth
+        ExternalAuth externalAuth,
+
+        Internal internal
 
 ) {
 
@@ -28,6 +30,11 @@ public record UsersProperties(
             String baseUrl,
             Duration connectTimeout,
             Duration readTimeout
+    ) {}
+
+    public record Internal(
+            boolean enabled,
+            String token
     ) {}
 
 }

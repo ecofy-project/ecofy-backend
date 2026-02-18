@@ -28,14 +28,22 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
     // Busca regras ativas ordenadas por prioridade (ascendente).
     @Override
     public List<CategorizationRule> findActiveOrdered() {
-
         log.debug("[CategorizationRuleJpaAdapter] - [findActiveOrdered] -> Loading ACTIVE rules ordered by priority");
 
         return repo.findByStatusOrderByPriorityAsc(RuleStatus.ACTIVE)
                 .stream()
-                .map(mapper::toDomain)
+                .map(e -> {
+                    try {
+                        return mapper.toDomain(e);
+                    } catch (Exception ex) {
+                        log.error("[CategorizationRuleJpaAdapter] - [findActiveOrdered] -> Failed mapping ruleId={} conditionsJson={}",
+                                e.getId(), e.getConditionsJson(), ex);
+                        throw ex;
+                    }
+                })
                 .toList();
     }
+
 
     // Busca uma regra por id e a converte para o domínio.
     @Override
@@ -61,6 +69,7 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
                 rule.getStatus()
         );
 
+        // Persiste entidade (grava conditions_json via writeConditions)
         var savedEntity = repo.save(mapper.toEntity(rule));
 
         log.info(
@@ -70,7 +79,16 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
                 savedEntity.getPriority()
         );
 
-        return mapper.toDomain(savedEntity);
+        return new CategorizationRule(
+                savedEntity.getId(),
+                savedEntity.getCategoryId(),
+                savedEntity.getName(),
+                savedEntity.getStatus(),
+                savedEntity.getPriority(),
+                (rule.getConditions() != null ? rule.getConditions() : List.of()),
+                (savedEntity.getCreatedAt() != null ? savedEntity.getCreatedAt() : rule.getCreatedAt()),
+                (savedEntity.getUpdatedAt() != null ? savedEntity.getUpdatedAt() : rule.getUpdatedAt())
+        );
     }
 
 }

@@ -3,6 +3,7 @@ package br.com.ecofy.ms_users.adapters.out.persistence;
 import br.com.ecofy.ms_users.adapters.out.persistence.mapper.UserProfileMapper;
 import br.com.ecofy.ms_users.adapters.out.persistence.repository.UserProfileRepository;
 import br.com.ecofy.ms_users.core.domain.EcoUserProfile;
+import br.com.ecofy.ms_users.core.domain.valueobject.ExternalAuthId;
 import br.com.ecofy.ms_users.core.port.out.LoadUserProfilePort;
 import br.com.ecofy.ms_users.core.port.out.SaveUserProfilePort;
 import lombok.extern.slf4j.Slf4j;
@@ -73,8 +74,8 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
 
     // Busca um EcoUserProfile pelo externalAuthId (ID do provedor de autenticação) e retorna Optional com o domínio quando encontrado.
     @Override
-    public Optional<EcoUserProfile> findByExternalAuthId(String externalAuthId) {
-        String ext = blankToNull(externalAuthId);
+    public Optional<EcoUserProfile> findByExternalAuthId(ExternalAuthId externalAuthId) {
+        String ext = blankToNull(String.valueOf(externalAuthId));
         if (ext == null) {
             log.debug("[UserProfileJpaAdapter] - [findByExternalAuthId] -> externalAuthId=<blank> found=false");
             return Optional.empty();

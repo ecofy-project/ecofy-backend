@@ -27,13 +27,17 @@ public class RegisterUserService implements RegisterUserUseCase {
     private final VerificationTokenStorePort verificationTokenStorePort;
     private final PublishAuthEventPort publishAuthEventPort;
 
-    // Inicializa o serviço com as portas necessárias para persistência, consulta, hashing, envio/armazenamento de token e publicação de eventos.
+    // Port responsável por sincronizar (upsert) o usuário no ms-users após o registro no ms-auth.
+    private final SyncUserToUsersMsPort syncUserToUsersMsPort;
+
+    // Inicializa o serviço com as portas necessárias para persistência, consulta, hashing, envio/armazenamento de token, publicação de eventos e sincronização com ms-users.
     public RegisterUserService(SaveAuthUserPort saveAuthUserPort,
                                LoadAuthUserByEmailPort loadAuthUserByEmailPort,
                                PasswordHashingPort passwordHashingPort,
                                SendVerificationEmailPort sendVerificationEmailPort,
                                VerificationTokenStorePort verificationTokenStorePort,
-                               PublishAuthEventPort publishAuthEventPort) {
+                               PublishAuthEventPort publishAuthEventPort,
+                               SyncUserToUsersMsPort syncUserToUsersMsPort) {
 
         this.saveAuthUserPort = Objects.requireNonNull(saveAuthUserPort, "saveAuthUserPort must not be null");
         this.loadAuthUserByEmailPort = Objects.requireNonNull(loadAuthUserByEmailPort, "loadAuthUserByEmailPort must not be null");
@@ -41,6 +45,7 @@ public class RegisterUserService implements RegisterUserUseCase {
         this.sendVerificationEmailPort = Objects.requireNonNull(sendVerificationEmailPort, "sendVerificationEmailPort must not be null");
         this.verificationTokenStorePort = Objects.requireNonNull(verificationTokenStorePort, "verificationTokenStorePort must not be null");
         this.publishAuthEventPort = Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
+        this.syncUserToUsersMsPort = Objects.requireNonNull(syncUserToUsersMsPort, "syncUserToUsersMsPort must not be null");
     }
 
     // Registra um novo usuário (com roles/defaults), impede e-mail duplicado, persiste, opcionalmente auto-confirma e dispara e-mail/token e evento.
@@ -106,6 +111,24 @@ public class RegisterUserService implements RegisterUserUseCase {
                 persisted.isEmailVerified(),
                 persisted.status()
         );
+
+        // Sincroniza o usuário no ms-users logo após persistir no ms-auth (upsert).
+        // Observação: best-effort para não impedir registro em caso de indisponibilidade temporária do ms-users.
+        try {
+            syncUserToUsersMsPort.upsertUser(persisted);
+
+            log.debug(
+                    "[RegisterUserService] - [register] -> Sync com ms-users realizado userId={} externalAuthId={}",
+                    persisted.id().value(),
+                    persisted.id().value()
+            );
+        } catch (Exception ex) {
+            log.warn(
+                    "[RegisterUserService] - [register] -> Falha ao sincronizar com ms-users userId={} cause={}",
+                    persisted.id().value(),
+                    ex.getMessage()
+            );
+        }
 
         if (!command.autoConfirmEmail()) {
             String token = UUID.randomUUID().toString();
