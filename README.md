@@ -103,7 +103,7 @@ subgraph DATA["Dados (Infra)"]
   PG_CAT[(Postgres Categorization)]
   PG_BGT[(Postgres Budgeting)]
   PG_INS[(Postgres Insights)]
-  PG_NTF[(Postgres Notification)]
+  PG_NTF[(Mongo Notification)]
   PG_USR[(Postgres Users)]
   RED[(Redis Cache\nIdempotência / Hot Reads)]
   OBJ[(Object Storage\nCSV/OFX Raw + Artefatos)]
@@ -244,13 +244,10 @@ Todos os microsserviços seguem Arquitetura Hexagonal (Ports & Adapters), garant
 
 
 ---
-
 ## 🚀 Quickstart (5 minutes) | Quickstart (5 minutos)
 
 ### ✅ Prerequisites | Pré-requisitos
-- Docker + Docker Compose  
-- Java 21 *(optional if you only run containers | opcional se rodar tudo em container)*  
-- Maven *(optional | opcional)*
+- Docker + Docker Compose
 
 ---
 
@@ -266,22 +263,22 @@ Copie o arquivo de exemplo e ajuste se necessário.
 cp infra/docker/.env.example infra/docker/.env
 ```
 
-### 2) Start the full local stack | Subir o stack local completo
+### 2) Start containers | Subir containers
+
+#### 2.1 Full stack (all microservices) | Stack completo (todos os microsserviços)
 
 **EN:**  
-Run the full stack from the infra folder.
+Start the full local stack using the **infra + apps** compose files.
 
 **PT:**  
-Suba o stack completo a partir da pasta de infra.
+Suba o stack completo usando os arquivos de compose de **infra + apps**.
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d
-```
-
-EN: Check containers:
-PT: Verifique containers:
-```bash
-docker ps
+docker compose \
+  -f infra/docker/docker-compose.infra.yml \
+  -f infra/docker/docker-compose.apps.yml \
+  --env-file infra/docker/.env \
+  up -d
 ```
 
 ### 3) Open the entrypoint | Abrir o ponto de entrada (Gateway)
@@ -296,53 +293,11 @@ docker ps
 - `/budgeting/**` → ms-budgeting  
 - `/insights/**` → ms-insights  
 - `/notification/**` → ms-notification  
-- `/users/**` → ms-user
-
-### 4) Local credentials | Credenciais locais
-
-**Important | Importante:** These are local-only defaults for running the project quickly in a recruiter-friendly way.
+- `/users/**` → ms-users  
 
 ---
 
-#### Postgres (per microservice)
-
-Each Postgres DB uses:
-- **host:** `localhost`
-- **port:** `5432`
-- **user/pass:** same as db name *(defaults)*
-
-**DB names:**
-- `ecofy_auth` *(user/pass: `ecofy_auth`)*
-- `ecofy_ingestion` *(user/pass: `ecofy_ingestion`)*
-- `ecofy_categorization` *(user/pass: `ecofy_categorization`)*
-- `ecofy_budgeting` *(user/pass: `ecofy_budgeting`)*
-- `ecofy_insights` *(user/pass: `ecofy_insights`)*
-- `ecofy_users` *(user/pass: `ecofy_users`)*
-
-If you split DBs into multiple containers/ports, document it here and keep `.env.example` aligned.
-
----
-
-#### MongoDB (ms-notification)
-- `mongodb://localhost:27017/ecofy_notification`
-
----
-
-#### Kafka
-- `localhost:9092`
-
----
-
-#### Mail (ms-auth dev)
-
-If enabled via compose (MailDev):
-- **Mail UI:** http://localhost:1080  
-- **SMTP:** `localhost:1025`
-
-
----
-
-### 5) Create Kafka topics (optional) | Criar tópicos Kafka (opcional)
+### 4) Create Kafka topics (optional) | Criar tópicos Kafka (opcional)
 
 **EN:** If auto-create is disabled, create topics with the scripts.  
 **PT:** Se auto-create estiver desabilitado, crie tópicos via scripts.
@@ -354,71 +309,68 @@ bash infra/kafka/scripts/create-topics.sh
 
 ---
 
-### 6) Get a token and call an API | Gerar token e chamar a API
+### 5) Postman collections (optional) | Collections do Postman (opcional)
 
-**NOTE | Nota:** Replace the endpoints below with the real ones from ms-auth (Swagger) if your current implementation differs.  
-The key is to make the flow executable for a recruiter.
+**EN:**  
+Postman collections and environment variables are available in `evidences/collection`. Import them into Postman to run the prepared requests quickly.
+
+**PT:**  
+As collections do Postman e as variáveis de ambiente estão disponíveis em `evidences/collection`. Importe no Postman para executar rapidamente os requests já preparados.
+
 
 ---
 
-#### 6.1 Discover ms-auth Swagger | Abrir Swagger do ms-auth
-- http://localhost:8080/auth/swagger-ui.html
 
----
+### 6) Stop | Parar
 
-#### 6.2 Generate JWT | Gerar JWT
-
-**EN:** Use the login endpoint in Swagger to obtain `access_token`.  
-**PT:** Use o endpoint de login no Swagger para obter `access_token`.
-
-Then call any protected route via gateway:
-
+#### 6.1 Stop full stack | Parar stack completo
 ```bash
-export TOKEN="PASTE_YOUR_JWT_HERE"
-
-curl -i http://localhost:8080/users/health \
-  -H "Authorization: Bearer $TOKEN"
+docker compose \
+  -f infra/docker/docker-compose.infra.yml \
+  -f infra/docker/docker-compose.apps.yml \
+  --env-file infra/docker/.env \
+  down
 ```
 
----
+#### 6.2 Stop a single microservice | Parar um microsserviço isolado
 
-### 7) Stop | Parar
+Example (ms-users):
+
 ```bash
-docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env down
+docker compose \
+  -f infra/docker/ms-users/docker-compose.yml \
+  --env-file infra/docker/.env \
+  down
 ```
 
 ---
 
 # 🐳 Local Execution | Execução Local
 
-
 **EN:**  
-Each microservice has its own Docker Compose, allowing isolated execution, focused testing, and easier debugging.
+This repository supports two execution modes:
+- **Per-microservice Compose:** each microservice has its own Docker Compose file with **only the required infrastructure services** for that microservice (e.g., its database, Kafka, Redis, MongoDB, MailDev), making isolated execution and debugging easier.
+- **Full stack Compose:** there is also a Docker Compose setup that starts **all required services and all microservices together**, recommended for end-to-end validation.
 
 **PT:**  
-Cada microsserviço possui seu próprio Docker Compose, permitindo execução isolada, testes focados e debug facilitado.
-
+Este repositório suporta dois modos de execução:
+- **Compose por microsserviço:** cada microsserviço possui seu próprio Docker Compose com **apenas os serviços de infraestrutura necessários** para ele (ex.: seu banco, Kafka, Redis, MongoDB, MailDev), facilitando execução isolada e debug.
+- **Compose do stack completo:** também existe um Docker Compose que sobe **todos os serviços necessários e todos os microsserviços juntos**, recomendado para validação end-to-end.
 
 ---
-
 
 # 🧪 Tests & Evidence | Testes e Evidências
 
-
 **EN:**
-*   Unit tests focused on domain and application layers.
-*   REST endpoint tests.
-*   Evidence of executions and test scenarios available in the repository [Wiki](URL_DA_SUA_WIKI).
-
+- Unit tests focused on domain and application layers.
+- REST endpoint tests.
+- Evidence of executions and test scenarios available in the `evidences/` folder (see `evidences`).
 
 **PT:**
-*   Testes unitários focados no domínio e serviços.
-*   Testes de endpoints REST.
-*   Evidências de execução e cenários disponíveis na [Wiki do repositório](URL_DA_SUA_WIKI).
-
-
+- Testes unitários focados no domínio e camadas de aplicação.
+- Testes de endpoints REST.
+- Evidências de execução e cenários disponíveis na pasta `evidences/` (veja `evidences`).
 ---
-
 
 # 🚀 Project Purpose | Objetivo do Projeto
 
@@ -434,4 +386,3 @@ O EcoFy foi desenvolvido como um projeto de portfólio profissional, demonstrand
 
 
 **📌 Status:** continuously evolving | em evolução contínua  
-**📖 More details:** see repository [Wiki](URL_DA_SUA_WIKI) | consulte a Wiki do repositório
