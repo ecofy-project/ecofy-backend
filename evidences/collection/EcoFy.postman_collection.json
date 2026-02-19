@@ -1,0 +1,1743 @@
+{
+  "info": {
+    "_postman_id": "6afca721-e0c7-46b2-9e5e-54dd1dfed50a",
+    "name": "EcoFy",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "11496146"
+  },
+  "item": [
+    {
+      "name": "ms-auth",
+      "item": [
+        {
+          "name": "AuthController",
+          "item": [
+            {
+              "name": "Emite access token",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"clientId\": \"eco_dashboard_local\",\n    \"clientSecret\": \"eco_dashboard_local\",\n    \"username\": \"matheusadmin@ecofy.com\",\n    \"password\": \"matheus123\",\n    \"scope\": \"openid profile email auth.admin\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/auth/token",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "token"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Renova access token usando refresh token",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"clientId\": \"eco_dashboard_local\",\n    \"refreshToken\": \"eyJraWQiOiJlY29meS1hdXRoLWtleS0xIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIwM2EyMTZjZS0zNjk3LTQzN2UtYjk5MC1iNTIwNDVmY2FhNDMiLCJhdWQiOiJlY29meS1hcGkiLCJuYmYiOjE3NzA3NTA1NjMsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9hdXRoIiwidHlwIjoiUkVGUkVTSCIsImV4cCI6MTc3MzM0MjYyMywiaWF0IjoxNzcwNzUwNjIzLCJjbGllbnRfaWQiOiJlY29fZGFzaGJvYXJkX2xvY2FsIn0.A8MBlUJqKPunBinAw8oEKMT5sAxkptliAFSuWxDIDCJ_A_0BfEn8EqHK15rVh9GFkTGp9Cl3Ux9tTV60eS1UFqEuML3oxOwpdijeKLrDqR9y0DU8r48QYTyenHTK3t7LdfBzVc-wyqvd6hM58yKfmoGDk8TxGqAfO3JC-oN8mKJnDrV75hcvIzH4VHF0YGPxBUEpYqVoa8EWKdo3GOcQiAVR9RL02VC2k7GXBPYJJO89Sp1MAm4fFKfdwdRFFxTJhWy9i3MCIN1xDRSk88WBN_zMEFQ2vD-NR6dnot83ebL-Dh0AEF0IL_SKfpDO51_j0-NfRzvXZU_1fX7NQd6k3g\",\n    \"scope\": \"openid profile email auth.admin\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/auth/refresh",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "refresh"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Revoga um token (logout)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"token\": \"eyJraWQiOiJlY29meS1hdXRoLWtleS0xIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIwM2EyMTZjZS0zNjk3LTQzN2UtYjk5MC1iNTIwNDVmY2FhNDMiLCJhdWQiOiJlY29meS1hcGkiLCJuYmYiOjE3NzA3NTEwMDYsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9hdXRoIiwidHlwIjoiUkVGUkVTSCIsImV4cCI6MTc3MzM0MzA2NiwiaWF0IjoxNzcwNzUxMDY2LCJjbGllbnRfaWQiOiJlY29fZGFzaGJvYXJkX2xvY2FsIn0.iColU4a5laNKOH9cLnhG2aJSAoo8UrBr6PtyrTwR4E1zCKe8GgQba8BnlWum9_A1xoAPsFs7KqN6wt9LOHAx1MF5g8REBNnhXHi7n4bkZuy5keTwGnSDZ6gXpZxPZnUBLotvMlIgzvKOJDnmAEC0OUZel1iaCmBFR6gmPYdY-mL4t38AGaF1ucipWtSlTrbjH_fVZL2ThYYzoxzXVLKXgaWQgZ6a8CVn9GJ7D272_-JFkxUpJuWC-5YM3SThFoQQGKEdKwdXmNZYyT6NbSBJbes9qEiioS1C0y3GgZah1Lup4B8My9ZkJgxqAXdVZzxpdSkgnPjzZsdnEh1LWN1T_Q\",\n    \"refreshToken\": true\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/auth/revoke",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "revoke"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Valida um access token JWT",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"token\": \"eyJraWQiOiJlY29meS1hdXRoLWtleS0xIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIwM2EyMTZjZS0zNjk3LTQzN2UtYjk5MC1iNTIwNDVmY2FhNDMiLCJhdWQiOiJlY29meS1hcGkiLCJuYmYiOjE3NzA3NTEwMDYsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9hdXRoIiwidHlwIjoiUkVGUkVTSCIsImV4cCI6MTc3MzM0MzA2NiwiaWF0IjoxNzcwNzUxMDY2LCJjbGllbnRfaWQiOiJlY29fZGFzaGJvYXJkX2xvY2FsIn0.iColU4a5laNKOH9cLnhG2aJSAoo8UrBr6PtyrTwR4E1zCKe8GgQba8BnlWum9_A1xoAPsFs7KqN6wt9LOHAx1MF5g8REBNnhXHi7n4bkZuy5keTwGnSDZ6gXpZxPZnUBLotvMlIgzvKOJDnmAEC0OUZel1iaCmBFR6gmPYdY-mL4t38AGaF1ucipWtSlTrbjH_fVZL2ThYYzoxzXVLKXgaWQgZ6a8CVn9GJ7D272_-JFkxUpJuWC-5YM3SThFoQQGKEdKwdXmNZYyT6NbSBJbes9qEiioS1C0y3GgZah1Lup4B8My9ZkJgxqAXdVZzxpdSkgnPjzZsdnEh1LWN1T_Q\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/auth/validate",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "validate"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "ClientApplicationController",
+          "item": [
+            {
+              "name": "Registra um novo client application",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{TOKEN}}",
+                    "disabled": true
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"EcoFy Dashboard (local/dev)\",\n    \"clientType\": \"CONFIDENTIAL\",\n    \"grantTypes\": [\"PASSWORD\", \"AUTHORIZATION_CODE\", \"REFRESH_TOKEN\"],\n    \"redirectUris\": [\"http://localhost:3000/auth/callback\"],\n    \"scopes\": [\"openid\",\"profile\",\"email\",\"auth.admin\"],\n    \"firstParty\": true\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/admin/clients",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "clients"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "RegistrationController",
+          "item": [
+            {
+              "name": "Registra um novo usuário",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"email\": \"victor.rocha+user@ecofy.dev\",\n    \"password\": \"V1ctor#R0cha2026!\",\n    \"firstName\": \"Victor\",\n    \"lastName\": \"Rocha\",\n    \"locale\": \"pt-BR\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/register",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "register"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Confirma o e-mail de um usuário",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"token\": \"{{EMAIL_CONFIRM_TOKEN}}\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/register/confirm-email",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "register",
+                    "confirm-email"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "JwksController",
+          "item": [
+            {
+              "name": "Retorna o documento JWKS",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{AUTH_URL}}/.well-known/jwks.json",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    ".well-known",
+                    "jwks.json"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "UserProfileController",
+          "item": [
+            {
+              "name": "Retorna o perfil do usuário autenticado",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJraWQiOiJlY29meS1hdXRoLWtleS0xIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIwM2EyMTZjZS0zNjk3LTQzN2UtYjk5MC1iNTIwNDVmY2FhNDMiLCJhdWQiOiJlY29meS1hcGkiLCJuYmYiOjE3NzA4MTk3NzcsInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwgYXV0aC5hZG1pbiIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9hdXRoIiwibmFtZSI6Ik1hdGhldXMgTGVtZXMiLCJ0eXAiOiJBQ0NFU1MiLCJleHAiOjE3NzA4MjA3MzcsImlhdCI6MTc3MDgxOTgzNywiZW1haWwiOiJtYXRoZXVzYWRtaW5AZWNvZnkuY29tIiwiY2xpZW50X2lkIjoiZWNvX2Rhc2hib2FyZF9sb2NhbCJ9.fs4G_QozatH6Xg08Zlw6TSVqEBD3m8ptAE_PHJPnyHc5cz-UwI1LYyqSTBGGwNMHFWRO8QtayuY8XAM1l6j6JiLQW98qpe8vIHe-QKEOvW8mWnuRLlquYyyRzbg93H6Gvpti_CUNOzUypyjXbJAQF4SEgzXxhzfAVAPhSEpfNMs3g7EjdjhwzBaE7CYLkFlA9YXCOQnn8hA6vjbhHmaNH4vJ_meprfFyJVsk8uAvm044As1zPIDYGGuA1H7pZw9JSUf1cV0fbxMFVpp4kPNlDJVSvNP-f_6Ca-1GavmeNR1HCULJtmZUo3ajKdm5__l5JY8b1Hz6TpT6w6Z73jB8aw"
+                  }
+                ],
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/user/me",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "user",
+                    "me"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "PasswordController",
+          "item": [
+            {
+              "name": "Solicita redefinição de senha",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"email\": \"matheusadmin@ecofy.com\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/password/reset-request",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "password",
+                    "reset-request"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Confirma redefinição de senha",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"token\": \"{{RESET_TOKEN}}\",\n    \"newPassword\": \"matheus123\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/password/reset-confirm",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "password",
+                    "reset-confirm"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "AdminUserController",
+          "item": [
+            {
+              "name": "Cria um novo usuário administrador",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer",
+                    "disabled": true
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"email\": \"matheusadmin@ecofy.com\",\n    \"password\": \"matheus123\",\n    \"firstName\": \"Matheus\",\n    \"lastName\": \"Lemes\",\n    \"locale\": \"pt-BR\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{AUTH_URL}}/api/admin/users",
+                  "host": [
+                    "{{AUTH_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "users"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ms-ingestion",
+      "item": [
+        {
+          "name": "ImportController",
+          "item": [
+            {
+              "name": "Consulta o status de um job de importação",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}",
+                    "disabled": true
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/ingestion/api/import/jobs/6e5e39c5-67a7-4256-b3b6-16937a39aa6c",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "ingestion",
+                    "api",
+                    "import",
+                    "jobs",
+                    "6e5e39c5-67a7-4256-b3b6-16937a39aa6c"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Upload de arquivo e início de importação",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}",
+                    "disabled": true
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "type": "file",
+                      "contentType": "application/x-ofx",
+                      "key": "file",
+                      "src": "/C:/Users/mathe/OneDrive/Desktop/PROJETOS GERAIS/API - ECOFY/ecofy-beckend/ms-ingestion/src/main/resources/templates/statement.ofx"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/ingestion/api/import/file?type=OFX",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "ingestion",
+                    "api",
+                    "import",
+                    "file"
+                  ],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "OFX"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ms-categorization",
+      "item": [
+        {
+          "name": "CategoryController",
+          "item": [
+            {
+              "name": "Cria uma nova categoria",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer SEU_TOKEN_AQUI"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Transporte\",\n    \"color\": \"#3B82F6\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/categorization/api/categorization/v1/categories",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "categorization",
+                    "api",
+                    "categorization",
+                    "v1",
+                    "categories"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Lista categorias ativas",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer SEU_TOKEN_AQUI"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/categorization/api/categorization/v1/categories",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "categorization",
+                    "api",
+                    "categorization",
+                    "v1",
+                    "categories"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "ManualCategorizationController",
+          "item": [
+            {
+              "name": "Aplica categorização manual em uma transação",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer SEU_TOKEN_AQUI"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"transactionId\": \"11111111-1111-1111-1111-111111111111\",\n    \"categoryId\": \"7f469df4-a177-416c-92e0-c4d576bbdc6f\",\n    \"rationale\": \"Compra identificada como gasto de transporte\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/categorization/api/categorization/v1/manual",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "categorization",
+                    "api",
+                    "categorization",
+                    "v1",
+                    "manual"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "RuleController",
+          "item": [
+            {
+              "name": "Cria uma nova regra",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer SEU_TOKEN_AQUI"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"categoryId\": \"7f469df4-a177-416c-92e0-c4d576bbdc6f\",\n    \"name\": \"Uber/99\",\n    \"status\": \"ACTIVE\",\n    \"priority\": 10,\n    \"conditions\": [\n      {\n        \"field\": \"description\",\n        \"operator\": \"CONTAINS\",\n        \"value\": \"UBER\"\n      },\n      {\n        \"field\": \"description\",\n        \"operator\": \"CONTAINS\",\n        \"value\": \"99\"\n      }\n    ]\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/categorization/api/categorization/v1/rules",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "categorization",
+                    "api",
+                    "categorization",
+                    "v1",
+                    "rules"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Lista regras ativas",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer SEU_TOKEN_AQUI",
+                    "disabled": true
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/categorization/api/categorization/v1/rules",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "categorization",
+                    "api",
+                    "categorization",
+                    "v1",
+                    "rules"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "SuggestionController",
+          "item": [
+            {
+              "name": "Busca a última sugestão por transação",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer SEU_TOKEN_AQUI",
+                    "disabled": true
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/categorization/api/categorization/v1/suggestions/11111111-1111-1111-1111-111111111111",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "categorization",
+                    "api",
+                    "categorization",
+                    "v1",
+                    "suggestions",
+                    "11111111-1111-1111-1111-111111111111"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ms-budgeting",
+      "item": [
+        {
+          "name": "BudgetController",
+          "item": [
+            {
+              "name": "Cria um budget",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}",
+                    "disabled": true
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "budget-create-20260217-0001"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"userId\": \"6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11\",\n    \"categoryId\": \"2a6a4b35-7f58-4b17-9d4a-6c5b9f6a2f10\",\n    \"periodType\": \"MONTHLY\",\n    \"periodStart\": \"2026-02-01\",\n    \"periodEnd\": \"2026-02-28\",\n    \"limitAmount\": 1200.00,\n    \"currency\": \"BRL\",\n    \"status\": \"ACTIVE\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/budgeting/api/budgeting/v1/budgets",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "budgeting",
+                    "api",
+                    "budgeting",
+                    "v1",
+                    "budgets"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Atualiza um budget",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "budget-update-20260217-0001"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"newLimitAmount\": 1500.00,\n    \"currency\": \"BRL\",\n    \"status\": \"ACTIVE\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/budgeting/api/budgeting/v1/budgets/b4ff61b3-25d7-45eb-9cfa-1de1bd2e5741",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "budgeting",
+                    "api",
+                    "budgeting",
+                    "v1",
+                    "budgets",
+                    "b4ff61b3-25d7-45eb-9cfa-1de1bd2e5741"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Remove um budget",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "budget-delete-20260217-0001"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/budgeting/api/budgeting/v1/budgets/b4ff61b3-25d7-45eb-9cfa-1de1bd2e5741",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "budgeting",
+                    "api",
+                    "budgeting",
+                    "v1",
+                    "budgets",
+                    "b4ff61b3-25d7-45eb-9cfa-1de1bd2e5741"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Lista budgets por usuário",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}",
+                    "disabled": true
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/budgeting/api/budgeting/v1/budgets?userId=6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "budgeting",
+                    "api",
+                    "budgeting",
+                    "v1",
+                    "budgets"
+                  ],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Busca budget por ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/budgeting/api/budgeting/v1/budgets/b4ff61b3-25d7-45eb-9cfa-1de1bd2e5741",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "budgeting",
+                    "api",
+                    "budgeting",
+                    "v1",
+                    "budgets",
+                    "b4ff61b3-25d7-45eb-9cfa-1de1bd2e5741"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Visão geral (overview) de budgets por usuário",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/budgeting/api/budgeting/v1/budgets/overview?userId=6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "budgeting",
+                    "api",
+                    "budgeting",
+                    "v1",
+                    "budgets",
+                    "overview"
+                  ],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ms-insights",
+      "item": [
+        {
+          "name": "GoalsController",
+          "item": [
+            {
+              "name": "Cria um goal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"userId\": \"6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11\",\n    \"name\": \"Reserva de emergência\",\n    \"targetCents\": 2000000,\n    \"currency\": \"BRL\",\n    \"status\": \"ACTIVE\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/insights/api/insights/v1/goals",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "insights",
+                    "api",
+                    "insights",
+                    "v1",
+                    "goals"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Atualiza um goal",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Reserva de emergência (atualizada)\",\n    \"targetCents\": 2500000,\n    \"currency\": \"BRL\",\n    \"status\": \"ACTIVE\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/insights/api/insights/v1/goals/8be97882-b232-438c-b0e9-7a5e31d69447",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "insights",
+                    "api",
+                    "insights",
+                    "v1",
+                    "goals",
+                    "8be97882-b232-438c-b0e9-7a5e31d69447"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Busca goal por ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/insights/api/insights/v1/goals/8be97882-b232-438c-b0e9-7a5e31d69447",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "insights",
+                    "api",
+                    "insights",
+                    "v1",
+                    "goals",
+                    "8be97882-b232-438c-b0e9-7a5e31d69447"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Lista Goals por Usuário",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/insights/api/insights/v1/goals?userId=6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "insights",
+                    "api",
+                    "insights",
+                    "v1",
+                    "goals"
+                  ],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "InsightsController",
+          "item": [
+            {
+              "name": "Dashboard de insights por usuário",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/insights/api/insights/v1/dashboard/6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "insights",
+                    "api",
+                    "insights",
+                    "v1",
+                    "dashboard",
+                    "6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Gera insights para um período",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "insights-generate-20260218-092900-0002"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"userId\": \"6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11\",\n    \"start\": \"2026-02-01\",\n    \"end\": \"2026-02-28\",\n    \"granularity\": \"MONTH\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/insights/api/insights/v1/generate",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "insights",
+                    "api",
+                    "insights",
+                    "v1",
+                    "generate"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ms-notification",
+      "item": [
+        {
+          "name": "TemplateController",
+          "item": [
+            {
+              "name": "Cria um template",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"ownerUserId\": null,\n    \"eventType\": \"BUDGET_ALERT\",\n    \"channel\": \"EMAIL\",\n    \"engine\": \"MUSTACHE\",\n    \"subjectTemplate\": \"Bem-vindo ao EcoFy, {{firstName}}!\",\n    \"bodyTemplate\": \"Olá {{firstName}}, seja bem-vindo ao {{appName}}. Vamos começar?\",\n    \"active\": true\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/notification/api/notification/v1/templates",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "notification",
+                    "api",
+                    "notification",
+                    "v1",
+                    "templates"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Busca template por ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/notification/api/notification/v1/templates/8e35ed7a-7b85-411f-a809-aba7f473a13e",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "notification",
+                    "api",
+                    "notification",
+                    "v1",
+                    "templates",
+                    "8e35ed7a-7b85-411f-a809-aba7f473a13e"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Preview de template",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"userId\": \"6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11\",\n    \"eventType\": \"BUDGET_ALERT\",\n    \"channel\": \"EMAIL\",\n    \"destinationOverride\": \"user@example.com\",\n    \"payload\": {\n      \"firstName\": \"Matheus\",\n      \"appName\": \"EcoFy\"\n    },\n    \"idempotencyKey\": \"preview-20260218-0001\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/notification/api/notification/v1/templates/preview",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "notification",
+                    "api",
+                    "notification",
+                    "v1",
+                    "templates",
+                    "preview"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "NotificationController",
+          "item": [
+            {
+              "name": "Envia uma notificação",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <ACCESS_TOKEN>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "notif-send-20260218-154100-0002"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"userId\": \"6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11\",\n    \"eventType\": \"BUDGET_ALERT\",\n    \"channel\": \"EMAIL\",\n    \"destinationOverride\": \"user@example.com\",\n    \"payload\": {\n      \"firstName\": \"Matheus\",\n      \"appName\": \"EcoFy\"\n    },\n    \"idempotencyKey\": \"notif-send-20260218-154100-0002\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:8080/notification/api/notification/v1/notifications",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "notification",
+                    "api",
+                    "notification",
+                    "v1",
+                    "notifications"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Reenvia uma notificação",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "notif-resend-20260218-0001"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"notificationId\": \"39318198-9642-4f92-bcf6-882cc4aacc6b\",\n    \"idempotencyKey\": \"notif-resend-20260218-0001\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/notification/api/notification/v1/notifications/resend",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "notification",
+                    "api",
+                    "notification",
+                    "v1",
+                    "notifications",
+                    "resend"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Lista notificações por usuário",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ACCESS_TOKEN}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{ECOFY_BASEURL}}/notification/api/notification/v1/notifications?userId=6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11&limit=50",
+                  "host": [
+                    "{{ECOFY_BASEURL}}"
+                  ],
+                  "path": [
+                    "notification",
+                    "api",
+                    "notification",
+                    "v1",
+                    "notifications"
+                  ],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "6b1d8a7d-8d46-4c3d-9b26-9b4b2b7e9a11"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "50"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ms-users",
+      "item": [
+        {
+          "name": "ConnectionsController",
+          "item": [
+            {
+              "name": "Cria uma conexão para um usuário",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "conn-create-002-20260212"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10\",\n  \"type\": \"BANK_API\",\n  \"provider\": \"NUBANK\",\n  \"metadata\": {\n    \"scope\": \"transactions:read\",\n    \"environment\": \"dev\",\n    \"note\": \"primeira conexao para testes\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{USERS_URL}}/api/users/v1/connections",
+                  "host": [
+                    "{{USERS_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "v1",
+                    "connections"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Lista conexões por usuário",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{USERS_URL}}/api/users/v1/connections?userId=a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10&limit=50",
+                  "host": [
+                    "{{USERS_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "v1",
+                    "connections"
+                  ],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "50"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "PreferencesController",
+          "item": [
+            {
+              "name": "Atualiza preferências do usuário",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "prefs-update-002-20260212"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"preferences\": {\n      \"LANGUAGE\": \"pt-BR\",\n      \"TIMEZONE\": \"America/Sao_Paulo\",\n      \"CURRENCY\": \"BRL\",\n      \"DATE_FORMAT\": \"yyyy-MM-dd\",\n      \"THEME\": \"DARK\"\n    }\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{USERS_URL}}/api/users/v1/preferences/a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10",
+                  "host": [
+                    "{{USERS_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "v1",
+                    "preferences",
+                    "a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Busca preferências por usuário",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{USERS_URL}}/api/users/v1/preferences/a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10",
+                  "host": [
+                    "{{USERS_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "v1",
+                    "preferences",
+                    "a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "UserProfileController",
+          "item": [
+            {
+              "name": "Cria o perfil do usuário",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "profile-create-002-20260212"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10\",\n  \"externalAuthId\": \"b7b6f6c6-4cc1-4a2c-9c8e-5bce9b2d1c77\",\n  \"fullName\": \"Larissa Almeida\",\n  \"email\": \"larissa.almeida+profile@ecofy.dev\",\n  \"phone\": \"+5511987654321\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{USERS_URL}}/api/users/v1/profile",
+                  "host": [
+                    "{{USERS_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "v1",
+                    "profile"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Atualiza o perfil do usuário",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "profile-update-002-20260212"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fullName\": \"Larissa M. Almeida\",\n  \"email\": \"larissa.almeida+updated@ecofy.dev\",\n  \"phone\": \"+5511970001111\",\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{USERS_URL}}/api/users/v1/profile/a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10",
+                  "host": [
+                    "{{USERS_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "v1",
+                    "profile",
+                    "a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Busca perfil por userId",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{USERS_URL}}/api/users/v1/profile/a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10",
+                  "host": [
+                    "{{USERS_URL}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "v1",
+                    "profile",
+                    "a2e5e0a1-6f5d-4a7d-9a2a-6d4d6c2b1a10"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
