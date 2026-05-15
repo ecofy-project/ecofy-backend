@@ -25,6 +25,8 @@ class HttpClientsConfigTest {
         verifyNoMoreInteractions(props);
     }
 
+    // heapers
+
     private static String extractBaseUrl(RestClient client) throws Exception {
         for (String field : new String[]{"baseUrl", "baseUri", "uriBuilderFactory", "uriTemplateHandler"}) {
             try {

@@ -202,6 +202,8 @@ class MsUsersClientAdapterTest {
         verify(responseSpec).toBodilessEntity();
     }
 
+    // heapers
+
     private static Object readRecordComponent(Object record, String componentName) throws Exception {
         Method m = record.getClass().getDeclaredMethod(componentName);
         m.setAccessible(true);

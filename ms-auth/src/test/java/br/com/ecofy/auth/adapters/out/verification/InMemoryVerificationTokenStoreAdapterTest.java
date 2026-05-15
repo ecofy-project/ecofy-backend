@@ -114,13 +114,6 @@ class InMemoryVerificationTokenStoreAdapterTest {
         assertTrue(adapter.consume("not-present-long-token-123456").isEmpty());
     }
 
-    private static AuthUser mockUser() {
-        AuthUser user = mock(AuthUser.class);
-        AuthUserId id = mock(AuthUserId.class);
-        when(id.value()).thenReturn(UUID.randomUUID());
-        when(user.id()).thenReturn(id);
-        return user;
-    }
 
     @Test
     void maskToken_shouldCoverTrueBranches_tokenNull_and_tokenBlank() throws Exception {
@@ -132,38 +125,52 @@ class InMemoryVerificationTokenStoreAdapterTest {
         assertEquals("***", invokeMaskToken(adapter, ""));
     }
 
-    private static String invokeMaskToken(Object target, String token) throws Exception {
-        Method m = target.getClass().getDeclaredMethod("maskToken", String.class);
-        m.setAccessible(true);
-        return (String) m.invoke(target, token);
-    }
-
     @Test
     void maskToken_shouldReturnStars_whenTokenIsNull() throws Exception {
-        InMemoryPasswordResetTokenStoreAdapter adapter = new InMemoryPasswordResetTokenStoreAdapter();
+        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+
         assertEquals("***", invokeMaskToken(adapter, null));
     }
 
     @Test
     void maskToken_shouldReturnStars_whenTokenIsBlank() throws Exception {
-        InMemoryPasswordResetTokenStoreAdapter adapter = new InMemoryPasswordResetTokenStoreAdapter();
-        assertEquals("***", invokeMaskToken(adapter, "   "));
+        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+
         assertEquals("***", invokeMaskToken(adapter, ""));
+        assertEquals("***", invokeMaskToken(adapter, "   "));
         assertEquals("***", invokeMaskToken(adapter, "\n\t "));
     }
 
     @Test
-    void maskToken_shouldReturnStars_whenLengthIsLessOrEqualThan10() throws Exception {
-        InMemoryPasswordResetTokenStoreAdapter adapter = new InMemoryPasswordResetTokenStoreAdapter();
+    void maskToken_shouldReturnStars_whenTokenLengthIsLessOrEqualThan10() throws Exception {
+        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+
         assertEquals("***", invokeMaskToken(adapter, "1"));
         assertEquals("***", invokeMaskToken(adapter, "1234567890"));
     }
 
     @Test
-    void maskToken_shouldReturnFirst10PlusEllipsis_whenLengthGreaterThan10() throws Exception {
-        InMemoryPasswordResetTokenStoreAdapter adapter = new InMemoryPasswordResetTokenStoreAdapter();
+    void maskToken_shouldReturnFirst10CharactersPlusEllipsis_whenTokenLengthIsGreaterThan10() throws Exception {
+        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+
         assertEquals("1234567890...", invokeMaskToken(adapter, "12345678901"));
         assertEquals("abcdefghij...", invokeMaskToken(adapter, "abcdefghijklmno"));
+    }
+
+    // heapers
+
+    private static AuthUser mockUser() {
+        AuthUser user = mock(AuthUser.class);
+        AuthUserId id = mock(AuthUserId.class);
+        when(id.value()).thenReturn(UUID.randomUUID());
+        when(user.id()).thenReturn(id);
+        return user;
+    }
+
+    private static String invokeMaskToken(Object target, String token) throws Exception {
+        Method method = target.getClass().getDeclaredMethod("maskToken", String.class);
+        method.setAccessible(true);
+        return (String) method.invoke(target, token);
     }
 
 }

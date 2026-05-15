@@ -132,6 +132,8 @@ class AuthEventsKafkaAdapterTest {
         verifyNoMoreInteractions(kt);
     }
 
+    // heapers
+
     @SuppressWarnings("unchecked")
     private static KafkaTemplate<String, Object> mockKafkaTemplate() {
         return (KafkaTemplate<String, Object>) mock(KafkaTemplate.class);

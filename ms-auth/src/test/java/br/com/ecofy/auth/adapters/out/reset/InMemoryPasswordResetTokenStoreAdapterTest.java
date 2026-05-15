@@ -112,6 +112,8 @@ class InMemoryPasswordResetTokenStoreAdapterTest {
         assertTrue(adapter.consume("not-present-long-token-123456").isEmpty());
     }
 
+    // heapers
+
     private static AuthUser mockUser() {
         AuthUser user = mock(AuthUser.class);
         AuthUserId id = mock(AuthUserId.class);

@@ -259,6 +259,8 @@ class AuthUserJpaAdapterTest {
         verifyNoMoreInteractions(authUserRepository);
     }
 
+    // heapers
+
     private static AuthUser mockAuthUser(UUID id, String emailValue) {
         AuthUser user = mock(AuthUser.class);
 

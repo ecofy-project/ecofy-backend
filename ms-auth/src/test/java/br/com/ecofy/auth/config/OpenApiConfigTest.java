@@ -89,6 +89,8 @@ class OpenApiConfigTest {
         assertArrayEquals(new String[]{"/actuator/**"}, readPathsToMatch(group));
     }
 
+    // heapers
+
     private static String[] readPathsToMatch(GroupedOpenApi group) throws Exception {
         return readStringArrayViaGetter(group, "getPathsToMatch");
     }

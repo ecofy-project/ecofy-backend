@@ -32,74 +32,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class JwtNimbusTokenProviderAdapterTest {
 
-    private JwtNimbusTokenProviderAdapter adapter(JwtProperties props) {
-        return new JwtNimbusTokenProviderAdapter(props, mock(ResourceLoader.class));
-    }
-
-    private JwtProperties propsMinimalForConstructor(String privateLoc, String publicLoc, String keyId) {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn(privateLoc);
-        when(p.getPublicKeyLocation()).thenReturn(publicLoc);
-        when(p.getKeyId()).thenReturn(keyId);
-        return p;
-    }
-
-    private JwtProperties propsForTokenFlow(String keyId, String issuer, String audience, long skewSeconds) {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any-private");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any-public");
-        when(p.getKeyId()).thenReturn(keyId);
-        when(p.getIssuer()).thenReturn(issuer);
-        when(p.getAudience()).thenReturn(audience);
-        when(p.getClockSkewSeconds()).thenReturn(skewSeconds);
-        return p;
-    }
-
-    private static Object getField(Object target, String name) {
-        try {
-            Field f = target.getClass().getDeclaredField(name);
-            f.setAccessible(true);
-            return f.get(target);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void setField(Object target, String name, Object value) {
-        try {
-            Field f = target.getClass().getDeclaredField(name);
-            f.setAccessible(true);
-            try {
-                Field modifiers = Field.class.getDeclaredField("modifiers");
-                modifiers.setAccessible(true);
-                modifiers.setInt(f, f.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
-            } catch (Exception ignored) {
-            }
-            f.set(target, value);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static Object invokePrivate(Object target, String methodName, Class<?>[] types, Object[] args) {
-        try {
-            Method m = target.getClass().getDeclaredMethod(methodName, types);
-            m.setAccessible(true);
-            return m.invoke(target, args);
-        } catch (Exception e) {
-            Throwable t = e.getCause() != null ? e.getCause() : e;
-            if (t instanceof RuntimeException re) throw re;
-            if (t instanceof Error err) throw err;
-            throw new RuntimeException(t);
-        }
-    }
-
-    private static String signRawJwt(RSAPrivateKey privateKey, JWSHeader header, JWTClaimsSet claims) throws JOSEException {
-        SignedJWT jwt = new SignedJWT(header, claims);
-        jwt.sign(new RSASSASigner(privateKey));
-        return jwt.serialize();
-    }
-
     @Test
     @DisplayName("constructor: jwtProperties null -> NPE com mensagem")
     void constructor_jwtPropertiesNull_throwsNpe() {
@@ -551,5 +483,75 @@ class JwtNimbusTokenProviderAdapterTest {
                     .hasMessageContaining("Could not generate in-memory DEV public key")
                     .hasCauseInstanceOf(NoSuchAlgorithmException.class);
         }
+    }
+
+    // heapers
+
+    private JwtNimbusTokenProviderAdapter adapter(JwtProperties props) {
+        return new JwtNimbusTokenProviderAdapter(props, mock(ResourceLoader.class));
+    }
+
+    private JwtProperties propsMinimalForConstructor(String privateLoc, String publicLoc, String keyId) {
+        JwtProperties p = mock(JwtProperties.class);
+        when(p.getPrivateKeyLocation()).thenReturn(privateLoc);
+        when(p.getPublicKeyLocation()).thenReturn(publicLoc);
+        when(p.getKeyId()).thenReturn(keyId);
+        return p;
+    }
+
+    private JwtProperties propsForTokenFlow(String keyId, String issuer, String audience, long skewSeconds) {
+        JwtProperties p = mock(JwtProperties.class);
+        when(p.getPrivateKeyLocation()).thenReturn("classpath:any-private");
+        when(p.getPublicKeyLocation()).thenReturn("classpath:any-public");
+        when(p.getKeyId()).thenReturn(keyId);
+        when(p.getIssuer()).thenReturn(issuer);
+        when(p.getAudience()).thenReturn(audience);
+        when(p.getClockSkewSeconds()).thenReturn(skewSeconds);
+        return p;
+    }
+
+    private static Object getField(Object target, String name) {
+        try {
+            Field f = target.getClass().getDeclaredField(name);
+            f.setAccessible(true);
+            return f.get(target);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void setField(Object target, String name, Object value) {
+        try {
+            Field f = target.getClass().getDeclaredField(name);
+            f.setAccessible(true);
+            try {
+                Field modifiers = Field.class.getDeclaredField("modifiers");
+                modifiers.setAccessible(true);
+                modifiers.setInt(f, f.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
+            } catch (Exception ignored) {
+            }
+            f.set(target, value);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Object invokePrivate(Object target, String methodName, Class<?>[] types, Object[] args) {
+        try {
+            Method m = target.getClass().getDeclaredMethod(methodName, types);
+            m.setAccessible(true);
+            return m.invoke(target, args);
+        } catch (Exception e) {
+            Throwable t = e.getCause() != null ? e.getCause() : e;
+            if (t instanceof RuntimeException re) throw re;
+            if (t instanceof Error err) throw err;
+            throw new RuntimeException(t);
+        }
+    }
+
+    private static String signRawJwt(RSAPrivateKey privateKey, JWSHeader header, JWTClaimsSet claims) throws JOSEException {
+        SignedJWT jwt = new SignedJWT(header, claims);
+        jwt.sign(new RSASSASigner(privateKey));
+        return jwt.serialize();
     }
 }

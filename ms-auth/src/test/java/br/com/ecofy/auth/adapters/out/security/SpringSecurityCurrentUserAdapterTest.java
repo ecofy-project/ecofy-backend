@@ -145,6 +145,8 @@ class SpringSecurityCurrentUserAdapterTest {
         verifyNoMoreInteractions(authUserJpaAdapter);
     }
 
+    // heapers
+
     private static Jwt jwtWithSub(String sub, String jti) {
         return Jwt.withTokenValue("t")
                 .headers(h -> h.putAll(Map.of("alg", "none")))

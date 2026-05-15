@@ -57,42 +57,6 @@ class AuthControllerTest {
 
     }
 
-    private AuthenticateUserUseCase.AuthenticationResult mockAuthResult() {
-
-        // Deep stubs para poder fazer result.accessToken().value()
-        AuthenticateUserUseCase.AuthenticationResult result =
-                mock(AuthenticateUserUseCase.AuthenticationResult.class, Answers.RETURNS_DEEP_STUBS);
-
-        when(result.tokenType()).thenReturn("Bearer");
-        when(result.accessToken().value()).thenReturn("access-token-123");
-        when(result.refreshToken()).thenReturn("refresh-token-456");
-        when(result.expiresInSeconds()).thenReturn(3600L);
-
-        return result;
-
-    }
-
-    private RefreshTokenUseCase.RefreshTokenResult mockRefreshResult() {
-
-        RefreshTokenUseCase.RefreshTokenResult result =
-                mock(RefreshTokenUseCase.RefreshTokenResult.class);
-
-        when(result.accessToken()).thenReturn("new-access-token-123");
-        when(result.refreshToken()).thenReturn("new-refresh-token-456");
-        when(result.expiresInSeconds()).thenReturn(7200L);
-
-        return result;
-
-    }
-
-    private void assertNoStoreHeaders(HttpHeaders headers) {
-
-        // Só garante que o controller configurou algo em Cache-Control
-        assertNotNull(headers.getCacheControl());
-        // E que está usando o header legado para evitar cache
-        assertEquals("no-cache", headers.getFirst("Pragma"));
-
-    }
 
     @Test
     void token_shouldUseXForwardedFor_whenPresentAndReturnTokenResponse() {
@@ -338,6 +302,45 @@ class AuthControllerTest {
         assertNoStoreHeaders(response.getHeaders());
 
         verify(validateTokenUseCase).validate("valid-token-123");
+
+    }
+
+    // heapers
+
+    private AuthenticateUserUseCase.AuthenticationResult mockAuthResult() {
+
+        // Deep stubs para poder fazer result.accessToken().value()
+        AuthenticateUserUseCase.AuthenticationResult result =
+                mock(AuthenticateUserUseCase.AuthenticationResult.class, Answers.RETURNS_DEEP_STUBS);
+
+        when(result.tokenType()).thenReturn("Bearer");
+        when(result.accessToken().value()).thenReturn("access-token-123");
+        when(result.refreshToken()).thenReturn("refresh-token-456");
+        when(result.expiresInSeconds()).thenReturn(3600L);
+
+        return result;
+
+    }
+
+    private RefreshTokenUseCase.RefreshTokenResult mockRefreshResult() {
+
+        RefreshTokenUseCase.RefreshTokenResult result =
+                mock(RefreshTokenUseCase.RefreshTokenResult.class);
+
+        when(result.accessToken()).thenReturn("new-access-token-123");
+        when(result.refreshToken()).thenReturn("new-refresh-token-456");
+        when(result.expiresInSeconds()).thenReturn(7200L);
+
+        return result;
+
+    }
+
+    private void assertNoStoreHeaders(HttpHeaders headers) {
+
+        // Só garante que o controller configurou algo em Cache-Control
+        assertNotNull(headers.getCacheControl());
+        // E que está usando o header legado para evitar cache
+        assertEquals("no-cache", headers.getFirst("Pragma"));
 
     }
 

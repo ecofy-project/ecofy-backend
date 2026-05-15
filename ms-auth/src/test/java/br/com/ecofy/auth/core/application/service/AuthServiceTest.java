@@ -868,6 +868,7 @@ class AuthServiceTest {
         assertFalse(accessClaimsCaptor.getValue().containsKey("scope"));
     }
 
+    // heapers
 
     private static String invokeMaskToken(AuthService service, String token) throws Exception {
         Method m = AuthService.class.getDeclaredMethod("maskToken", String.class);

@@ -33,26 +33,6 @@ class MailProviderAdapterTest {
         clearInvocations(mailSender, props);
     }
 
-    // helpers (apenas métodos)
-
-    private MailProviderAdapter adapterNoStub() {
-        return new MailProviderAdapter(mailSender, mock(MailConfig.EcofyMailProperties.class));
-    }
-
-    private MailProviderAdapter adapter(String from, String frontendBaseUrl) {
-        when(props.getFrom()).thenReturn(from);
-        when(props.getFrontendBaseUrl()).thenReturn(frontendBaseUrl);
-        return new MailProviderAdapter(mailSender, props);
-    }
-
-    private AuthUser user(String uuid, String email, String fullName) {
-        AuthUser u = mock(AuthUser.class, RETURNS_DEEP_STUBS);
-        when(u.id().value()).thenReturn(UUID.fromString(uuid));
-        when(u.email().value()).thenReturn(email);
-        when(u.fullName()).thenReturn(fullName);
-        return u;
-    }
-
     // constructor coverage
 
     @Test
@@ -223,4 +203,25 @@ class MailProviderAdapterTest {
 
         verify(mailSender).send(any(SimpleMailMessage.class));
     }
+
+    // helpers (apenas métodos)
+
+    private MailProviderAdapter adapterNoStub() {
+        return new MailProviderAdapter(mailSender, mock(MailConfig.EcofyMailProperties.class));
+    }
+
+    private MailProviderAdapter adapter(String from, String frontendBaseUrl) {
+        when(props.getFrom()).thenReturn(from);
+        when(props.getFrontendBaseUrl()).thenReturn(frontendBaseUrl);
+        return new MailProviderAdapter(mailSender, props);
+    }
+
+    private AuthUser user(String uuid, String email, String fullName) {
+        AuthUser u = mock(AuthUser.class, RETURNS_DEEP_STUBS);
+        when(u.id().value()).thenReturn(UUID.fromString(uuid));
+        when(u.email().value()).thenReturn(email);
+        when(u.fullName()).thenReturn(fullName);
+        return u;
+    }
+
 }

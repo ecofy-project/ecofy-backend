@@ -274,6 +274,8 @@ class SecurityConfigTest {
         assertFalse(res.hasErrors());
     }
 
+    // heapers
+
     private static RSAKey rsaKey() throws Exception {
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(2048);

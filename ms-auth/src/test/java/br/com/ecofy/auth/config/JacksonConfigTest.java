@@ -28,5 +28,7 @@ class JacksonConfigTest {
         assertFalse(json.contains("["));
     }
 
+    // heapers
+
     private record Dto(Instant at) { }
 }

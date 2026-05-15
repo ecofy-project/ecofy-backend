@@ -483,6 +483,7 @@ class PersistenceMapperTest {
         assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) mappedGrantTypes).add(new Object()));
     }
 
+    // heapers
 
     private static Object callNoArg(Object target, String name) {
         try {

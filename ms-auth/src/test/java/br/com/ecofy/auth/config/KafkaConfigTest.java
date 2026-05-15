@@ -79,6 +79,8 @@ class KafkaConfigTest {
         assertEquals("auth.events", template.getDefaultTopic());
     }
 
+    // heapers
+
     @SuppressWarnings("unchecked")
     private static Serializer<?> extractKeySerializer(DefaultKafkaProducerFactory<?, ?> dpf) {
         try {
