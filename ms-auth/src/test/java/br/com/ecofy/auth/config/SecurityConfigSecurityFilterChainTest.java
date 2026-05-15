@@ -1,10 +1,13 @@
 package br.com.ecofy.auth.config;
 
+import br.com.ecofy.auth.adapters.out.jwt.JwtNimbusTokenProviderAdapter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
+import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -26,8 +29,7 @@ class SecurityConfigSecurityFilterChainTest {
         JwtProperties props = new JwtProperties();
         props.setIssuer("https://auth.ecofy.com");
 
-        SecurityConfig config =
-                new SecurityConfig(props, mock(br.com.ecofy.auth.adapters.out.jwt.JwtNimbusTokenProviderAdapter.class));
+        SecurityConfig config = new SecurityConfig(props, mock(JwtNimbusTokenProviderAdapter.class));
 
         JwtDecoder jwtDecoder = mock(JwtDecoder.class);
         HttpSecurity http = mock(HttpSecurity.class);
@@ -39,23 +41,21 @@ class SecurityConfigSecurityFilterChainTest {
 
         doAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            org.springframework.security.config.Customizer<org.springframework.security.config.annotation.web.configurers.CsrfConfigurer<HttpSecurity>> customizer =
-                    (org.springframework.security.config.Customizer<org.springframework.security.config.annotation.web.configurers.CsrfConfigurer<HttpSecurity>>) inv.getArgument(0);
+            Customizer<CsrfConfigurer<HttpSecurity>> customizer = (Customizer<CsrfConfigurer<HttpSecurity>>) inv.getArgument(0);
 
             @SuppressWarnings("unchecked")
-            org.springframework.security.config.annotation.web.configurers.CsrfConfigurer<HttpSecurity> csrfConfigurer =
-                    mock(org.springframework.security.config.annotation.web.configurers.CsrfConfigurer.class);
+            CsrfConfigurer<HttpSecurity> csrf = mock(CsrfConfigurer.class);
 
-            when(csrfConfigurer.disable()).thenReturn(http);
+            when(csrf.disable()).thenReturn(http);
 
-            customizer.customize(csrfConfigurer);
+            customizer.customize(csrf);
             return http;
         }).when(http).csrf(any());
 
         doAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            org.springframework.security.config.Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> customizer =
-                    (org.springframework.security.config.Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry>) inv.getArgument(0);
+            Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> customizer =
+                    (Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry>) inv.getArgument(0);
 
             @SuppressWarnings("unchecked")
             AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry registry =
@@ -67,7 +67,6 @@ class SecurityConfigSecurityFilterChainTest {
 
             when(registry.requestMatchers(any(String[].class))).thenReturn(authorizedUrl);
             when(authorizedUrl.permitAll()).thenReturn(registry);
-
             when(registry.anyRequest()).thenReturn(authorizedUrl);
             when(authorizedUrl.authenticated()).thenReturn(registry);
 
@@ -77,17 +76,16 @@ class SecurityConfigSecurityFilterChainTest {
 
         doAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            org.springframework.security.config.Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>> customizer =
-                    (org.springframework.security.config.Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>>) inv.getArgument(0);
+            Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>> customizer =
+                    (Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>>) inv.getArgument(0);
 
             @SuppressWarnings("unchecked")
-            OAuth2ResourceServerConfigurer<HttpSecurity> oauth2 =
-                    mock(OAuth2ResourceServerConfigurer.class);
+            OAuth2ResourceServerConfigurer<HttpSecurity> oauth2 = mock(OAuth2ResourceServerConfigurer.class);
 
             doAnswer(jwtInv -> {
                 @SuppressWarnings("unchecked")
-                org.springframework.security.config.Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer> jwtCustomizer =
-                        (org.springframework.security.config.Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer>) jwtInv.getArgument(0);
+                Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer> jwtCustomizer =
+                        (Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer>) jwtInv.getArgument(0);
 
                 @SuppressWarnings("unchecked")
                 OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer jwtCfg =
@@ -105,16 +103,16 @@ class SecurityConfigSecurityFilterChainTest {
 
         doAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            org.springframework.security.config.Customizer<HeadersConfigurer<HttpSecurity>> customizer =
-                    (org.springframework.security.config.Customizer<HeadersConfigurer<HttpSecurity>>) inv.getArgument(0);
+            Customizer<HeadersConfigurer<HttpSecurity>> customizer =
+                    (Customizer<HeadersConfigurer<HttpSecurity>>) inv.getArgument(0);
 
             @SuppressWarnings("unchecked")
             HeadersConfigurer<HttpSecurity> headers = mock(HeadersConfigurer.class);
 
             doAnswer(cspInv -> {
                 @SuppressWarnings("unchecked")
-                org.springframework.security.config.Customizer<HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig> cspCustomizer =
-                        (org.springframework.security.config.Customizer<HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig>) cspInv.getArgument(0);
+                Customizer<HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig> cspCustomizer =
+                        (Customizer<HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig>) cspInv.getArgument(0);
 
                 @SuppressWarnings("unchecked")
                 HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig csp =
@@ -128,8 +126,8 @@ class SecurityConfigSecurityFilterChainTest {
 
             doAnswer(frameInv -> {
                 @SuppressWarnings("unchecked")
-                org.springframework.security.config.Customizer<HeadersConfigurer<HttpSecurity>.FrameOptionsConfig> frameCustomizer =
-                        (org.springframework.security.config.Customizer<HeadersConfigurer<HttpSecurity>.FrameOptionsConfig>) frameInv.getArgument(0);
+                Customizer<HeadersConfigurer<HttpSecurity>.FrameOptionsConfig> frameCustomizer =
+                        (Customizer<HeadersConfigurer<HttpSecurity>.FrameOptionsConfig>) frameInv.getArgument(0);
 
                 @SuppressWarnings("unchecked")
                 HeadersConfigurer<HttpSecurity>.FrameOptionsConfig frame =
@@ -156,6 +154,4 @@ class SecurityConfigSecurityFilterChainTest {
         verify(http).build();
         verifyNoMoreInteractions(http);
     }
-
-
 }

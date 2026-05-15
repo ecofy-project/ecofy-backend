@@ -5,17 +5,17 @@ import br.com.ecofy.auth.adapters.out.persistence.repository.ClientApplicationRe
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.port.out.LoadClientApplicationByClientIdPort;
 import br.com.ecofy.auth.core.port.out.SaveClientApplicationPort;
+import java.time.Instant;
+import java.util.Objects;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.util.Objects;
-import java.util.Optional;
-
 @Component
 @Slf4j
-public class ClientApplicationJpaAdapter implements SaveClientApplicationPort, LoadClientApplicationByClientIdPort {
+public class ClientApplicationJpaAdapter
+        implements SaveClientApplicationPort, LoadClientApplicationByClientIdPort {
 
     private final ClientApplicationRepository repository;
 
@@ -36,14 +36,16 @@ public class ClientApplicationJpaAdapter implements SaveClientApplicationPort, L
                 clientApplication.name()
         );
 
-        var now = Instant.now();
+        Instant now = Instant.now();
 
         var entity = PersistenceMapper.toEntity(clientApplication);
 
         // Define createdAt apenas na criação do registro.
         if (entity.getCreatedAt() == null) {
-            log.debug("[ClientApplicationJpaAdapter] - [save] -> Criando novo registro clientId={}",
-                    entity.getClientId());
+            log.debug(
+                    "[ClientApplicationJpaAdapter] - [save] -> Criando novo registro clientId={}",
+                    entity.getClientId()
+            );
             entity.setCreatedAt(now);
         }
 
@@ -74,14 +76,11 @@ public class ClientApplicationJpaAdapter implements SaveClientApplicationPort, L
 
         return repository.findByClientId(clientId)
                 .map(entity -> {
-                            log.debug(
-                                    "[ClientApplicationJpaAdapter] - [loadByClientId] -> Aplicação encontrada clientId={}",
-                                    entity.getClientId()
-                            );
-                            return PersistenceMapper.toDomain(entity);
-                        }
-                );
-
+                    log.debug(
+                            "[ClientApplicationJpaAdapter] - [loadByClientId] -> Aplicação encontrada clientId={}",
+                            entity.getClientId()
+                    );
+                    return PersistenceMapper.toDomain(entity);
+                });
     }
-
 }

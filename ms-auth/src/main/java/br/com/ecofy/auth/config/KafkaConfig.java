@@ -1,5 +1,6 @@
 package br.com.ecofy.auth.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,8 +21,8 @@ public class KafkaConfig {
 
     @Bean
     public ProducerFactory<String, Object> authEventProducerFactory(
-            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers
-    ) {
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+            ObjectMapper objectMapper) {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 

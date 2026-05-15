@@ -8,13 +8,12 @@ import br.com.ecofy.auth.core.domain.enums.GrantType;
 import br.com.ecofy.auth.core.port.in.RegisterClientApplicationUseCase;
 import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
 import br.com.ecofy.auth.core.port.out.SaveClientApplicationPort;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Objects;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 // Serviço responsável por registrar Client Applications (client_id/secret) e validar grants/redirect URIs no ms-auth.
 @Slf4j
@@ -26,10 +25,18 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
     private final SecureRandom secureRandom = new SecureRandom();
 
     // Inicializa o serviço com as portas de persistência e hashing necessárias para criação de clients.
-    public ClientApplicationService(SaveClientApplicationPort saveClientApplicationPort,
-                                    PasswordHashingPort passwordHashingPort) {
-        this.saveClientApplicationPort = Objects.requireNonNull(saveClientApplicationPort, "saveClientApplicationPort must not be null");
-        this.passwordHashingPort = Objects.requireNonNull(passwordHashingPort, "passwordHashingPort must not be null");
+    public ClientApplicationService(
+            SaveClientApplicationPort saveClientApplicationPort,
+            PasswordHashingPort passwordHashingPort
+    ) {
+        this.saveClientApplicationPort = Objects.requireNonNull(
+                saveClientApplicationPort,
+                "saveClientApplicationPort must not be null"
+        );
+        this.passwordHashingPort = Objects.requireNonNull(
+                passwordHashingPort,
+                "passwordHashingPort must not be null"
+        );
     }
 
     // Registra um novo client, gera client_id/secret (quando aplicável), valida grants/redirectUris e persiste no repositório.
@@ -39,7 +46,9 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
 
         log.debug(
                 "[ClientApplicationService] - [register] -> Registrando novo client name={} type={} firstParty={}",
-                command.name(), command.clientType(), command.firstParty()
+                command.name(),
+                command.clientType(),
+                command.firstParty()
         );
 
         String clientId = generateClientId(command.name());
@@ -50,12 +59,14 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
         if (rawSecret != null) {
             log.debug(
                     "[ClientApplicationService] - [register] -> Client requer segredo gerado clientId={} type={}",
-                    clientId, command.clientType()
+                    clientId,
+                    command.clientType()
             );
         } else {
             log.debug(
                     "[ClientApplicationService] - [register] -> Client não requer segredo clientId={} type={}",
-                    clientId, command.clientType()
+                    clientId,
+                    command.clientType()
             );
         }
 
@@ -71,7 +82,8 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
 
         log.debug(
                 "[ClientApplicationService] - [register] -> Grants resolvidos para clientId={} grants={}",
-                clientId, effectiveGrants
+                clientId,
+                effectiveGrants
         );
 
         validateGrants(command.clientType(), effectiveGrants);
@@ -92,7 +104,9 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
 
         log.debug(
                 "[ClientApplicationService] - [register] -> Client registrado com sucesso clientId={} type={} active={}",
-                saved.clientId(), saved.clientType(), saved.isActive()
+                saved.clientId(),
+                saved.clientType(),
+                saved.isActive()
         );
 
         return saved;
@@ -105,9 +119,7 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
     }
 
     // Resolve os grants efetivos do client usando os solicitados (se existirem) ou defaults conforme o tipo.
-    private Set<GrantType> resolveEffectiveGrants(ClientType clientType,
-                                                  Set<GrantType> requested) {
-
+    private Set<GrantType> resolveEffectiveGrants(ClientType clientType, Set<GrantType> requested) {
         if (requested != null && !requested.isEmpty()) {
             return requested;
         }
@@ -126,7 +138,6 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                     GrantType.CLIENT_CREDENTIALS
             );
         };
-
     }
 
     // Valida se o conjunto de grants é compatível com o tipo do client (ex.: M2M exige CLIENT_CREDENTIALS).
@@ -147,7 +158,8 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                     if (g == GrantType.AUTHORIZATION_CODE || g == GrantType.PASSWORD) {
                         log.warn(
                                 "[ClientApplicationService] - [validateGrants] -> Grant inválido para M2M grant={} grants={}",
-                                g, grants
+                                g,
+                                grants
                         );
                         throw new AuthException(
                                 AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
@@ -176,7 +188,6 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
 
     // Valida a obrigatoriedade de redirectUris quando o grant AUTHORIZATION_CODE estiver habilitado.
     private void validateRedirectUrisIfNeeded(Set<GrantType> grants, Set<String> redirectUris) {
-
         if (grants.contains(GrantType.AUTHORIZATION_CODE)) {
             if (redirectUris == null || redirectUris.isEmpty()) {
                 log.warn(
@@ -188,37 +199,36 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                 );
             }
         }
-
     }
 
     // Gera um client_id com prefixo "eco_" usando bytes aleatórios codificados em Base64 URL-safe.
     private String generateClientId(String name) {
         byte[] bytes = new byte[12];
         secureRandom.nextBytes(bytes);
+
         String clientId = "eco_" + Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(bytes);
 
         log.debug(
                 "[ClientApplicationService] - [generateClientId] -> clientId gerado name={} clientId={}",
-                name, clientId
+                name,
+                clientId
         );
 
         return clientId;
-
     }
 
     // Gera um client secret aleatório em Base64 URL-safe (o valor nunca deve ser impresso integralmente em logs).
     private String generateSecret() {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
+
         String secret = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(bytes);
 
-        log.debug(
-                "[ClientApplicationService] - [generateSecret] -> clientSecret gerado (valor não será logado)"
-        );
+        log.debug("[ClientApplicationService] - [generateSecret] -> clientSecret gerado (valor não será logado)");
 
         return secret;
     }

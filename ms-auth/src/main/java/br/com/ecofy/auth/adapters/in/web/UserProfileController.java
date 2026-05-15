@@ -28,7 +28,6 @@ public class UserProfileController {
 
     private final GetCurrentUserProfileUseCase getCurrentUserProfileUseCase;
 
-
     @Operation(
             summary = "Retorna o perfil do usuário autenticado",
             description = """
@@ -51,10 +50,12 @@ public class UserProfileController {
 
         var user = getCurrentUserProfileUseCase.getCurrentUser();
 
-        log.debug("[UserProfileController] - [me] -> Perfil encontrado userId={} email={}",
-                user.id().value(), user.email().value());
+        log.debug(
+                "[UserProfileController] - [me] -> Perfil encontrado userId={} email={}",
+                user.id().value(),
+                user.email().value()
+        );
 
         return ResponseEntity.ok(UserMapper.toResponse(user));
     }
-
 }

@@ -17,4 +17,4 @@ public record LoginRequest(
 
         String scope
 
-) { }
+) {}

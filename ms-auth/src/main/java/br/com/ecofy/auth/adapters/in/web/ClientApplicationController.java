@@ -12,15 +12,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-
-import java.net.URI;
 
 @RestController
 @RequestMapping(path = "/api/admin/clients", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -36,12 +38,12 @@ public class ClientApplicationController {
             summary = "Registra um novo client application",
             description = """
                     Registra um novo client OAuth2/OIDC no ms-auth.
-                    
+
                     A API resolve automaticamente:
                     - client_id seguro
                     - client_secret (quando exigido pelo tipo de client)
                     - grants padrão por tipo de client, se não forem enviados
-                    
+
                     Regras importantes:
                     - Clients MACHINE_TO_MACHINE devem ter CLIENT_CREDENTIALS.
                     - Clients PUBLIC/SPA não podem usar CLIENT_CREDENTIALS.
@@ -54,15 +56,22 @@ public class ClientApplicationController {
                     description = "Client registrado com sucesso",
                     content = @Content(schema = @Schema(implementation = ClientApplicationResponse.class))
             ),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos ou combinação de grants/tipo de client inválida"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Dados inválidos ou combinação de grants/tipo de client inválida"
+            ),
             @ApiResponse(responseCode = "500", description = "Erro interno ao registrar client")
     })
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ClientApplicationResponse> register(@Valid @RequestBody ClientApplicationRequest request) {
+    public ResponseEntity<ClientApplicationResponse> register(
+            @Valid @RequestBody ClientApplicationRequest request
+    ) {
 
         log.debug(
                 "[ClientApplicationController] - [register] -> Registrando client name={} type={} firstParty={}",
-                request.name(), request.clientType(), request.firstParty()
+                request.name(),
+                request.clientType(),
+                request.firstParty()
         );
 
         var cmd = new RegisterClientApplicationUseCase.RegisterClientCommand(
@@ -78,12 +87,13 @@ public class ClientApplicationController {
 
         log.debug(
                 "[ClientApplicationController] - [register] -> Client registrado com sucesso clientId={} type={} active={}",
-                client.clientId(), client.clientType(), client.isActive()
+                client.clientId(),
+                client.clientType(),
+                client.isActive()
         );
 
         ClientApplicationResponse body = ClientApplicationMapper.toResponse(client);
 
-        // Location apontando para o recurso recém-criado
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequestUri()
                 .path("/{clientId}")
@@ -94,5 +104,4 @@ public class ClientApplicationController {
                 .created(location)
                 .body(body);
     }
-
 }

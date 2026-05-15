@@ -12,4 +12,4 @@ public record RefreshTokenRequest(
 
         String scope
 
-) { }
+) {}

@@ -23,11 +23,6 @@ public class TransactionEventMapper {
     private static final BigDecimal DEFAULT_AMOUNT = BigDecimal.ZERO;
     private static final String DEFAULT_SOURCE_SYSTEM = "unknown";
 
-    /**
-     * Mapeia um registro Kafka bruto + payload JSON para o comando de ingestão.
-     * Hoje gera um RawTransaction "dummy", mas já estruturado para evoluir o parsing depois.
-     */
-
     // Converte ConsumerRecord + payload em um comando de ingestão contendo RawTransaction(s).
     public IngestTransactionEventUseCase.IngestEventCommand toCommand(ConsumerRecord<String, String> record,
                                                                       String payload) {
@@ -45,9 +40,6 @@ public class TransactionEventMapper {
                 key,
                 payloadLength
         );
-
-        // Futuro: parse real do JSON -> DTO -> RawTransaction
-        // Ex.: TransactionEventDto dto = objectMapper.readValue(payload, TransactionEventDto.class);
 
         RawTransaction tx = RawTransaction.create(
                 syntheticJobIdFrom(record),

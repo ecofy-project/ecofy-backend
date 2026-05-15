@@ -9,25 +9,15 @@ import java.util.UUID;
 public record ImportJobResponse(
 
         UUID id,
-
         UUID importFileId,
-
         ImportJobStatus status,
-
         int totalRecords,
-
         int processedRecords,
-
         int successCount,
-
         int errorCount,
-
         Instant startedAt,
-
         Instant finishedAt,
-
         Instant createdAt,
-
         Instant updatedAt
 
 ) {

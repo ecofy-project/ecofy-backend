@@ -4,10 +4,9 @@ import br.com.ecofy.auth.core.application.exception.AuthErrorCode;
 import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.port.in.RevokeTokenUseCase;
 import br.com.ecofy.auth.core.port.out.RefreshTokenStorePort;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.util.Objects;
 
 // Serviço responsável por revogar tokens (atualmente apenas refresh tokens) emitidos pelo MS Auth.
 @Slf4j
@@ -30,7 +29,8 @@ public class TokenRevocationService implements RevokeTokenUseCase {
 
         log.debug(
                 "[TokenRevocationService] - [revoke] -> Iniciando revogação de token={} isRefreshToken={}",
-                masked, command.refreshToken()
+                masked,
+                command.refreshToken()
         );
 
         if (!command.refreshToken()) {
@@ -44,13 +44,12 @@ public class TokenRevocationService implements RevokeTokenUseCase {
             );
         }
 
-        if (command.refreshToken()) {
-            refreshTokenStorePort.revoke(command.token());
-            log.debug(
-                    "[TokenRevocationService] - [revoke] -> Refresh token revogado tokenMask={}",
-                    masked
-            );
-        }
+        refreshTokenStorePort.revoke(command.token());
+
+        log.debug(
+                "[TokenRevocationService] - [revoke] -> Refresh token revogado tokenMask={}",
+                masked
+        );
 
         log.debug(
                 "[TokenRevocationService] - [revoke] -> Processo concluído tokenMask={}",
@@ -60,7 +59,9 @@ public class TokenRevocationService implements RevokeTokenUseCase {
 
     // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
-        if (token == null || token.isBlank()) return "***";
+        if (token == null || token.isBlank()) {
+            return "***";
+        }
         return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
     }
 }

@@ -4,16 +4,15 @@ import br.com.ecofy.auth.config.JwtProperties;
 import br.com.ecofy.auth.core.domain.JwtToken;
 import br.com.ecofy.auth.core.domain.enums.TokenType;
 import br.com.ecofy.auth.core.port.out.JwtTokenProviderPort;
-import com.nimbusds.jose.*;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ResourceLoader;
-import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
-
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
@@ -23,6 +22,10 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 @Component
 @Service
@@ -43,7 +46,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         this.jwtProperties = Objects.requireNonNull(jwtProperties, "jwtProperties must not be null");
 
         this.privateKey = loadPrivateKey(resourceLoader, jwtProperties.getPrivateKeyLocation());
-        this.publicKey  = loadPublicKey(resourceLoader, jwtProperties.getPublicKeyLocation());
+        this.publicKey = loadPublicKey(resourceLoader, jwtProperties.getPublicKeyLocation());
 
         this.signer = createSigner(privateKey);
 
@@ -71,13 +74,12 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
     }
 
     // Gera um token de verificação de e-mail (JWT) adicionando um claim de propósito e usando TokenType.VERIFICATION.
-    public JwtToken generateVerificationToken(String subject,
-                                              Map<String, Object> claims,
-                                              long ttlSeconds) {
+    public JwtToken generateVerificationToken(String subject, Map<String, Object> claims, long ttlSeconds) {
 
         log.debug(
                 "[JwtNimbusTokenProviderAdapter] - [generateVerificationToken] -> Gerando token de verificação subject={} ttlSeconds={}",
-                subject, ttlSeconds
+                subject,
+                ttlSeconds
         );
 
         if (claims != null) {
@@ -88,13 +90,12 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
     }
 
     // Gera um token de reset de senha (JWT) adicionando um claim de propósito e usando TokenType.PASSWORD_RESET.
-    public JwtToken generatePasswordResetToken(String subject,
-                                               Map<String, Object> claims,
-                                               long ttlSeconds) {
+    public JwtToken generatePasswordResetToken(String subject, Map<String, Object> claims, long ttlSeconds) {
 
         log.debug(
                 "[JwtNimbusTokenProviderAdapter] - [generatePasswordResetToken] -> Gerando token de reset de senha subject={} ttlSeconds={}",
-                subject, ttlSeconds
+                subject,
+                ttlSeconds
         );
 
         if (claims != null) {
@@ -105,10 +106,12 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
     }
 
     // Centraliza a geração do JWT (claims padrão + claims extras) e assina com RSA, retornando JwtToken serializado.
-    private JwtToken generateToken(String subject,
-                                   Map<String, Object> claims,
-                                   long ttlSeconds,
-                                   TokenType type) {
+    private JwtToken generateToken(
+            String subject,
+            Map<String, Object> claims,
+            long ttlSeconds,
+            TokenType type
+    ) {
 
         Objects.requireNonNull(subject, "subject must not be null");
         Objects.requireNonNull(type, "type must not be null");
@@ -118,7 +121,9 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
 
         log.debug(
                 "[JwtNimbusTokenProviderAdapter] - [generateToken] -> Gerando token type={} subject={} ttlSeconds={}",
-                type, subject, ttlSeconds
+                type,
+                subject,
+                ttlSeconds
         );
 
         var builder = new JWTClaimsSet.Builder()
@@ -140,7 +145,10 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         } catch (JOSEException e) {
             log.error(
                     "[JwtNimbusTokenProviderAdapter] - [generateToken] -> Erro ao assinar JWT subject={} type={} error={}",
-                    subject, type, e.getMessage(), e
+                    subject,
+                    type,
+                    e.getMessage(),
+                    e
             );
             throw new IllegalStateException("Error signing JWT", e);
         }
@@ -149,7 +157,8 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
 
         log.debug(
                 "[JwtNimbusTokenProviderAdapter] - [generateToken] -> Token gerado com sucesso type={} subject={}",
-                type, subject
+                type,
+                subject
         );
 
         return new JwtToken(serialized, exp, type);
@@ -169,7 +178,9 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
 
             log.debug(
                     "[JwtNimbusTokenProviderAdapter] - [isValid] -> Validação de expiração valid={} exp={} type={}",
-                    valid, exp, type
+                    valid,
+                    exp,
+                    type
             );
 
             // Assinatura é validada no Resource Server (JwtDecoder).
@@ -195,14 +206,16 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
 
             log.debug(
                     "[JwtNimbusTokenProviderAdapter] - [parseClaims] -> Claims parseadas com sucesso subject={} type={}",
-                    claimsSet.getSubject(), type
+                    claimsSet.getSubject(),
+                    type
             );
 
             return claims;
         } catch (ParseException e) {
             log.error(
                     "[JwtNimbusTokenProviderAdapter] - [parseClaims] -> Token inválido error={}",
-                    e.getMessage(), e
+                    e.getMessage(),
+                    e
             );
             throw new IllegalArgumentException("Invalid JWT", e);
         }
@@ -214,6 +227,7 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         if (raw == null) {
             return null;
         }
+
         try {
             return TokenType.valueOf(raw.toString());
         } catch (IllegalArgumentException ex) {
@@ -236,7 +250,9 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         Objects.requireNonNull(location, "private key location must not be null");
 
         try {
-            log.warn("[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> MODO DEV: gerando chave RSA em memória (sem arquivo PEM)");
+            log.warn(
+                    "[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> MODO DEV: gerando chave RSA em memória (sem arquivo PEM)"
+            );
 
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
@@ -245,13 +261,16 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
             RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
             this.devPublicKey = (RSAPublicKey) keyPair.getPublic();
 
-            log.debug("[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> Chave privada DEV gerada em memória com sucesso");
+            log.debug(
+                    "[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> Chave privada DEV gerada em memória com sucesso"
+            );
             return privateKey;
 
         } catch (Exception e) {
             log.error(
                     "[JwtNimbusTokenProviderAdapter] - [loadPrivateKey] -> Falha ao gerar chave privada DEV error={}",
-                    e.getMessage(), e
+                    e.getMessage(),
+                    e
             );
             throw new IllegalStateException("Could not generate in-memory DEV private key", e);
         }
@@ -266,12 +285,16 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
         Objects.requireNonNull(location, "public key location must not be null");
 
         if (this.devPublicKey != null) {
-            log.debug("[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> MODO DEV: retornando chave pública em memória");
+            log.debug(
+                    "[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> MODO DEV: retornando chave pública em memória"
+            );
             return this.devPublicKey;
         }
 
         try {
-            log.warn("[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> MODO DEV: public key ainda não gerada, criando novo par RSA em memória");
+            log.warn(
+                    "[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> MODO DEV: public key ainda não gerada, criando novo par RSA em memória"
+            );
 
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
@@ -280,13 +303,16 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
             RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
             this.devPublicKey = publicKey;
 
-            log.debug("[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> Chave pública DEV gerada em memória com sucesso");
+            log.debug(
+                    "[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> Chave pública DEV gerada em memória com sucesso"
+            );
             return publicKey;
 
         } catch (Exception e) {
             log.error(
                     "[JwtNimbusTokenProviderAdapter] - [loadPublicKey] -> Falha ao gerar chave pública DEV error={}",
-                    e.getMessage(), e
+                    e.getMessage(),
+                    e
             );
             throw new IllegalStateException("Could not generate in-memory DEV public key", e);
         }
@@ -302,10 +328,10 @@ public class JwtNimbusTokenProviderAdapter implements JwtTokenProviderPort {
                 "[JwtNimbusTokenProviderAdapter] - [toRsaJwk] -> Gerando JWK keyId={}",
                 jwtProperties.getKeyId()
         );
+
         return new RSAKey.Builder(publicKey)
                 .keyID(jwtProperties.getKeyId())
                 .algorithm(JWSAlgorithm.RS256)
                 .build();
     }
-
 }

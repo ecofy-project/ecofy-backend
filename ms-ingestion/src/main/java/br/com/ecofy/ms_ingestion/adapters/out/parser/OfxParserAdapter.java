@@ -136,10 +136,7 @@ public class OfxParserAdapter implements ParseOfxPort {
 
     // Converte o DTPOSTED do OFX (com possíveis timezones/metadados) para Instant em UTC.
     private static Instant parseOfxToInstant(String raw) {
-        // Exemplos:
-        // 20250105120000
-        // 20250105
-        // 20250105120000[-3:BRT]
+
         String digitsOnly = raw.replaceAll("[^0-9]", "");
 
         if (digitsOnly.length() >= 14) {

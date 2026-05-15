@@ -11,16 +11,18 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.net.URI;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-
-import java.net.URI;
-import java.util.List;
 
 @RestController
 @RequestMapping(path = "/api/admin/users", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -36,7 +38,7 @@ public class AdminUserController {
             summary = "Cria um novo usuário administrador",
             description = """
                     Endpoint administrativo para criação de usuários com permissões elevadas.
-                    
+
                     - Requer autenticação com um usuário que possua a role AUTH_ADMIN (configurado em SecurityConfig).
                     - Gera um usuário com roles padrão AUTH_ADMIN e AUTH_USER, a menos que outra lista de roles seja enviada.
                     - Marca o e-mail como confirmado automaticamente (dependendo da implementação do use case).
@@ -72,22 +74,22 @@ public class AdminUserController {
 
         String locale = request.locale() != null ? request.locale() : "pt-BR";
 
-
         var cmd = new RegisterUserUseCase.RegisterUserCommand(
                 request.email(),
                 request.password(),
                 request.firstName(),
                 request.lastName(),
-                request.locale(),
+                locale,
                 true,
-                List.of("AUTH_ADMIN", "AUTH_USER")
+                roles
         );
 
         var user = registerUserUseCase.register(cmd);
 
         log.debug(
                 "[AdminUserController] - [createAdmin] -> Usuário admin criado com sucesso userId={} email={}",
-                user.id().value(), user.email().value()
+                user.id().value(),
+                user.email().value()
         );
 
         UserResponse body = UserMapper.toResponse(user);
@@ -102,5 +104,4 @@ public class AdminUserController {
                 .created(location)
                 .body(body);
     }
-
 }

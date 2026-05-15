@@ -8,10 +8,9 @@ import br.com.ecofy.auth.core.port.in.ConfirmEmailUseCase;
 import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
 import br.com.ecofy.auth.core.port.out.VerificationTokenStorePort;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.util.Objects;
 
 // Serviço responsável por confirmar o e-mail do usuário a partir de um token de verificação válido.
 @Slf4j
@@ -23,9 +22,11 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
     private final PublishAuthEventPort publishAuthEventPort;
 
     // Inicializa o serviço com as portas de token, persistência de usuário e publicação de eventos.
-    public EmailConfirmationService(VerificationTokenStorePort verificationTokenStorePort,
-                                    SaveAuthUserPort saveAuthUserPort,
-                                    PublishAuthEventPort publishAuthEventPort) {
+    public EmailConfirmationService(
+            VerificationTokenStorePort verificationTokenStorePort,
+            SaveAuthUserPort saveAuthUserPort,
+            PublishAuthEventPort publishAuthEventPort
+    ) {
         this.verificationTokenStorePort =
                 Objects.requireNonNull(verificationTokenStorePort, "verificationTokenStorePort must not be null");
         this.saveAuthUserPort =
@@ -92,5 +93,4 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
         }
         return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
     }
-
 }

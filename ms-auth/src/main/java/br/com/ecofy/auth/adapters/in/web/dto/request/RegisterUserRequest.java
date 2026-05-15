@@ -21,4 +21,4 @@ public record RegisterUserRequest(
 
         String locale
 
-) { }
+) {}

@@ -7,7 +7,6 @@ import java.time.Instant;
 public record UserEmailConfirmedEvent(
 
         AuthUser user,
-
         Instant occurredAt
 
 ) {

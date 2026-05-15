@@ -32,17 +32,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class JwtNimbusTokenProviderAdapterTest {
 
-    // Helpers (Mockito strict-safe)
-
     private JwtNimbusTokenProviderAdapter adapter(JwtProperties props) {
         return new JwtNimbusTokenProviderAdapter(props, mock(ResourceLoader.class));
     }
 
-    /**
-     * Propriedades mínimas para o construtor funcionar em DEV mode.
-     * (em DEV mode, ele só precisa das locations não-null e do keyId para montar o header/log,
-     * e mais tarde issuer/audience/skew só são usados na geração).
-     */
     private JwtProperties propsMinimalForConstructor(String privateLoc, String publicLoc, String keyId) {
         JwtProperties p = mock(JwtProperties.class);
         when(p.getPrivateKeyLocation()).thenReturn(privateLoc);
@@ -51,14 +44,10 @@ class JwtNimbusTokenProviderAdapterTest {
         return p;
     }
 
-    /**
-     * Propriedades completas para geração/validação/parse.
-     * Use este helper APENAS nos testes que realmente exercitam geração/claims.
-     */
     private JwtProperties propsForTokenFlow(String keyId, String issuer, String audience, long skewSeconds) {
         JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any-private"); // DEV mode ignora arquivo, mas exige non-null
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any-public");   // DEV mode ignora arquivo, mas exige non-null
+        when(p.getPrivateKeyLocation()).thenReturn("classpath:any-private");
+        when(p.getPublicKeyLocation()).thenReturn("classpath:any-public");
         when(p.getKeyId()).thenReturn(keyId);
         when(p.getIssuer()).thenReturn(issuer);
         when(p.getAudience()).thenReturn(audience);
@@ -76,24 +65,16 @@ class JwtNimbusTokenProviderAdapterTest {
         }
     }
 
-    /**
-     * Tenta setar inclusive em campos finais (best-effort).
-     * Em alguns ambientes pode exigir --add-opens; se falhar, o teste correspondente falhará.
-     */
     private static void setField(Object target, String name, Object value) {
         try {
             Field f = target.getClass().getDeclaredField(name);
             f.setAccessible(true);
-
-            // tentativa de remover final (best-effort)
             try {
                 Field modifiers = Field.class.getDeclaredField("modifiers");
                 modifiers.setAccessible(true);
                 modifiers.setInt(f, f.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
             } catch (Exception ignored) {
-                // ok: em alguns JDKs isso não funciona, mas ainda pode dar certo com setAccessible
             }
-
             f.set(target, value);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -108,6 +89,7 @@ class JwtNimbusTokenProviderAdapterTest {
         } catch (Exception e) {
             Throwable t = e.getCause() != null ? e.getCause() : e;
             if (t instanceof RuntimeException re) throw re;
+            if (t instanceof Error err) throw err;
             throw new RuntimeException(t);
         }
     }
@@ -117,8 +99,6 @@ class JwtNimbusTokenProviderAdapterTest {
         jwt.sign(new RSASSASigner(privateKey));
         return jwt.serialize();
     }
-
-    // Constructor validations
 
     @Test
     @DisplayName("constructor: jwtProperties null -> NPE com mensagem")
@@ -132,7 +112,7 @@ class JwtNimbusTokenProviderAdapterTest {
     @DisplayName("constructor: privateKeyLocation null -> NPE com mensagem")
     void constructor_privateKeyLocationNull_throwsNpe() {
         JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn(null); // único stub necessário
+        when(p.getPrivateKeyLocation()).thenReturn(null);
 
         assertThatThrownBy(() -> new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class)))
                 .isInstanceOf(NullPointerException.class)
@@ -142,7 +122,6 @@ class JwtNimbusTokenProviderAdapterTest {
     @Test
     @DisplayName("constructor: publicKeyLocation null -> NPE com mensagem")
     void constructor_publicKeyLocationNull_throwsNpe() {
-        // IMPORTANTE: não stubbar keyId aqui (senão vira stubbing desnecessário, pois a exceção ocorre antes do header)
         JwtProperties p = mock(JwtProperties.class);
         when(p.getPrivateKeyLocation()).thenReturn("classpath:priv");
         when(p.getPublicKeyLocation()).thenReturn(null);
@@ -151,8 +130,6 @@ class JwtNimbusTokenProviderAdapterTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("public key location must not be null");
     }
-
-    // Token generation
 
     @Test
     @DisplayName("generateAccessToken: inclui issuer/audience/sub/typ/iat/nbf/exp + claims custom")
@@ -254,9 +231,9 @@ class JwtNimbusTokenProviderAdapterTest {
     @DisplayName("generateAccessToken: subject null -> NPE")
     void generateAccessToken_subjectNull_throwsNpe() {
         JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any"); // DEV mode exige non-null
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");  // DEV mode exige non-null
-        when(p.getKeyId()).thenReturn("kid-1");                      // usado no header
+        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
+        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
+        when(p.getKeyId()).thenReturn("kid-1");
 
         JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
 
@@ -274,7 +251,6 @@ class JwtNimbusTokenProviderAdapterTest {
         when(badSigner.supportedJWSAlgorithms()).thenReturn(java.util.Set.of(JWSAlgorithm.RS256));
         doThrow(new JOSEException("boom")).when(badSigner).sign(any(JWSHeader.class), any(byte[].class));
 
-        // tenta substituir o signer (campo final) – best-effort
         setField(a, "signer", badSigner);
 
         assertThatThrownBy(() -> a.generateAccessToken("sub", new HashMap<>(), 60))
@@ -282,8 +258,6 @@ class JwtNimbusTokenProviderAdapterTest {
                 .hasMessage("Error signing JWT")
                 .hasCauseInstanceOf(JOSEException.class);
     }
-
-    // isValid
 
     @Test
     @DisplayName("isValid: token válido (exp futura) -> true")
@@ -361,8 +335,6 @@ class JwtNimbusTokenProviderAdapterTest {
         assertThat(a.isValid("not-a-jwt")).isFalse();
     }
 
-    // parseClaims + resolveTokenType
-
     @Test
     @DisplayName("parseClaims: sucesso retorna mapa com typ + custom claims")
     void parseClaims_success() {
@@ -418,7 +390,6 @@ class JwtNimbusTokenProviderAdapterTest {
                 .audience("aud")
                 .issueTime(new Date())
                 .expirationTime(Date.from(Instant.now().plusSeconds(60)))
-                // sem typ
                 .claim("x", 1)
                 .build();
 
@@ -429,8 +400,6 @@ class JwtNimbusTokenProviderAdapterTest {
         assertThat(parsed.get("x")).isIn(1, 1L);
         assertThat(parsed).doesNotContainKey("typ");
     }
-
-    // toRsaJwk
 
     @Test
     @DisplayName("toRsaJwk: RSAKey com kid e alg RS256")
@@ -449,13 +418,11 @@ class JwtNimbusTokenProviderAdapterTest {
         assertThat(jwk.toRSAPublicKey()).isNotNull();
     }
 
-    // DEV keygen failure branches
-
     @Test
     @DisplayName("loadPrivateKey: KeyPairGenerator.getInstance falha -> IllegalStateException")
     void loadPrivateKey_keyPairGeneratorFails_throwsIllegalState() {
         JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any"); // único getter realmente usado antes da falha
+        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
 
         try (MockedStatic<KeyPairGenerator> mocked = mockStatic(KeyPairGenerator.class)) {
             mocked.when(() -> KeyPairGenerator.getInstance("RSA"))
@@ -471,7 +438,6 @@ class JwtNimbusTokenProviderAdapterTest {
     @Test
     @DisplayName("loadPublicKey: devPublicKey null e KeyPairGenerator.getInstance falha -> IllegalStateException")
     void loadPublicKey_keyPairGeneratorFails_whenDevKeyNull_throwsIllegalState() {
-        // propriedades mínimas para construir o adapter (sem stubs inúteis)
         JwtProperties p = mock(JwtProperties.class);
         when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
         when(p.getPublicKeyLocation()).thenReturn("classpath:any");
@@ -479,7 +445,6 @@ class JwtNimbusTokenProviderAdapterTest {
 
         JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
 
-        // Força branch devPublicKey == null
         setField(a, "devPublicKey", null);
 
         try (MockedStatic<KeyPairGenerator> mocked = mockStatic(KeyPairGenerator.class)) {
@@ -503,7 +468,6 @@ class JwtNimbusTokenProviderAdapterTest {
     @Test
     @DisplayName("generateVerificationToken: claims null não adiciona purpose; com claims adiciona via putIfAbsent; não sobrescreve se já existir")
     void generateVerificationToken_putIfAbsentPurpose_branchCoverage() throws Exception {
-        // props mínimos (apenas o que o construtor e generateToken usam)
         JwtProperties p = mock(JwtProperties.class);
         when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
         when(p.getPublicKeyLocation()).thenReturn("classpath:any");
@@ -514,31 +478,28 @@ class JwtNimbusTokenProviderAdapterTest {
 
         JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
 
-        // 1) claims == null -> não adiciona purpose
         JwtToken t1 = a.generateVerificationToken("sub-null", null, 60);
         JWTClaimsSet cs1 = SignedJWT.parse(t1.value()).getJWTClaimsSet();
         assertThat(cs1.getClaim("purpose")).isNull();
 
-        // 2) claims != null e purpose ausente -> putIfAbsent insere
         Map<String, Object> claims2 = new HashMap<>();
         JwtToken t2 = a.generateVerificationToken("sub-absent", claims2, 60);
 
-        assertThat(claims2.get("purpose")).isEqualTo("EMAIL_VERIFICATION"); // efeito colateral no Map
+        assertThat(claims2.get("purpose")).isEqualTo("EMAIL_VERIFICATION");
         JWTClaimsSet cs2 = SignedJWT.parse(t2.value()).getJWTClaimsSet();
         assertThat(cs2.getClaim("purpose")).isEqualTo("EMAIL_VERIFICATION");
 
-        // 3) claims != null e purpose já presente -> putIfAbsent não sobrescreve
         Map<String, Object> claims3 = new HashMap<>();
         claims3.put("purpose", "CUSTOM_PURPOSE");
         JwtToken t3 = a.generateVerificationToken("sub-present", claims3, 60);
 
-        assertThat(claims3.get("purpose")).isEqualTo("CUSTOM_PURPOSE"); // mantém o valor original
+        assertThat(claims3.get("purpose")).isEqualTo("CUSTOM_PURPOSE");
         JWTClaimsSet cs3 = SignedJWT.parse(t3.value()).getJWTClaimsSet();
         assertThat(cs3.getClaim("purpose")).isEqualTo("CUSTOM_PURPOSE");
     }
 
     @Test
-    @DisplayName("loadPublicKey: cobre 100% (location null, devPublicKey != null, devPublicKey == null success, devPublicKey == null exception)")
+    @DisplayName("loadPublicKey: cobre branches (location null, devPublicKey != null, devPublicKey == null success, devPublicKey == null exception)")
     void loadPublicKey_fullCoverage_singleTest() throws Exception {
         JwtProperties p = mock(JwtProperties.class);
         when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
@@ -551,34 +512,44 @@ class JwtNimbusTokenProviderAdapterTest {
         m.setAccessible(true);
 
         assertThatThrownBy(() -> {
-            try { m.invoke(a, mock(ResourceLoader.class), null); }
-            catch (Exception e) { throw (e.getCause() != null) ? (RuntimeException) e.getCause() : e; }
-        }).isInstanceOf(NullPointerException.class).hasMessageContaining("public key location must not be null");
+            try {
+                m.invoke(a, mock(ResourceLoader.class), null);
+            } catch (Exception e) {
+                throw e.getCause() != null ? e.getCause() : e;
+            }
+        }).isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("public key location must not be null");
 
         Field f = JwtNimbusTokenProviderAdapter.class.getDeclaredField("devPublicKey");
         f.setAccessible(true);
 
         RSAPublicKey already = (RSAPublicKey) f.get(a);
         assertThat(already).isNotNull();
+
         RSAPublicKey r1 = (RSAPublicKey) m.invoke(a, mock(ResourceLoader.class), "classpath:any");
         assertThat(r1).isSameAs(already);
 
         f.set(a, null);
+
         RSAPublicKey r2 = (RSAPublicKey) m.invoke(a, mock(ResourceLoader.class), "classpath:any");
         assertThat(r2).isNotNull();
         assertThat((RSAPublicKey) f.get(a)).isSameAs(r2);
 
         f.set(a, null);
+
         try (MockedStatic<KeyPairGenerator> mocked = mockStatic(KeyPairGenerator.class)) {
-            mocked.when(() -> KeyPairGenerator.getInstance("RSA")).thenThrow(new NoSuchAlgorithmException("no rsa"));
+            mocked.when(() -> KeyPairGenerator.getInstance("RSA"))
+                    .thenThrow(new NoSuchAlgorithmException("no rsa"));
+
             assertThatThrownBy(() -> {
-                try { m.invoke(a, mock(ResourceLoader.class), "classpath:any"); }
-                catch (Exception e) { throw e.getCause(); }
+                try {
+                    m.invoke(a, mock(ResourceLoader.class), "classpath:any");
+                } catch (Exception e) {
+                    throw e.getCause() != null ? e.getCause() : e;
+                }
             }).isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Could not generate in-memory DEV public key")
                     .hasCauseInstanceOf(NoSuchAlgorithmException.class);
         }
     }
-
-
 }

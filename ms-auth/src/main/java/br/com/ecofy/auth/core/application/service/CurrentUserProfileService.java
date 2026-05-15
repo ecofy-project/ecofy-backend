@@ -5,10 +5,9 @@ import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.port.in.GetCurrentUserProfileUseCase;
 import br.com.ecofy.auth.core.port.out.CurrentUserProviderPort;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.util.Objects;
 
 // Serviço responsável por obter e retornar o perfil do usuário atualmente autenticado.
 @Slf4j
@@ -47,5 +46,4 @@ public class CurrentUserProfileService implements GetCurrentUserProfileUseCase {
             );
         }
     }
-
 }

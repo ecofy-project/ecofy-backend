@@ -2,13 +2,12 @@ package br.com.ecofy.auth.adapters.out.verification;
 
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.port.out.VerificationTokenStorePort;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
@@ -28,7 +27,8 @@ public class InMemoryVerificationTokenStoreAdapter implements VerificationTokenS
 
         log.debug(
                 "[InMemoryVerificationTokenStoreAdapter] - [store] -> Token de verificação armazenado userId={} tokenMask={}",
-                user.id().value(), maskToken(token)
+                user.id().value(),
+                maskToken(token)
         );
     }
 
@@ -50,19 +50,21 @@ public class InMemoryVerificationTokenStoreAdapter implements VerificationTokenS
 
         log.debug(
                 "[InMemoryVerificationTokenStoreAdapter] - [consume] -> Token consumido com sucesso userId={} tokenMask={}",
-                entry.user.id().value(), maskToken(token)
+                entry.user.id().value(),
+                maskToken(token)
         );
 
         return Optional.of(entry.user);
     }
 
     // Representa um registro de token em memória contendo o usuário e o instante de criação.
-    private record Entry(AuthUser user, Instant createdAt) { }
+    private record Entry(AuthUser user, Instant createdAt) {}
 
     // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
-        if (token == null || token.isBlank()) return "***";
+        if (token == null || token.isBlank()) {
+            return "***";
+        }
         return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
     }
-
 }

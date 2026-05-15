@@ -1,7 +1,6 @@
-package br.com.ecofy.auth.adapters.out.persistence;
+package br.com.ecofy.auth.adapters.out.persistence.mapper;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.*;
-import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.core.domain.*;
 import br.com.ecofy.auth.core.domain.enums.AuthUserStatus;
 import br.com.ecofy.auth.core.domain.enums.ClientType;

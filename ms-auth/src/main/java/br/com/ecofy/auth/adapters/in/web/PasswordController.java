@@ -46,13 +46,19 @@ public class PasswordController {
     @PostMapping(path = "/reset-request", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> requestReset(@Valid @RequestBody PasswordResetRequest request) {
 
-        log.debug("[PasswordController] - [requestReset] -> Solicitando reset de senha email={}", request.email());
+        log.debug(
+                "[PasswordController] - [requestReset] -> Solicitando reset de senha email={}",
+                request.email()
+        );
 
         requestPasswordResetUseCase.requestReset(
                 new RequestPasswordResetUseCase.RequestPasswordResetCommand(request.email())
         );
 
-        log.debug("[PasswordController] - [requestReset] -> Solicitação de reset processada email={}", request.email());
+        log.debug(
+                "[PasswordController] - [requestReset] -> Solicitação de reset processada email={}",
+                request.email()
+        );
 
         return ResponseEntity.accepted().build();
     }
@@ -73,7 +79,10 @@ public class PasswordController {
     @PostMapping(path = "/reset-confirm", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> confirmReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
 
-        log.debug("[PasswordController] - [confirmReset] -> Confirmando reset de senha token={}", request.token());
+        log.debug(
+                "[PasswordController] - [confirmReset] -> Confirmando reset de senha token={}",
+                request.token()
+        );
 
         resetPasswordUseCase.resetPassword(
                 new ResetPasswordUseCase.ResetPasswordCommand(
@@ -82,9 +91,11 @@ public class PasswordController {
                 )
         );
 
-        log.debug("[PasswordController] - [confirmReset] -> Reset de senha concluído token={}", request.token());
+        log.debug(
+                "[PasswordController] - [confirmReset] -> Reset de senha concluído token={}",
+                request.token()
+        );
 
         return ResponseEntity.noContent().build();
     }
-
 }

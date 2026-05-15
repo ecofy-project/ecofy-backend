@@ -7,4 +7,4 @@ public record ConfirmEmailRequest(
         @NotBlank
         String token
 
-) { }
+) {}

@@ -15,7 +15,10 @@ import org.springframework.kafka.support.SendResult;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Answers.RETURNS_DEEP_STUBS;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class AuthEventsKafkaAdapterTest {
@@ -31,7 +34,7 @@ class AuthEventsKafkaAdapterTest {
     @Test
     @DisplayName("publish(UserRegisteredEvent): event null -> NPE")
     void publish_userRegistered_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mock(KafkaTemplate.class));
+        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
         assertThatThrownBy(() -> a.publish((UserRegisteredEvent) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("event must not be null");
@@ -40,7 +43,7 @@ class AuthEventsKafkaAdapterTest {
     @Test
     @DisplayName("publish(UserEmailConfirmedEvent): event null -> NPE")
     void publish_userEmailConfirmed_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mock(KafkaTemplate.class));
+        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
         assertThatThrownBy(() -> a.publish((UserEmailConfirmedEvent) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("event must not be null");
@@ -49,7 +52,7 @@ class AuthEventsKafkaAdapterTest {
     @Test
     @DisplayName("publish(UserAuthenticatedEvent): event null -> NPE")
     void publish_userAuthenticated_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mock(KafkaTemplate.class));
+        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
         assertThatThrownBy(() -> a.publish((UserAuthenticatedEvent) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("event must not be null");
@@ -58,16 +61,16 @@ class AuthEventsKafkaAdapterTest {
     @Test
     @DisplayName("publish(PasswordResetRequestedEvent): event null -> NPE")
     void publish_passwordResetRequested_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mock(KafkaTemplate.class));
+        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
         assertThatThrownBy(() -> a.publish((PasswordResetRequestedEvent) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("event must not be null");
     }
 
     @Test
-    @DisplayName("publish: envia para tópicos corretos com key = userId e executa callback success")
+    @DisplayName("publish: envia para tópicos corretos com key = userId")
     void publish_allEvents_successPath() {
-        KafkaTemplate<String, Object> kt = mock(KafkaTemplate.class);
+        KafkaTemplate<String, Object> kt = mockKafkaTemplate();
         AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(kt);
 
         UUID id = UUID.fromString("11111111-2222-3333-4444-555555555555");
@@ -85,15 +88,14 @@ class AuthEventsKafkaAdapterTest {
         PasswordResetRequestedEvent e4 = mock(PasswordResetRequestedEvent.class, RETURNS_DEEP_STUBS);
         when(e4.user().id().value()).thenReturn(id);
 
-        CompletableFuture<SendResult<String, Object>> f1 = CompletableFuture.completedFuture(sendResult("auth.user.registered", 0, 10L));
-        CompletableFuture<SendResult<String, Object>> f2 = CompletableFuture.completedFuture(sendResult("auth.user.email-confirmed", 1, 11L));
-        CompletableFuture<SendResult<String, Object>> f3 = CompletableFuture.completedFuture(sendResult("auth.user.authenticated", 2, 12L));
-        CompletableFuture<SendResult<String, Object>> f4 = CompletableFuture.completedFuture(sendResult("auth.user.password-reset-requested", 3, 13L));
-
-        when(kt.send("auth.user.registered", key, e1)).thenReturn(f1);
-        when(kt.send("auth.user.email-confirmed", key, e2)).thenReturn(f2);
-        when(kt.send("auth.user.authenticated", key, e3)).thenReturn(f3);
-        when(kt.send("auth.user.password-reset-requested", key, e4)).thenReturn(f4);
+        when(kt.send(eq("auth.user.registered"), eq(key), eq(e1)))
+                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.registered", 0, 10L)));
+        when(kt.send(eq("auth.user.email-confirmed"), eq(key), eq(e2)))
+                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.email-confirmed", 1, 11L)));
+        when(kt.send(eq("auth.user.authenticated"), eq(key), eq(e3)))
+                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.authenticated", 2, 12L)));
+        when(kt.send(eq("auth.user.password-reset-requested"), eq(key), eq(e4)))
+                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.password-reset-requested", 3, 13L)));
 
         a.publish(e1);
         a.publish(e2);
@@ -108,9 +110,9 @@ class AuthEventsKafkaAdapterTest {
     }
 
     @Test
-    @DisplayName("publish: callback com exception não lança e ainda chama send")
+    @DisplayName("publish: callback com exception não lança")
     void publish_whenFutureCompletesExceptionally_doesNotThrow() {
-        KafkaTemplate<String, Object> kt = mock(KafkaTemplate.class);
+        KafkaTemplate<String, Object> kt = mockKafkaTemplate();
         AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(kt);
 
         UUID id = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
@@ -128,6 +130,11 @@ class AuthEventsKafkaAdapterTest {
 
         verify(kt).send("auth.user.registered", key, e);
         verifyNoMoreInteractions(kt);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static KafkaTemplate<String, Object> mockKafkaTemplate() {
+        return (KafkaTemplate<String, Object>) mock(KafkaTemplate.class);
     }
 
     private static SendResult<String, Object> sendResult(String topic, int partition, long offset) {

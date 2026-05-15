@@ -9,25 +9,15 @@ import java.util.Set;
 public record ClientApplicationResponse(
 
         String id,
-
         String clientId,
-
         String name,
-
         ClientType clientType,
-
         Set<GrantType> grantTypes,
-
         Set<String> redirectUris,
-
         Set<String> scopes,
-
         boolean firstParty,
-
         boolean active,
-
         Instant createdAt,
-
         Instant updatedAt
 
-) { }
+) {}

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class SpringSecurityCurrentUserAdapterTest {
 
-    @org.mockito.Mock
+    @Mock
     private AuthUserJpaAdapter authUserJpaAdapter;
 
     @AfterEach
@@ -35,7 +36,10 @@ class SpringSecurityCurrentUserAdapterTest {
 
     @Test
     void constructor_shouldRejectNullAuthUserJpaAdapter() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> new SpringSecurityCurrentUserAdapter(null));
+        NullPointerException ex = assertThrows(
+                NullPointerException.class,
+                () -> new SpringSecurityCurrentUserAdapter(null)
+        );
         assertEquals("authUserJpaAdapter must not be null", ex.getMessage());
     }
 
@@ -47,6 +51,7 @@ class SpringSecurityCurrentUserAdapterTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, adapter::getCurrentUserOrThrow);
         assertEquals("Usuário não autenticado", ex.getMessage());
+
         verifyNoInteractions(authUserJpaAdapter);
     }
 
@@ -56,11 +61,11 @@ class SpringSecurityCurrentUserAdapterTest {
 
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn("not-a-jwt");
-
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, adapter::getCurrentUserOrThrow);
         assertEquals("JWT inválido ou ausente", ex.getMessage());
+
         verifyNoInteractions(authUserJpaAdapter);
     }
 
@@ -69,19 +74,19 @@ class SpringSecurityCurrentUserAdapterTest {
         SpringSecurityCurrentUserAdapter adapter = new SpringSecurityCurrentUserAdapter(authUserJpaAdapter);
 
         Jwt jwt = Jwt.withTokenValue("t")
-                .header("alg", "none")
-                .claim("sub", "not-uuid")
+                .headers(h -> h.putAll(Map.of("alg", "none")))
+                .claims(c -> c.put("sub", "not-uuid"))
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(60))
                 .build();
 
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn(jwt);
-
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, adapter::getCurrentUserOrThrow);
         assertEquals("Identificador de usuário inválido", ex.getMessage());
+
         verifyNoInteractions(authUserJpaAdapter);
     }
 
@@ -94,7 +99,6 @@ class SpringSecurityCurrentUserAdapterTest {
 
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn(jwt);
-
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         when(authUserJpaAdapter.loadById(any(AuthUserId.class))).thenReturn(Optional.empty());
@@ -117,10 +121,10 @@ class SpringSecurityCurrentUserAdapterTest {
 
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn(jwt);
-
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         AuthUser user = mock(AuthUser.class);
+
         AuthUserId idVo = mock(AuthUserId.class);
         when(idVo.value()).thenReturn(userId);
         when(user.id()).thenReturn(idVo);

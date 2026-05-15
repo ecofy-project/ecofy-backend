@@ -12,31 +12,18 @@ import java.util.*;
 public class AuthUser {
 
     private final AuthUserId id;
-
     private final EmailAddress email;
-
     private PasswordHash passwordHash;
-
     private AuthUserStatus status;
-
     private boolean emailVerified;
-
     private String firstName;
-
     private String lastName;
-
     private String locale;
-
     private final Set<Role> roles;
-
     private final Set<Permission> directPermissions;
-
     private final Instant createdAt;
-
     private Instant updatedAt;
-
     private Instant lastLoginAt;
-
     private int failedLoginAttempts;
 
     // Reconstrói o agregado AuthUser a partir de dados persistidos, garantindo invariantes básicas do domínio.

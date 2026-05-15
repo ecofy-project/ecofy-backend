@@ -11,19 +11,13 @@ public interface RegisterUserUseCase {
     record RegisterUserCommand(
 
             String email,
-
             String rawPassword,
-
             String firstName,
-
             String lastName,
-
             String locale,
-
             boolean autoConfirmEmail, // para ambientes internos/test
-
             List<String> roles
 
-    ) { }
+    ) {}
 
 }

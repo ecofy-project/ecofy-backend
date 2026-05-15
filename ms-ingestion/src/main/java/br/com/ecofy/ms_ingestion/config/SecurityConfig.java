@@ -16,7 +16,6 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
             "/actuator/health",
             "/actuator/info",
-
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"
@@ -45,7 +44,6 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated()
                 )
-
 
                 // PROD MODE (com token) — DEIXE ATIVO para exigir JWT
                 // (em local dev mode, pode comentar este bloco inteiro)

@@ -9,23 +9,26 @@ import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.port.out.LoadAuthUserByEmailPort;
 import br.com.ecofy.auth.core.port.out.LoadAuthUserByIdPort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
+import java.time.Instant;
+import java.util.Objects;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.util.Objects;
-import java.util.Optional;
-
 @Component
 @Slf4j
-public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmailPort, LoadAuthUserByIdPort {
+public class AuthUserJpaAdapter
+        implements SaveAuthUserPort, LoadAuthUserByEmailPort, LoadAuthUserByIdPort {
 
     private final AuthUserRepository authUserRepository;
 
     // Injeta o repositório JPA e garante que ele não seja nulo para operações de persistência/consulta.
     public AuthUserJpaAdapter(AuthUserRepository authUserRepository) {
-        this.authUserRepository = Objects.requireNonNull(authUserRepository, "authUserRepository must not be null");
+        this.authUserRepository = Objects.requireNonNull(
+                authUserRepository,
+                "authUserRepository must not be null"
+        );
     }
 
     // Persiste o usuário (cria ou atualiza), aplicando timestamps e retornando o domínio mapeado da entidade salva.
@@ -37,8 +40,11 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
         Instant now = Instant.now();
         String userId = user.id().value().toString();
 
-        log.debug("[AuthUserJpaAdapter] - [save] -> Persistindo usuário id={} email={}",
-                userId, user.email().value());
+        log.debug(
+                "[AuthUserJpaAdapter] - [save] -> Persistindo usuário id={} email={}",
+                userId,
+                user.email().value()
+        );
 
         AuthUserEntity entity = authUserRepository.findById(user.id().value())
                 .map(existing -> {
@@ -57,8 +63,11 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
 
         AuthUserEntity saved = authUserRepository.save(entity);
 
-        log.debug("[AuthUserJpaAdapter] - [save] -> Usuário persistido com sucesso id={} email={}",
-                saved.getId(), saved.getEmail());
+        log.debug(
+                "[AuthUserJpaAdapter] - [save] -> Usuário persistido com sucesso id={} email={}",
+                saved.getId(),
+                saved.getEmail()
+        );
 
         return PersistenceMapper.toDomain(saved, saved.getRoles(), saved.getPermissions());
     }
@@ -69,12 +78,18 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
     public Optional<AuthUser> loadByEmail(EmailAddress email) {
         Objects.requireNonNull(email, "email must not be null");
 
-        log.debug("[AuthUserJpaAdapter] - [loadByEmail] -> Buscando usuário por email={}", email.value());
+        log.debug(
+                "[AuthUserJpaAdapter] - [loadByEmail] -> Buscando usuário por email={}",
+                email.value()
+        );
 
         return authUserRepository.findByEmailIgnoreCase(email.value())
                 .map(entity -> {
-                    log.debug("[AuthUserJpaAdapter] - [loadByEmail] -> Usuário encontrado id={} email={}",
-                            entity.getId(), entity.getEmail());
+                    log.debug(
+                            "[AuthUserJpaAdapter] - [loadByEmail] -> Usuário encontrado id={} email={}",
+                            entity.getId(),
+                            entity.getEmail()
+                    );
                     return PersistenceMapper.toDomain(entity, entity.getRoles(), entity.getPermissions());
                 });
     }
@@ -89,8 +104,11 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
 
         return authUserRepository.findById(id.value())
                 .map(entity -> {
-                    log.debug("[AuthUserJpaAdapter] - [loadById] -> Usuário encontrado id={} email={}",
-                            entity.getId(), entity.getEmail());
+                    log.debug(
+                            "[AuthUserJpaAdapter] - [loadById] -> Usuário encontrado id={} email={}",
+                            entity.getId(),
+                            entity.getEmail()
+                    );
                     return PersistenceMapper.toDomain(entity, entity.getRoles(), entity.getPermissions());
                 });
     }
@@ -111,7 +129,5 @@ public class AuthUserJpaAdapter implements SaveAuthUserPort, LoadAuthUserByEmail
             entity.setCreatedAt(now);
         }
         entity.setUpdatedAt(now);
-
     }
-
 }

@@ -3,6 +3,7 @@ package br.com.ecofy.auth.adapters.out.security;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -12,7 +13,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class BCryptPasswordHashingAdapterTest {
 
-    @org.mockito.Mock
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Test
@@ -24,16 +25,20 @@ class BCryptPasswordHashingAdapterTest {
     @Test
     void hash_shouldRejectNullRawPassword() {
         BCryptPasswordHashingAdapter adapter = new BCryptPasswordHashingAdapter(passwordEncoder);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.hash(null));
         assertEquals("rawPassword must not be null", ex.getMessage());
+
         verifyNoInteractions(passwordEncoder);
     }
 
     @Test
     void hash_shouldRejectBlankRawPassword() {
         BCryptPasswordHashingAdapter adapter = new BCryptPasswordHashingAdapter(passwordEncoder);
+
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> adapter.hash("   "));
         assertEquals("rawPassword must not be blank", ex.getMessage());
+
         verifyNoInteractions(passwordEncoder);
     }
 
@@ -47,6 +52,7 @@ class BCryptPasswordHashingAdapterTest {
 
         assertNotNull(result);
         assertEquals("ENC", result.value());
+
         verify(passwordEncoder).encode("pass");
         verifyNoMoreInteractions(passwordEncoder);
     }
@@ -54,16 +60,26 @@ class BCryptPasswordHashingAdapterTest {
     @Test
     void matches_shouldRejectNullRawPassword() {
         BCryptPasswordHashingAdapter adapter = new BCryptPasswordHashingAdapter(passwordEncoder);
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.matches(null, new PasswordHash("h")));
+
+        NullPointerException ex = assertThrows(
+                NullPointerException.class,
+                () -> adapter.matches(null, new PasswordHash("h"))
+        );
         assertEquals("rawPassword must not be null", ex.getMessage());
+
         verifyNoInteractions(passwordEncoder);
     }
 
     @Test
     void matches_shouldRejectNullHash() {
         BCryptPasswordHashingAdapter adapter = new BCryptPasswordHashingAdapter(passwordEncoder);
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.matches("pass", null));
+
+        NullPointerException ex = assertThrows(
+                NullPointerException.class,
+                () -> adapter.matches("pass", null)
+        );
         assertEquals("hash must not be null", ex.getMessage());
+
         verifyNoInteractions(passwordEncoder);
     }
 
@@ -77,6 +93,7 @@ class BCryptPasswordHashingAdapterTest {
         boolean result = adapter.matches("pass", hash);
 
         assertTrue(result);
+
         verify(passwordEncoder).matches("pass", "ENC");
         verifyNoMoreInteractions(passwordEncoder);
     }
@@ -91,6 +108,7 @@ class BCryptPasswordHashingAdapterTest {
         boolean result = adapter.matches("pass", hash);
 
         assertFalse(result);
+
         verify(passwordEncoder).matches("pass", "ENC");
         verifyNoMoreInteractions(passwordEncoder);
     }

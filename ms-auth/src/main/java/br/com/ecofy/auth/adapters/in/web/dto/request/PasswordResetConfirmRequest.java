@@ -12,4 +12,4 @@ public record PasswordResetConfirmRequest(
         @Size(min = 8, max = 100)
         String newPassword
 
-) { }
+) {}

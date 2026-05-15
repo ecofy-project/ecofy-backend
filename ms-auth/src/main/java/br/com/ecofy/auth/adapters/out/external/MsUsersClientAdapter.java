@@ -19,7 +19,9 @@ public class MsUsersClientAdapter implements SyncUserToUsersMsPort {
 
     @Override
     public void upsertUser(AuthUser user) {
-        if (!props.enabled()) return;
+        if (!props.enabled()) {
+            return;
+        }
 
         String url = "/internal/users/{authUserId}";
 
@@ -46,8 +48,11 @@ public class MsUsersClientAdapter implements SyncUserToUsersMsPort {
             log.info("[ms-auth] Synced user to ms-users authUserId={}", user.id().value());
         } catch (Exception ex) {
             // por agora: não derruba o fluxo; só evidencia no log
-            log.error("[ms-auth] Failed to sync user to ms-users authUserId={} err={}",
-                    user.id().value(), ex.getMessage());
+            log.error(
+                    "[ms-auth] Failed to sync user to ms-users authUserId={} err={}",
+                    user.id().value(),
+                    ex.getMessage()
+            );
         }
     }
 

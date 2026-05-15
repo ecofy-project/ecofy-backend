@@ -4,11 +4,10 @@ import br.com.ecofy.auth.core.application.exception.AuthErrorCode;
 import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.port.in.ValidateTokenUseCase;
 import br.com.ecofy.auth.core.port.out.JwtTokenProviderPort;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.util.Map;
 import java.util.Objects;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 // Serviço responsável por validar JWTs via provider (expiração/formato) e retornar as claims quando o token for válido.
 @Slf4j
@@ -61,8 +60,9 @@ public class TokenValidationService implements ValidateTokenUseCase {
 
     // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
-        if (token == null || token.isBlank()) return "***";
+        if (token == null || token.isBlank()) {
+            return "***";
+        }
         return token.length() > 12 ? token.substring(0, 12) + "..." : "***";
     }
 }
-

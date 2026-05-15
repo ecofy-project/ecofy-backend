@@ -8,12 +8,20 @@ import br.com.ecofy.auth.core.domain.event.UserRegisteredEvent;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import br.com.ecofy.auth.core.port.in.RegisterUserUseCase;
-import br.com.ecofy.auth.core.port.out.*;
+import br.com.ecofy.auth.core.port.out.LoadAuthUserByEmailPort;
+import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
+import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
+import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
+import br.com.ecofy.auth.core.port.out.SendVerificationEmailPort;
+import br.com.ecofy.auth.core.port.out.SyncUserToUsersMsPort;
+import br.com.ecofy.auth.core.port.out.VerificationTokenStorePort;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.util.*;
-import java.util.stream.Collectors;
 
 // Serviço responsável por registrar novos usuários, validar duplicidade de e-mail, persistir o usuário e disparar verificação/publicação de eventos.
 @Slf4j
@@ -31,21 +39,28 @@ public class RegisterUserService implements RegisterUserUseCase {
     private final SyncUserToUsersMsPort syncUserToUsersMsPort;
 
     // Inicializa o serviço com as portas necessárias para persistência, consulta, hashing, envio/armazenamento de token, publicação de eventos e sincronização com ms-users.
-    public RegisterUserService(SaveAuthUserPort saveAuthUserPort,
-                               LoadAuthUserByEmailPort loadAuthUserByEmailPort,
-                               PasswordHashingPort passwordHashingPort,
-                               SendVerificationEmailPort sendVerificationEmailPort,
-                               VerificationTokenStorePort verificationTokenStorePort,
-                               PublishAuthEventPort publishAuthEventPort,
-                               SyncUserToUsersMsPort syncUserToUsersMsPort) {
-
+    public RegisterUserService(
+            SaveAuthUserPort saveAuthUserPort,
+            LoadAuthUserByEmailPort loadAuthUserByEmailPort,
+            PasswordHashingPort passwordHashingPort,
+            SendVerificationEmailPort sendVerificationEmailPort,
+            VerificationTokenStorePort verificationTokenStorePort,
+            PublishAuthEventPort publishAuthEventPort,
+            SyncUserToUsersMsPort syncUserToUsersMsPort
+    ) {
         this.saveAuthUserPort = Objects.requireNonNull(saveAuthUserPort, "saveAuthUserPort must not be null");
-        this.loadAuthUserByEmailPort = Objects.requireNonNull(loadAuthUserByEmailPort, "loadAuthUserByEmailPort must not be null");
-        this.passwordHashingPort = Objects.requireNonNull(passwordHashingPort, "passwordHashingPort must not be null");
-        this.sendVerificationEmailPort = Objects.requireNonNull(sendVerificationEmailPort, "sendVerificationEmailPort must not be null");
-        this.verificationTokenStorePort = Objects.requireNonNull(verificationTokenStorePort, "verificationTokenStorePort must not be null");
-        this.publishAuthEventPort = Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
-        this.syncUserToUsersMsPort = Objects.requireNonNull(syncUserToUsersMsPort, "syncUserToUsersMsPort must not be null");
+        this.loadAuthUserByEmailPort =
+                Objects.requireNonNull(loadAuthUserByEmailPort, "loadAuthUserByEmailPort must not be null");
+        this.passwordHashingPort =
+                Objects.requireNonNull(passwordHashingPort, "passwordHashingPort must not be null");
+        this.sendVerificationEmailPort =
+                Objects.requireNonNull(sendVerificationEmailPort, "sendVerificationEmailPort must not be null");
+        this.verificationTokenStorePort =
+                Objects.requireNonNull(verificationTokenStorePort, "verificationTokenStorePort must not be null");
+        this.publishAuthEventPort =
+                Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
+        this.syncUserToUsersMsPort =
+                Objects.requireNonNull(syncUserToUsersMsPort, "syncUserToUsersMsPort must not be null");
     }
 
     // Registra um novo usuário (com roles/defaults), impede e-mail duplicado, persiste, opcionalmente auto-confirma e dispara e-mail/token e evento.
@@ -69,13 +84,18 @@ public class RegisterUserService implements RegisterUserUseCase {
 
         log.debug(
                 "[RegisterUserService] - [register] -> Iniciando registro de usuário email={} firstName={} lastName={} locale={} roles={}",
-                email.value(), command.firstName(), command.lastName(), locale, roleNames
+                email.value(),
+                command.firstName(),
+                command.lastName(),
+                locale,
+                roleNames
         );
 
         loadAuthUserByEmailPort.loadByEmail(email).ifPresent(existing -> {
             log.warn(
                     "[RegisterUserService] - [register] -> Email já registrado email={} userId={}",
-                    email.value(), existing.id().value()
+                    email.value(),
+                    existing.id().value()
             );
             throw new AuthException(
                     AuthErrorCode.EMAIL_ALREADY_REGISTERED,
@@ -136,14 +156,16 @@ public class RegisterUserService implements RegisterUserUseCase {
 
             log.debug(
                     "[RegisterUserService] - [register] -> Token de verificação criado userId={} tokenMask={}",
-                    persisted.id().value(), maskToken(token)
+                    persisted.id().value(),
+                    maskToken(token)
             );
 
             sendVerificationEmailPort.send(persisted, token);
 
             log.debug(
                     "[RegisterUserService] - [register] -> Email de verificação enviado userId={} email={}",
-                    persisted.id().value(), persisted.email().value()
+                    persisted.id().value(),
+                    persisted.email().value()
             );
         }
 
@@ -159,7 +181,9 @@ public class RegisterUserService implements RegisterUserUseCase {
 
     // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
-        if (token == null || token.isBlank()) return "***";
+        if (token == null || token.isBlank()) {
+            return "***";
+        }
         return token.length() > 10
                 ? token.substring(0, 10) + "..."
                 : "***";

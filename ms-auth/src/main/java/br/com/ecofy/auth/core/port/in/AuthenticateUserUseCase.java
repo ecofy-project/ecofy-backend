@@ -9,15 +9,10 @@ public interface AuthenticateUserUseCase {
     record AuthenticationCommand(
 
             String clientId,
-
             String clientSecret,
-
             String username,
-
             String password,
-
             String scope,
-
             String ipAddress
 
     ) { }
@@ -25,11 +20,8 @@ public interface AuthenticateUserUseCase {
     record AuthenticationResult(
 
             JwtToken accessToken,
-
             String refreshToken,
-
             long expiresInSeconds,
-
             String tokenType
 
     ) { }

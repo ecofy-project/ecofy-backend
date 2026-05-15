@@ -10,6 +10,7 @@ import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -18,13 +19,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AuthUserJpaAdapterTest {
 
-    @org.mockito.Mock
+    @Mock
     private AuthUserRepository authUserRepository;
 
     @Test
@@ -36,8 +38,10 @@ class AuthUserJpaAdapterTest {
     @Test
     void save_shouldRejectNullUser() {
         AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.save(null));
         assertEquals("user must not be null", ex.getMessage());
+
         verifyNoInteractions(authUserRepository);
     }
 
@@ -59,12 +63,11 @@ class AuthUserJpaAdapterTest {
                     .thenReturn(mappedDomain);
 
             AuthUser result = adapter.save(user);
-
             assertSame(mappedDomain, result);
         }
 
         AuthUserEntity savedEntity = entityCaptor.getValue();
-        assertNotNull(savedEntity.getId());
+        assertNotNull(savedEntity);
         assertEquals(id, savedEntity.getId());
         assertEquals("user@ecofy.com", savedEntity.getEmail());
         assertNotNull(savedEntity.getCreatedAt());
@@ -75,7 +78,6 @@ class AuthUserJpaAdapterTest {
         verify(authUserRepository).save(any(AuthUserEntity.class));
         verifyNoMoreInteractions(authUserRepository);
     }
-
 
     @Test
     void save_shouldUpdateExistingEntity_whenFound_andKeepExistingCreatedAt_whenAlreadySet() {
@@ -96,11 +98,10 @@ class AuthUserJpaAdapterTest {
 
         AuthUser mappedDomain = mock(AuthUser.class);
         try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(any(AuthUserEntity.class), any(), any()))
+            mocked.when(() -> PersistenceMapper.toDomain(same(existing), any(), any()))
                     .thenReturn(mappedDomain);
 
             AuthUser result = adapter.save(user);
-
             assertSame(mappedDomain, result);
         }
 
@@ -133,15 +134,15 @@ class AuthUserJpaAdapterTest {
 
         AuthUser mappedDomain = mock(AuthUser.class);
         try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(any(AuthUserEntity.class), any(), any()))
+            mocked.when(() -> PersistenceMapper.toDomain(same(existing), any(), any()))
                     .thenReturn(mappedDomain);
 
             AuthUser result = adapter.save(user);
-
             assertSame(mappedDomain, result);
         }
 
         AuthUserEntity savedEntity = entityCaptor.getValue();
+        assertSame(existing, savedEntity);
         assertNotNull(savedEntity.getCreatedAt());
         assertNotNull(savedEntity.getUpdatedAt());
 
@@ -153,8 +154,10 @@ class AuthUserJpaAdapterTest {
     @Test
     void loadByEmail_shouldRejectNullEmail() {
         AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadByEmail(null));
         assertEquals("email must not be null", ex.getMessage());
+
         verifyNoInteractions(authUserRepository);
     }
 
@@ -204,8 +207,10 @@ class AuthUserJpaAdapterTest {
     @Test
     void loadById_shouldRejectNullId() {
         AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadById(null));
         assertEquals("id must not be null", ex.getMessage());
+
         verifyNoInteractions(authUserRepository);
     }
 

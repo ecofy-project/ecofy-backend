@@ -4,13 +4,12 @@ import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.JwkKeyRepository;
 import br.com.ecofy.auth.core.domain.JwkKey;
 import br.com.ecofy.auth.core.port.out.JwksRepositoryPort;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Slf4j
@@ -47,6 +46,4 @@ public class JwksJpaAdapter implements JwksRepositoryPort {
 
         return List.copyOf(keys);
     }
-
 }
-

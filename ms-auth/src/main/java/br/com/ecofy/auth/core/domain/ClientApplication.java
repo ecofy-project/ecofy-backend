@@ -20,14 +20,11 @@ public class ClientApplication {
 
     private final String name;
     private final ClientType clientType;
-
     private final Set<GrantType> grantTypes;
     private final Set<String> redirectUris;
     private final Set<String> scopes;
-
     private final boolean firstParty;
     private boolean active;
-
     private final Instant createdAt;
     private Instant updatedAt;
 

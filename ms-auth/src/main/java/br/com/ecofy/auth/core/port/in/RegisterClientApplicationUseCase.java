@@ -13,17 +13,12 @@ public interface RegisterClientApplicationUseCase {
     record RegisterClientCommand(
 
             String name,
-
             ClientType clientType,
-
             Set<GrantType> grantTypes,
-
             Set<String> redirectUris,
-
             Set<String> scopes,
-
             boolean firstParty
 
-    ) { }
+    ) {}
 
 }

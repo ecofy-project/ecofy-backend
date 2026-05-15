@@ -4,14 +4,13 @@ import br.com.ecofy.auth.adapters.out.persistence.AuthUserJpaAdapter;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.port.out.CurrentUserProviderPort;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
-
-import java.util.Objects;
-import java.util.UUID;
 
 @Component
 @Slf4j
@@ -21,31 +20,41 @@ public class SpringSecurityCurrentUserAdapter implements CurrentUserProviderPort
 
     // Injeta o adapter JPA de usuário e garante que ele não seja nulo para carregar o usuário autenticado.
     public SpringSecurityCurrentUserAdapter(AuthUserJpaAdapter authUserJpaAdapter) {
-        this.authUserJpaAdapter = Objects.requireNonNull(authUserJpaAdapter, "authUserJpaAdapter must not be null");
+        this.authUserJpaAdapter = Objects.requireNonNull(
+                authUserJpaAdapter,
+                "authUserJpaAdapter must not be null"
+        );
     }
 
     // Resolve o usuário atual a partir do JWT no SecurityContext e carrega o AuthUser no banco (lança erro se falhar).
     @Override
     public AuthUser getCurrentUserOrThrow() {
-        log.debug("[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Iniciando resolução do usuário atual");
+        log.debug(
+                "[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Iniciando resolução do usuário atual"
+        );
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null) {
-            log.warn("[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Authentication nulo no SecurityContext");
+            log.warn(
+                    "[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Authentication nulo no SecurityContext"
+            );
             throw new IllegalStateException("Usuário não autenticado");
         }
 
         if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
-            log.warn("[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Principal não é JWT. Principal={}",
-                    authentication.getPrincipal().getClass().getSimpleName());
+            log.warn(
+                    "[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Principal não é JWT. Principal={}",
+                    authentication.getPrincipal().getClass().getSimpleName()
+            );
             throw new IllegalStateException("JWT inválido ou ausente");
         }
 
         // Extra log contextual
         log.debug(
                 "[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> JWT recebido: sub={}, jti={}",
-                jwt.getSubject(), jwt.getId()
+                jwt.getSubject(),
+                jwt.getId()
         );
 
         UUID userId;
@@ -64,7 +73,8 @@ public class SpringSecurityCurrentUserAdapter implements CurrentUserProviderPort
                 .map(user -> {
                     log.debug(
                             "[SpringSecurityCurrentUserAdapter] - [getCurrentUserOrThrow] -> Usuário autenticado carregado id={} email={}",
-                            user.id().value(), user.email().value()
+                            user.id().value(),
+                            user.email().value()
                     );
                     return user;
                 })
@@ -76,6 +86,4 @@ public class SpringSecurityCurrentUserAdapter implements CurrentUserProviderPort
                     return new IllegalStateException("Usuário autenticado não encontrado");
                 });
     }
-
 }
-

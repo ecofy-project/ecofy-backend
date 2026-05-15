@@ -7,6 +7,7 @@ import br.com.ecofy.auth.core.domain.ClientApplication;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -14,13 +15,14 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ClientApplicationJpaAdapterTest {
 
-    @org.mockito.Mock
+    @Mock
     private ClientApplicationRepository repository;
 
     @Test
@@ -32,8 +34,10 @@ class ClientApplicationJpaAdapterTest {
     @Test
     void save_shouldRejectNullClientApplication() {
         ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.save(null));
         assertEquals("clientApplication must not be null", ex.getMessage());
+
         verifyNoInteractions(repository);
     }
 
@@ -49,9 +53,6 @@ class ClientApplicationJpaAdapterTest {
         entity.setClientId("client-1");
         entity.setCreatedAt(null);
 
-        ClientApplicationEntity savedEntity = new ClientApplicationEntity();
-        savedEntity.setClientId("client-1");
-
         ArgumentCaptor<ClientApplicationEntity> captor = ArgumentCaptor.forClass(ClientApplicationEntity.class);
         when(repository.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -61,7 +62,6 @@ class ClientApplicationJpaAdapterTest {
             mocked.when(() -> PersistenceMapper.toDomain(any(ClientApplicationEntity.class))).thenReturn(mappedDomain);
 
             ClientApplication result = adapter.save(domain);
-
             assertSame(mappedDomain, result);
         }
 
@@ -97,7 +97,6 @@ class ClientApplicationJpaAdapterTest {
             mocked.when(() -> PersistenceMapper.toDomain(any(ClientApplicationEntity.class))).thenReturn(mappedDomain);
 
             ClientApplication result = adapter.save(domain);
-
             assertSame(mappedDomain, result);
         }
 
@@ -113,8 +112,10 @@ class ClientApplicationJpaAdapterTest {
     @Test
     void loadByClientId_shouldRejectNullClientId() {
         ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadByClientId(null));
         assertEquals("clientId must not be null", ex.getMessage());
+
         verifyNoInteractions(repository);
     }
 

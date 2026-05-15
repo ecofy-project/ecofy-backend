@@ -5,13 +5,12 @@ import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.domain.JwkKey;
 import br.com.ecofy.auth.core.port.in.GetJwksUseCase;
 import br.com.ecofy.auth.core.port.out.JwksRepositoryPort;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 // Serviço responsável por montar o JWKS (JSON Web Key Set) para exposição no endpoint /.well-known/jwks.json.
 @Slf4j
@@ -71,7 +70,9 @@ public class JwksService implements GetJwksUseCase {
 
         log.debug(
                 "[JwksService] - [convertToJwkEntry] -> Convertendo keyId={} alg={} use={}",
-                key.keyId(), key.algorithm(), key.use()
+                key.keyId(),
+                key.algorithm(),
+                key.use()
         );
 
         return m;

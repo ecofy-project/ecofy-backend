@@ -7,9 +7,8 @@ public interface RevokeTokenUseCase {
     record RevokeTokenCommand(
 
             String token,
-
             boolean refreshToken
 
-    ) { }
+    ) {}
 
 }

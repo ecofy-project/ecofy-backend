@@ -7,7 +7,6 @@ import java.util.List;
 public record ImportJobStatusResponse(
 
         ImportJobResponse job,
-
         List<ImportErrorResponse> errors
 
 ) {

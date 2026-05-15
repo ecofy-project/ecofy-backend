@@ -1,12 +1,21 @@
 package br.com.ecofy.auth.adapters.out.persistence.mapper;
 
-import br.com.ecofy.auth.adapters.out.persistence.entity.*;
-import br.com.ecofy.auth.core.domain.*;
+import br.com.ecofy.auth.adapters.out.persistence.entity.AuthUserEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.ClientApplicationEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.JwkKeyEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.PermissionEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.RefreshTokenEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity;
+import br.com.ecofy.auth.core.domain.AuthUser;
+import br.com.ecofy.auth.core.domain.ClientApplication;
+import br.com.ecofy.auth.core.domain.JwkKey;
+import br.com.ecofy.auth.core.domain.Permission;
+import br.com.ecofy.auth.core.domain.RefreshToken;
+import br.com.ecofy.auth.core.domain.Role;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
-
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
@@ -20,11 +29,11 @@ public final class PersistenceMapper {
     }
 
     // Converte AuthUser (domínio) para AuthUserEntity (persistência/JPA).
-    static AuthUserEntity toEntity(AuthUser user) {
+    public static AuthUserEntity toEntity(AuthUser user) {
         Objects.requireNonNull(user, "user must not be null");
 
         AuthUserEntity entity = new AuthUserEntity();
-        entity.setId(user.id().value());          // UUID
+        entity.setId(user.id().value()); // UUID
         entity.setEmail(user.email().value());
         entity.setPasswordHash(user.passwordHash().value());
         entity.setStatus(user.status());
@@ -43,7 +52,7 @@ public final class PersistenceMapper {
     }
 
     // Converte AuthUserEntity (persistência) + roles/perms carregadas para AuthUser (domínio).
-     public static AuthUser toDomain(
+    public static AuthUser toDomain(
             AuthUserEntity e,
             Set<RoleEntity> roleEntities,
             Set<PermissionEntity> permEntities
@@ -99,7 +108,7 @@ public final class PersistenceMapper {
     }
 
     // Converte PermissionEntity (persistência) para Permission (domínio).
-    static Permission toDomain(PermissionEntity e) {
+    public static Permission toDomain(PermissionEntity e) {
         Objects.requireNonNull(e, "PermissionEntity must not be null");
         return new Permission(e.getName(), e.getDescription(), e.getDomain());
     }
@@ -211,6 +220,4 @@ public final class PersistenceMapper {
                 e.isActive()
         );
     }
-
-
 }

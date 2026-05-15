@@ -8,6 +8,6 @@ public interface RequestPasswordResetUseCase {
 
             String email
 
-    ) { }
+    ) {}
 
 }

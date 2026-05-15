@@ -9,17 +9,11 @@ import java.util.UUID;
 public record ImportErrorResponse(
 
         UUID id,
-
         UUID importJobId,
-
         Integer lineNumber,
-
         String rawContent,
-
         ImportErrorType errorType,
-
         String errorMessage,
-
         Instant createdAt
 
 ) {

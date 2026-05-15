@@ -7,9 +7,8 @@ public interface ResetPasswordUseCase {
     record ResetPasswordCommand(
 
             String resetToken,
-
             String newPassword
 
-    ) { }
+    ) {}
 
 }

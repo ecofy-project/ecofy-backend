@@ -5,12 +5,11 @@ import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.RefreshTokenRepository;
 import br.com.ecofy.auth.core.domain.RefreshToken;
 import br.com.ecofy.auth.core.port.out.RefreshTokenStorePort;
+import java.util.Objects;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Objects;
-import java.util.Optional;
 
 @Component
 @Slf4j
@@ -31,7 +30,9 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
 
         log.debug(
                 "[RefreshTokenJpaAdapter] - [save] -> Salvando refreshToken id={} userId={} clientId={}",
-                token.id(), token.userId().value(), token.clientId()
+                token.id(),
+                token.userId().value(),
+                token.clientId()
         );
 
         RefreshTokenEntity entity = PersistenceMapper.toEntity(token);
@@ -39,7 +40,8 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
 
         log.debug(
                 "[RefreshTokenJpaAdapter] - [save] -> RefreshToken persistido id={} revoked={}",
-                saved.getId(), saved.isRevoked()
+                saved.getId(),
+                saved.isRevoked()
         );
 
         return PersistenceMapper.toDomain(saved);
@@ -60,7 +62,8 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
                 .map(entity -> {
                     log.debug(
                             "[RefreshTokenJpaAdapter] - [findByTokenValue] -> RefreshToken encontrado id={} revoked={}",
-                            entity.getId(), entity.isRevoked()
+                            entity.getId(),
+                            entity.isRevoked()
                     );
                     return PersistenceMapper.toDomain(entity);
                 });
@@ -84,12 +87,14 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
 
                 log.debug(
                         "[RefreshTokenJpaAdapter] - [revoke] -> RefreshToken revogado id={} tokenValue={}",
-                        entity.getId(), tokenValue
+                        entity.getId(),
+                        tokenValue
                 );
             } else {
                 log.debug(
                         "[RefreshTokenJpaAdapter] - [revoke] -> RefreshToken já estava revogado id={} tokenValue={}",
-                        entity.getId(), tokenValue
+                        entity.getId(),
+                        tokenValue
                 );
             }
         }, () -> log.debug(
@@ -97,5 +102,4 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
                 tokenValue
         ));
     }
-
 }

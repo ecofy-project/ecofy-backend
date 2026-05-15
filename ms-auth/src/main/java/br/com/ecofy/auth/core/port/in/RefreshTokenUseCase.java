@@ -5,9 +5,7 @@ public interface RefreshTokenUseCase {
     record RefreshTokenResult(
 
             String accessToken,
-
             String refreshToken,
-
             long expiresInSeconds
 
     ) { }
@@ -17,11 +15,9 @@ public interface RefreshTokenUseCase {
     record RefreshTokenCommand(
 
             String clientId,
-
             String refreshToken,
-
             String scope
 
-    ) { }
+    ) {}
 
 }

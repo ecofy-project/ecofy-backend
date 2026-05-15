@@ -10,6 +10,6 @@ public interface ConfirmEmailUseCase {
 
             String verificationToken
 
-    ) { }
+    ) {}
 
 }

@@ -8,6 +8,7 @@ import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -15,13 +16,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RefreshTokenJpaAdapterTest {
 
-    @org.mockito.Mock
+    @Mock
     private RefreshTokenRepository repository;
 
     @Test
@@ -33,8 +35,10 @@ class RefreshTokenJpaAdapterTest {
     @Test
     void save_shouldRejectNullToken() {
         RefreshTokenJpaAdapter adapter = new RefreshTokenJpaAdapter(repository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.save(null));
         assertEquals("token must not be null", ex.getMessage());
+
         verifyNoInteractions(repository);
     }
 
@@ -44,9 +48,11 @@ class RefreshTokenJpaAdapterTest {
 
         RefreshToken token = mock(RefreshToken.class);
         when(token.id()).thenReturn(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+
         AuthUserId userId = mock(AuthUserId.class);
         when(userId.value()).thenReturn(UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));
         when(token.userId()).thenReturn(userId);
+
         when(token.clientId()).thenReturn("client-1");
 
         RefreshTokenEntity entity = new RefreshTokenEntity();
@@ -62,7 +68,6 @@ class RefreshTokenJpaAdapterTest {
             mocked.when(() -> PersistenceMapper.toDomain(any(RefreshTokenEntity.class))).thenReturn(mappedDomain);
 
             RefreshToken result = adapter.save(token);
-
             assertSame(mappedDomain, result);
         }
 
@@ -74,8 +79,10 @@ class RefreshTokenJpaAdapterTest {
     @Test
     void findByTokenValue_shouldRejectNullTokenValue() {
         RefreshTokenJpaAdapter adapter = new RefreshTokenJpaAdapter(repository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.findByTokenValue(null));
         assertEquals("tokenValue must not be null", ex.getMessage());
+
         verifyNoInteractions(repository);
     }
 
@@ -120,8 +127,10 @@ class RefreshTokenJpaAdapterTest {
     @Test
     void revoke_shouldRejectNullTokenValue() {
         RefreshTokenJpaAdapter adapter = new RefreshTokenJpaAdapter(repository);
+
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.revoke(null));
         assertEquals("tokenValue must not be null", ex.getMessage());
+
         verifyNoInteractions(repository);
     }
 

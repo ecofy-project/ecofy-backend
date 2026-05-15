@@ -7,6 +7,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.time.Duration;
+import java.util.Collection;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.CacheControl;
@@ -14,11 +17,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-
-import java.time.Duration;
-import java.util.Collection;
-import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping(path = "/.well-known", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -29,7 +30,6 @@ import java.util.Map;
 public class JwksController {
 
     private final GetJwksUseCase getJwksUseCase;
-
 
     @Operation(
             summary = "Retorna o documento JWKS",
@@ -78,5 +78,4 @@ public class JwksController {
         );
         return headers;
     }
-
 }

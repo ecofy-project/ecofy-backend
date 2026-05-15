@@ -7,4 +7,4 @@ public record ValidateTokenRequest(
         @NotBlank
         String token
 
-) { }
+) {}

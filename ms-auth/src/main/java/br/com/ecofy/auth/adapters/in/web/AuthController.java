@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.CacheControl;
@@ -25,9 +26,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-
-import java.time.Duration;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping(path = "/api/auth", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -47,26 +49,33 @@ public class AuthController {
             description = """
                     Endpoint de autenticação baseado em usuário/senha.
                     Segue o fluxo semelhante ao OAuth2 Password/ROPC, retornando access_token e refresh_token.
-                    """)
+                    """
+    )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Token emitido com sucesso",
-                    content = @Content(schema = @Schema(implementation = TokenResponse.class))),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Token emitido com sucesso",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))
+            ),
             @ApiResponse(responseCode = "400", description = "Requisição inválida (dados faltando ou inválidos)"),
             @ApiResponse(responseCode = "401", description = "Credenciais inválidas"),
             @ApiResponse(responseCode = "429", description = "Muitas tentativas (rate limit)"),
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
     })
-    @PostMapping(
-            path = "/token",
-            consumes = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<TokenResponse> token(@Valid @RequestBody LoginRequest request,
-                                               HttpServletRequest httpRequest) {
+    @PostMapping(path = "/token", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<TokenResponse> token(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest
+    ) {
 
         String clientIp = resolveClientIp(httpRequest);
 
-        log.debug("[AuthController] - [token] -> Autenticando usuário username={} clientId={} ip={}",
-                request.username(), request.clientId(), clientIp);
+        log.debug(
+                "[AuthController] - [token] -> Autenticando usuário username={} clientId={} ip={}",
+                request.username(),
+                request.clientId(),
+                clientIp
+        );
 
         var result = authenticateUserUseCase.authenticate(
                 new AuthenticateUserUseCase.AuthenticationCommand(
@@ -79,8 +88,11 @@ public class AuthController {
                 )
         );
 
-        log.debug("[AuthController] - [token] -> Token emitido com sucesso username={} clientId={}",
-                request.username(), request.clientId());
+        log.debug(
+                "[AuthController] - [token] -> Token emitido com sucesso username={} clientId={}",
+                request.username(),
+                request.clientId()
+        );
 
         TokenResponse response = new TokenResponse(
                 result.tokenType(),
@@ -100,18 +112,19 @@ public class AuthController {
             description = """
                     Endpoint para renovação do access token.
                     Recebe refresh_token válido e retorna novo access_token (e opcionalmente novo refresh_token).
-                    """)
+                    """
+    )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Token renovado com sucesso",
-                    content = @Content(schema = @Schema(implementation = TokenResponse.class))),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Token renovado com sucesso",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))
+            ),
             @ApiResponse(responseCode = "400", description = "Refresh token inválido"),
             @ApiResponse(responseCode = "401", description = "Refresh token expirado ou revogado"),
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
     })
-    @PostMapping(
-            path = "/refresh",
-            consumes = MediaType.APPLICATION_JSON_VALUE
-    )
+    @PostMapping(path = "/refresh", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
 
         log.debug("[AuthController] - [refresh] -> Renovando token clientId={}", request.clientId());
@@ -124,7 +137,10 @@ public class AuthController {
                 )
         );
 
-        log.debug("[AuthController] - [refresh] -> Token renovado com sucesso clientId={}", request.clientId());
+        log.debug(
+                "[AuthController] - [refresh] -> Token renovado com sucesso clientId={}",
+                request.clientId()
+        );
 
         TokenResponse response = new TokenResponse(
                 "Bearer",
@@ -144,26 +160,21 @@ public class AuthController {
             description = """
                     Revoga um token emitido pelo ms-auth.
                     Atualmente trata principalmente refresh tokens (logout).
-                    
+
                     Em geral, o cliente deve enviar o refresh_token para encerrar a sessão.
-                    """)
+                    """
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Token revogado com sucesso"),
             @ApiResponse(responseCode = "400", description = "Requisição inválida (token ausente ou malformado)"),
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
     })
-    @PostMapping(
-            path = "/revoke",
-            consumes = MediaType.APPLICATION_JSON_VALUE
-    )
+    @PostMapping(path = "/revoke", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> revoke(@Valid @RequestBody RevokeTokenRequest request) {
 
         boolean isRefresh = request.refreshToken() == null || request.refreshToken();
 
-        log.debug(
-                "[AuthController] - [revoke] -> Revogando token (refreshToken={})",
-                isRefresh
-        );
+        log.debug("[AuthController] - [revoke] -> Revogando token (refreshToken={})", isRefresh);
 
         revokeTokenUseCase.revoke(
                 new RevokeTokenUseCase.RevokeTokenCommand(
@@ -183,21 +194,21 @@ public class AuthController {
     @Operation(
             summary = "Valida um access token JWT",
             description = """
-                Valida a assinatura e a expiração de um token JWT.
-                Retorna os claims principais caso o token seja válido.
-                """
+                    Valida a assinatura e a expiração de um token JWT.
+                    Retorna os claims principais caso o token seja válido.
+                    """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Token válido",
-                    content = @Content(schema = @Schema(implementation = ValidateTokenResponse.class))),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Token válido",
+                    content = @Content(schema = @Schema(implementation = ValidateTokenResponse.class))
+            ),
             @ApiResponse(responseCode = "400", description = "Token inválido ou malformado"),
             @ApiResponse(responseCode = "401", description = "Token expirado ou inválido"),
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
     })
-    @PostMapping(
-            path = "/validate",
-            consumes = MediaType.APPLICATION_JSON_VALUE
-    )
+    @PostMapping(path = "/validate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ValidateTokenResponse> validate(@Valid @RequestBody ValidateTokenRequest request) {
 
         log.debug("[AuthController] - [validate] -> Validando token");
@@ -212,30 +223,30 @@ public class AuthController {
                 .body(response);
     }
 
-
     private String resolveClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             return forwarded.split(",")[0].trim();
         }
+
         String realIp = request.getHeader("X-Real-IP");
         if (realIp != null && !realIp.isBlank()) {
             return realIp;
         }
+
         return request.getRemoteAddr();
     }
 
     private HttpHeaders oauthNoStoreHeaders() {
         HttpHeaders headers = new HttpHeaders();
+
         CacheControl.noStore()
                 .mustRevalidate()
                 .cachePrivate();
-        headers.setCacheControl(
-                CacheControl
-                        .maxAge(Duration.ZERO)
-        );
+
+        headers.setCacheControl(CacheControl.maxAge(Duration.ZERO));
         headers.add("Pragma", "no-cache");
+
         return headers;
     }
-
 }

@@ -9,4 +9,4 @@ public record PasswordResetRequest(
         @NotBlank
         String email
 
-) { }
+) {}

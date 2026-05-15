@@ -8,12 +8,16 @@ import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import br.com.ecofy.auth.core.port.in.RequestPasswordResetUseCase;
 import br.com.ecofy.auth.core.port.in.ResetPasswordUseCase;
-import br.com.ecofy.auth.core.port.out.*;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
+import br.com.ecofy.auth.core.port.out.LoadAuthUserByEmailPort;
+import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
+import br.com.ecofy.auth.core.port.out.PasswordResetTokenStorePort;
+import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
+import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
+import br.com.ecofy.auth.core.port.out.SendResetPasswordEmailPort;
 import java.util.Objects;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 // Serviço responsável pelo fluxo de recuperação de senha: solicitar reset (gerar token e enviar e-mail) e efetivar reset (validar token e atualizar senha).
 @Slf4j
@@ -28,13 +32,14 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
     private final PublishAuthEventPort publishAuthEventPort;
 
     // Inicializa o serviço com as portas necessárias para buscar usuário, armazenar token, enviar e-mail, salvar usuário e publicar eventos.
-    public PasswordResetService(LoadAuthUserByEmailPort loadAuthUserByEmailPort,
-                                PasswordResetTokenStorePort passwordResetTokenStorePort,
-                                SendResetPasswordEmailPort sendResetPasswordEmailPort,
-                                SaveAuthUserPort saveAuthUserPort,
-                                PasswordHashingPort passwordHashingPort,
-                                PublishAuthEventPort publishAuthEventPort) {
-
+    public PasswordResetService(
+            LoadAuthUserByEmailPort loadAuthUserByEmailPort,
+            PasswordResetTokenStorePort passwordResetTokenStorePort,
+            SendResetPasswordEmailPort sendResetPasswordEmailPort,
+            SaveAuthUserPort saveAuthUserPort,
+            PasswordHashingPort passwordHashingPort,
+            PublishAuthEventPort publishAuthEventPort
+    ) {
         this.loadAuthUserByEmailPort =
                 Objects.requireNonNull(loadAuthUserByEmailPort, "loadAuthUserByEmailPort must not be null");
         this.passwordResetTokenStorePort =
@@ -78,7 +83,8 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
 
         log.debug(
                 "[PasswordResetService] - [requestReset] -> Token gerado userId={} token={}",
-                user.id().value(), masked
+                user.id().value(),
+                masked
         );
 
         passwordResetTokenStorePort.store(user, resetToken);
@@ -86,7 +92,8 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
 
         log.debug(
                 "[PasswordResetService] - [requestReset] -> E-mail de reset enviado userId={} email={}",
-                user.id().value(), user.email().value()
+                user.id().value(),
+                user.email().value()
         );
 
         publishAuthEventPort.publish(new PasswordResetRequestedEvent(user, resetToken));
@@ -140,7 +147,9 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
 
     // Mascara tokens para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
-        if (token == null || token.isBlank()) return "***";
+        if (token == null || token.isBlank()) {
+            return "***";
+        }
         return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
     }
 }

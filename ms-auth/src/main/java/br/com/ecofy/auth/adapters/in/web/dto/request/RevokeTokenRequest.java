@@ -9,4 +9,4 @@ public record RevokeTokenRequest(
 
         Boolean refreshToken
 
-) { }
+) {}
