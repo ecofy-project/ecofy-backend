@@ -9,13 +9,13 @@ import java.util.Objects;
 // Value object que encapsula um JWT emitido, com expiração e tipo, evitando uso indevido do token como String solta.
 public final class JwtToken {
 
-    /** Valor serializado do JWT (header.payload.signature). */
+    // Valor serializado do JWT (header.payload.signature).
     private final String value;
 
-    /** Instante exato em que o token expira. */
+    // Instante exato em que o token expira.
     private final Instant expiresAt;
 
-    /** Tipo do token: ACCESS / REFRESH. */
+    // Tipo do token: ACCESS / REFRESH.
     private final TokenType type;
 
     // Constrói o token validando/normalizando o valor, definindo expiração e tipo, e evitando token já expirado.

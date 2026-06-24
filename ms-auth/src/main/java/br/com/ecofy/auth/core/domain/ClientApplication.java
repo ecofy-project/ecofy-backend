@@ -9,13 +9,13 @@ import java.util.*;
 // Agregado que representa um client OAuth2/OIDC registrado no ms-auth.
 public class ClientApplication {
 
-    /** Identificador interno (UUID string). Nunca exposto a clientes. */
+    // Identificador interno (UUID string). Nunca exposto a clientes.
     private final String id;
 
-    /** Identificador público usado como client_id no protocolo OAuth2/OIDC. */
+    // Identificador público usado como client_id no protocolo OAuth2/OIDC.
     private final String clientId;
 
-    /** Hash do client_secret (nunca armazenar o segredo em texto puro). */
+    // Hash do client_secret (nunca armazenar o segredo em texto puro).
     private String clientSecretHash;
 
     private final String name;

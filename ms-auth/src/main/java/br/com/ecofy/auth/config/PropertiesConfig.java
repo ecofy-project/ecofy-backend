@@ -5,4 +5,6 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @EnableConfigurationProperties(UsersMsProperties.class)
-public class PropertiesConfig {}
+public class PropertiesConfig {
+
+}

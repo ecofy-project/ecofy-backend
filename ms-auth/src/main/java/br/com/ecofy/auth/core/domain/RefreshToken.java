@@ -11,28 +11,28 @@ import java.util.UUID;
 // Agregado do domínio que representa um refresh token (opaco ou JWT) associado a um usuário e a um client OAuth/OIDC.
 public class RefreshToken {
 
-    /** Identificador interno do refresh token (UUID). */
+    // Identificador interno do refresh token (UUID).
     private final UUID id;
 
-    /** Valor do token entregue ao cliente (opaco ou JWT). */
+    // Valor do token entregue ao cliente (opaco ou JWT).
     private final String tokenValue;
 
-    /** Referência ao usuário dono do token. */
+    // Referência ao usuário dono do token.
     private final AuthUserId userId;
 
-    /** client_id do client OAuth/OIDC que recebeu o token. */
+    // client_id do client OAuth/OIDC que recebeu o token.
     private final String clientId;
 
-    /** Instante de emissão do token. */
+    // Instante de emissão do token.
     private final Instant issuedAt;
 
-    /** Instante de expiração do token. */
+    // Instante de expiração do token.
     private final Instant expiresAt;
 
-    /** Flag de revogação (logout, rotação, comprometimento, etc.). */
+    // Flag de revogação (logout, rotação, comprometimento, etc.).
     private boolean revoked;
 
-    /** Tipo do token; neste agregado deve ser sempre REFRESH. */
+    // Tipo do token; neste agregado deve ser sempre REFRESH.
     private final TokenType type;
 
     public RefreshToken(UUID id,
