@@ -1,7 +1,5 @@
 package br.com.ecofy.ms_categorization.core.application.service;
 
-import br.com.ecofy.ms_categorization.adapters.out.messaging.dto.CategorizationAppliedEvent;
-import br.com.ecofy.ms_categorization.adapters.out.messaging.dto.CategorizedTransactionEvent;
 import br.com.ecofy.ms_categorization.core.application.command.ManualCategorizeCommand;
 import br.com.ecofy.ms_categorization.core.application.exception.CategoryNotFoundException;
 import br.com.ecofy.ms_categorization.core.application.exception.TransactionNotFoundException;
@@ -9,6 +7,8 @@ import br.com.ecofy.ms_categorization.core.application.result.CategorizationResu
 import br.com.ecofy.ms_categorization.core.domain.CategorizationSuggestion;
 import br.com.ecofy.ms_categorization.core.domain.Transaction;
 import br.com.ecofy.ms_categorization.core.domain.enums.SuggestionStatus;
+import br.com.ecofy.ms_categorization.core.domain.event.CategorizationAppliedDomainEvent;
+import br.com.ecofy.ms_categorization.core.domain.event.CategorizedTransactionDomainEvent;
 import br.com.ecofy.ms_categorization.core.port.in.ManualCategorizationUseCase;
 import br.com.ecofy.ms_categorization.core.port.out.LoadCategoriesPortOut;
 import br.com.ecofy.ms_categorization.core.port.out.LoadTransactionPortOut;
@@ -94,7 +94,7 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
 
     // Publica eventos de transação categorizada e auditoria de aplicação para consumo por serviços downstream.
     private void publishEvents(Transaction updated, UUID suggestionId, Instant now) {
-        publishPort.publish(new CategorizedTransactionEvent(
+        publishPort.publish(new CategorizedTransactionDomainEvent(
                 UUID.randomUUID(),
                 updated.getId(),
                 updated.getImportJobId(),
@@ -107,7 +107,7 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
                 now
         ));
 
-        publishPort.publish(new CategorizationAppliedEvent(
+        publishPort.publish(new CategorizationAppliedDomainEvent(
                 UUID.randomUUID(),
                 updated.getId(),
                 updated.getCategoryId(),
