@@ -28,7 +28,9 @@ public class RawTransactionForCategorizationConsumer {
     // Consome eventos de transações brutas, aciona autocategorização e confirma o offset manualmente.
     @KafkaListener(
             topics = "${ecofy.categorization.topics.categorization-request}",
-            groupId = "${spring.application.name}",
+            // Herda o consumer group central (spring.kafka.consumer.group-id) em vez de hardcodar
+            // spring.application.name, que ignorava a config do YAML.
+            groupId = "${spring.kafka.consumer.group-id:ms-categorization}",
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(

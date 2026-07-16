@@ -3,6 +3,8 @@ package br.com.ecofy.ms_categorization.adapters.out.messaging;
 import br.com.ecofy.ms_categorization.adapters.out.messaging.dto.CategorizationAppliedEvent;
 import br.com.ecofy.ms_categorization.adapters.out.messaging.dto.CategorizedTransactionEvent;
 import br.com.ecofy.ms_categorization.config.CategorizationProperties;
+import br.com.ecofy.ms_categorization.core.domain.event.CategorizationAppliedDomainEvent;
+import br.com.ecofy.ms_categorization.core.domain.event.CategorizedTransactionDomainEvent;
 import br.com.ecofy.ms_categorization.core.port.out.PublishCategorizedTransactionEventPortOut;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,18 +24,32 @@ public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTra
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final CategorizationProperties props;
 
-    // Publica o evento de transação categorizada no tópico Kafka configurado.
+    // Recebe o evento de DOMÍNIO, converte para o DTO Kafka de saída e publica no tópico configurado.
     @Override
-    public void publish(CategorizedTransactionEvent event) {
+    public void publish(CategorizedTransactionDomainEvent event) {
         Objects.requireNonNull(event, "event must not be null");
 
         final String topic = props.getTopics().getTransactionCategorized();
         final String key = event.transactionId().toString();
 
+        // Mapping DOMÍNIO -> DTO Kafka acontece AQUI (no adapter), não no core.
+        CategorizedTransactionEvent dto = new CategorizedTransactionEvent(
+                event.eventId(),
+                event.transactionId(),
+                event.importJobId(),
+                event.externalId(),
+                event.transactionDate(),
+                event.amount(),
+                event.currency(),
+                event.categoryId(),
+                event.mode(),
+                event.occurredAt()
+        );
+
         log.info("[CategorizedTransactionKafkaAdapter] - [publishCategorized] -> txId={} categoryId={} topic={}",
                 event.transactionId(), event.categoryId(), topic);
 
-        CompletableFuture<SendResult<String, Object>> fut = kafkaTemplate.send(topic, key, event);
+        CompletableFuture<SendResult<String, Object>> fut = kafkaTemplate.send(topic, key, dto);
 
         fut.whenComplete((res, ex) -> {
             if (ex != null) {
@@ -47,18 +63,29 @@ public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTra
         });
     }
 
-    // Publica o evento de categorização aplicada no tópico Kafka configurado.
+    // Recebe o evento de DOMÍNIO de auditoria, converte para o DTO Kafka de saída e publica.
     @Override
-    public void publish(CategorizationAppliedEvent event) {
+    public void publish(CategorizationAppliedDomainEvent event) {
         Objects.requireNonNull(event, "event must not be null");
 
         final String topic = props.getTopics().getCategorizationApplied();
         final String key = event.transactionId().toString();
 
+        CategorizationAppliedEvent dto = new CategorizationAppliedEvent(
+                event.eventId(),
+                event.transactionId(),
+                event.categoryId(),
+                event.ruleId(),
+                event.mode(),
+                event.score(),
+                event.suggestionId(),
+                event.occurredAt()
+        );
+
         log.info("[CategorizedTransactionKafkaAdapter] - [publishApplied] -> txId={} mode={} topic={}",
                 event.transactionId(), event.mode(), topic);
 
-        CompletableFuture<SendResult<String, Object>> fut = kafkaTemplate.send(topic, key, event);
+        CompletableFuture<SendResult<String, Object>> fut = kafkaTemplate.send(topic, key, dto);
 
         fut.whenComplete((res, ex) -> {
             if (ex != null) {

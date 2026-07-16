@@ -142,6 +142,10 @@ spring:
 
 ecofy:
   categorization:
+    # Segurança da API por ambiente: dev/test/local liberam /api/categorization/**; prod exige JWT.
+    security:
+      permit-all: ${CAT_SECURITY_PERMIT_ALL:true}              # dev default: true
+
     topics:
       categorization-request: ${CAT_TOPIC_REQUEST:eco.categorization.request}
       transaction-categorized: ${CAT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
@@ -229,6 +233,8 @@ logging:
 
 ecofy:
   categorization:
+    security:
+      permit-all: true            # test: facilita testes locais
     idempotency:
       ttl-seconds: 60
     rule-engine:
@@ -287,6 +293,9 @@ logging:
 
 ecofy:
   categorization:
+    security:
+      permit-all: ${CAT_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/categorization/**
+
     topics:
       categorization-request: ${CAT_TOPIC_REQUEST:eco.categorization.request}
       transaction-categorized: ${CAT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}

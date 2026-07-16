@@ -1,7 +1,5 @@
 package br.com.ecofy.ms_categorization.core.application.service;
 
-import br.com.ecofy.ms_categorization.adapters.out.messaging.dto.CategorizationAppliedEvent;
-import br.com.ecofy.ms_categorization.adapters.out.messaging.dto.CategorizedTransactionEvent;
 import br.com.ecofy.ms_categorization.config.CategorizationProperties;
 import br.com.ecofy.ms_categorization.core.application.command.AutoCategorizeCommand;
 import br.com.ecofy.ms_categorization.core.application.result.CategorizationResult;
@@ -9,6 +7,8 @@ import br.com.ecofy.ms_categorization.core.domain.CategorizationRule;
 import br.com.ecofy.ms_categorization.core.domain.CategorizationSuggestion;
 import br.com.ecofy.ms_categorization.core.domain.Transaction;
 import br.com.ecofy.ms_categorization.core.domain.enums.SuggestionStatus;
+import br.com.ecofy.ms_categorization.core.domain.event.CategorizationAppliedDomainEvent;
+import br.com.ecofy.ms_categorization.core.domain.event.CategorizedTransactionDomainEvent;
 import br.com.ecofy.ms_categorization.core.port.in.AutoCategorizeTransactionUseCase;
 import br.com.ecofy.ms_categorization.core.port.out.*;
 import lombok.extern.slf4j.Slf4j;
@@ -155,7 +155,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
         Transaction updatedTx = savedTx.withCategory(best.categoryId(), now);
         saveTransactionPort.save(updatedTx);
 
-        publishPort.publish(new CategorizedTransactionEvent(
+        publishPort.publish(new CategorizedTransactionDomainEvent(
                 UUID.randomUUID(),
                 updatedTx.getId(),
                 updatedTx.getImportJobId(),
@@ -168,7 +168,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
                 now
         ));
 
-        publishPort.publish(new CategorizationAppliedEvent(
+        publishPort.publish(new CategorizationAppliedDomainEvent(
                 UUID.randomUUID(),
                 updatedTx.getId(),
                 best.categoryId(),

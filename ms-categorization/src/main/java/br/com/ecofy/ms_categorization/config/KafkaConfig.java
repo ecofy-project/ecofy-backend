@@ -1,10 +1,7 @@
 package br.com.ecofy.ms_categorization.config;
 
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,13 +14,6 @@ import org.springframework.util.backoff.ExponentialBackOff;
 @Configuration
 @Slf4j
 public class KafkaConfig {
-
-    // Expõe as configurações de tópicos via properties (ecofy.categorization.kafka.topics.*).
-    @Bean
-    @ConfigurationProperties("ecofy.categorization.kafka.topics")
-    public CategorizationTopics categorizationTopics() {
-        return new CategorizationTopics();
-    }
 
     /**
      * Configura o error handler com backoff exponencial para retries no @KafkaListener.
@@ -70,28 +60,33 @@ public class KafkaConfig {
         return factory;
     }
 
-    // Cria (via AdminClient) o tópico de requests para categorização.
+    // Cria (via AdminClient) o tópico de requests consumido do ms-ingestion.
+    // Fonte ÚNICA de tópicos: CategorizationProperties (prefixo ecofy.categorization.topics.*),
+    // o mesmo usado pelo consumer e pelo adapter de publicação — elimina a divergência anterior
+    // (KafkaConfig lia ecofy.categorization.kafka.topics, que o application.yml não definia).
     @Bean
-    public NewTopic categorizationRequestTopic(CategorizationTopics topics) {
-        return TopicBuilder.name(topics.getCategorizationRequest())
+    public NewTopic categorizationRequestTopic(CategorizationProperties props) {
+        return TopicBuilder.name(props.getTopics().getCategorizationRequest())
                 .partitions(6)
                 .replicas(1)
                 .build();
     }
 
-    // Cria (via AdminClient) o tópico de eventos produzidos pela categorização (se existir no seu fluxo).
+    // Cria (via AdminClient) o tópico de transação categorizada publicado para o ms-budgeting.
     @Bean
-    public NewTopic categorizationEventsTopic(CategorizationTopics topics) {
-        return TopicBuilder.name(topics.getCategorizationEvents())
+    public NewTopic transactionCategorizedTopic(CategorizationProperties props) {
+        return TopicBuilder.name(props.getTopics().getTransactionCategorized())
                 .partitions(6)
                 .replicas(1)
                 .build();
     }
 
-    @Getter
-    @Setter
-    public static class CategorizationTopics {
-        private String categorizationRequest = "eco.categorization.request";
-        private String categorizationEvents = "eco.categorization.events";
+    // Cria (via AdminClient) o tópico de categorização aplicada (auditoria).
+    @Bean
+    public NewTopic categorizationAppliedTopic(CategorizationProperties props) {
+        return TopicBuilder.name(props.getTopics().getCategorizationApplied())
+                .partitions(6)
+                .replicas(1)
+                .build();
     }
 }
