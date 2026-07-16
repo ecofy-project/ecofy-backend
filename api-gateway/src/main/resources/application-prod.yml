@@ -1,0 +1,16 @@
+# Profile: prod
+# Exposição MÍNIMA do Actuator. Apenas health fica exposto (liveness/readiness
+# e checagem básica de disponibilidade). Endpoints operacionais sensíveis como
+# 'gateway' NÃO são expostos. 'info' pode ser reativado se necessário.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    gateway:
+      access: none
+
+logging:
+  level:
+    org.springframework.cloud.gateway: WARN

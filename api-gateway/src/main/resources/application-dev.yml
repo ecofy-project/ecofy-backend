@@ -1,0 +1,17 @@
+# Profile: dev / local
+# Exposição AMPLIADA do Actuator para diagnóstico local.
+# Expõe o endpoint operacional 'gateway' (lista rotas, filtros, predicados),
+# além de health e info. NÃO usar este profile em produção.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    gateway:
+      access: unrestricted
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: DEBUG

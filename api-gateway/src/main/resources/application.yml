@@ -13,10 +13,17 @@ spring:
         webflux:
           enabled: true
 
+          # Filtros aplicados a TODAS as rotas.
+          # - RemoveRequestHeader=Cookie: o gateway não repassa cookies do browser aos MS.
+          #   (NÃO afeta o header Authorization, que é preservado e repassado downstream.)
+          # - AddRequestHeader=X-Gateway: marca a origem da requisição para diagnóstico.
           default-filters:
             - RemoveRequestHeader=Cookie
             - AddRequestHeader=X-Gateway, api-gateway
 
+          # Estratégia OFICIAL de roteamento: ROTAS ESTÁTICAS declarativas.
+          # Cada MS é acessado por um prefixo público estável (/auth, /users...).
+          # As URIs usam variável de ambiente com fallback local (execução dev).
           routes:
             - id: ms-auth
               uri: ${MS_AUTH_URI:http://localhost:8081}
@@ -53,18 +60,18 @@ spring:
               predicates:
                 - Path=/users/**
 
+# Actuator — exposição CONSERVADORA no profile default.
+# Apenas health e info ficam expostos. O endpoint operacional 'gateway'
+# (que lista rotas/filtros) NÃO fica exposto no default nem em prod.
+# Para diagnóstico, use o profile 'dev' (SPRING_PROFILES_ACTIVE=dev), que
+# expõe 'gateway'. Em produção use 'prod' (exposição mínima: health).
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
-  endpoint:
-    gateway:
-      enabled: true
+        include: health,info
 
 logging:
   level:
     org.springframework.cloud.gateway: INFO
-    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: DEBUG
     reactor.netty.http.client: INFO
-
