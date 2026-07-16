@@ -10,6 +10,7 @@ import br.com.ecofy.ms_users.core.domain.exception.IdempotencyViolationException
 import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 import br.com.ecofy.ms_users.core.port.in.GetUserPreferencesUseCase;
 import br.com.ecofy.ms_users.core.port.in.UpdateUserPreferencesUseCase;
+import br.com.ecofy.ms_users.core.port.out.IdempotencyOutcome;
 import br.com.ecofy.ms_users.core.port.out.IdempotencyPort;
 import br.com.ecofy.ms_users.core.port.out.LoadUserPreferencesPort;
 import br.com.ecofy.ms_users.core.port.out.SaveUserPreferencePort;
@@ -56,40 +57,63 @@ public class UserPreferenceService implements UpdateUserPreferencesUseCase, GetU
 
         String reqHash = sha256("%s|%s".formatted(userId, stablePrefsHashInput(normalizedPrefs)));
 
-        boolean first = idempotencyPort.registerOnce(
+        IdempotencyOutcome outcome = idempotencyPort.registerOnce(
                 OPERATION,
                 command.idempotencyKey(),
                 reqHash,
                 idempotencyProps.ttl()
         );
 
-        if (!first) {
-            log.info(
-                    "[UserPreferenceService] - [update] -> idempotency violation op={} userId={} prefKeys={}",
-                    OPERATION, userId, normalizedPrefs.keySet()
-            );
-            throw new IdempotencyViolationException("Idempotency key already used for operation=" + OPERATION);
+        switch (outcome) {
+            case CONFLICT -> {
+                // Mesma chave de idempotência, request DIFERENTE -> conflito real (409).
+                log.info(
+                        "[UserPreferenceService] - [update] -> idempotency CONFLICT op={} userId={} prefKeys={}",
+                        OPERATION, userId, normalizedPrefs.keySet()
+                );
+                throw new IdempotencyViolationException("Idempotency key already used for operation=" + OPERATION);
+            }
+            case DUPLICATE -> {
+                // Retry legítimo (mesma chave + mesmo request): idempotente, não reaplica; retorna estado atual.
+                log.info(
+                        "[UserPreferenceService] - [update] -> idempotency DUPLICATE (legit retry) op={} userId={}",
+                        OPERATION, userId
+                );
+                return getByUserId(userId);
+            }
+            case REGISTERED -> {
+                // Primeira execução -> aplica.
+            }
         }
 
         Instant now = Instant.now();
-        List<UserPreference> toUpsert = new ArrayList<>(normalizedPrefs.size());
         UserId domainUserId = UserId.of(userId);
 
+        // Política de preferências: valor vazio/null => REMOÇÃO da preferência (schema mantém pref_value NOT NULL).
+        List<UserPreference> toUpsert = new ArrayList<>(normalizedPrefs.size());
+        List<PreferenceKey> toClear = new ArrayList<>();
+
         for (var e : normalizedPrefs.entrySet()) {
+            String value = blankToNull(e.getValue());
+            if (value == null) {
+                toClear.add(e.getKey());
+                continue;
+            }
             toUpsert.add(UserPreference.builder()
                     .id(UUID.randomUUID()) // adapter faz upsert por (userId+key)
                     .userId(domainUserId)
                     .key(e.getKey())
-                    .value(blankToNull(e.getValue()))
+                    .value(value)
                     .updatedAt(now)
                     .build());
         }
 
         var saved = savePort.upsertAll(toUpsert);
+        int cleared = savePort.deleteByUserIdAndKeys(domainUserId, toClear);
 
         log.info(
-                "[UserPreferenceService] - [update] -> userId={} updatedKeys={} totalUpserted={}",
-                userId, normalizedPrefs.keySet(), saved.size()
+                "[UserPreferenceService] - [update] -> userId={} upsertedKeys={} clearedKeys={} totalUpserted={} totalCleared={}",
+                userId, toUpsert.size(), toClear.size(), saved.size(), cleared
         );
 
         return getByUserId(userId);

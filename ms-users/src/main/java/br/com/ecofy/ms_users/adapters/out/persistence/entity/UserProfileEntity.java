@@ -34,6 +34,12 @@ public class UserProfileEntity {
     @Column(name = "status", nullable = false, length = 20)
     private UserStatus status;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
+    @Column(name = "locale", length = 20)
+    private String locale;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

@@ -11,6 +11,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.util.Objects;
 
@@ -35,9 +36,14 @@ public class SecurityConfig {
     };
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, Environment env) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            Environment env,
+            InternalTokenAuthenticationFilter internalTokenAuthenticationFilter
+    ) throws Exception {
         Objects.requireNonNull(http, "http must not be null");
         Objects.requireNonNull(env, "env must not be null");
+        Objects.requireNonNull(internalTokenAuthenticationFilter, "internalTokenAuthenticationFilter must not be null");
 
         boolean devPermitAll = Boolean.parseBoolean(env.getProperty(PROP_PERMIT_ALL, "false"));
 
@@ -59,6 +65,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll();
 
+                    // Endpoint interno: SEMPRE protegido pelo token interno (mesmo em permit-all).
+                    // O InternalTokenAuthenticationFilter valida X-Internal-Token e atribui ROLE_INTERNAL.
+                    auth.requestMatchers("/internal/**").hasRole("INTERNAL");
+
                     if (devPermitAll) {
                         // LOCAL DEV MODE: libera API inteira para testes locais
                         auth.requestMatchers(USERS_API_ENDPOINTS).permitAll();
@@ -69,6 +79,9 @@ public class SecurityConfig {
                         auth.anyRequest().authenticated();
                     }
                 })
+
+                // Filtro do endpoint interno roda antes da autenticação padrão.
+                .addFilterBefore(internalTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 
                 // Hardening básico de headers
                 .headers(headers -> headers

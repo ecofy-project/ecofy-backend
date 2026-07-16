@@ -20,6 +20,10 @@ public record UserProfileResult(
 
         UserStatus status,
 
+        boolean emailVerified,
+
+        String locale,
+
         Instant createdAt,
 
         Instant updatedAt
@@ -43,6 +47,8 @@ public record UserProfileResult(
                 email,
                 phone,
                 p.getStatus(),
+                p.isEmailVerified(),
+                p.getLocale(),
                 p.getCreatedAt(),
                 p.getUpdatedAt()
         );

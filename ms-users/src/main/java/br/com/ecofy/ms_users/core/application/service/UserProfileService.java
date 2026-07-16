@@ -16,6 +16,7 @@ import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 import br.com.ecofy.ms_users.core.port.in.CreateUserProfileUseCase;
 import br.com.ecofy.ms_users.core.port.in.GetUserProfileUseCase;
 import br.com.ecofy.ms_users.core.port.in.UpdateUserProfileUseCase;
+import br.com.ecofy.ms_users.core.port.out.IdempotencyOutcome;
 import br.com.ecofy.ms_users.core.port.out.IdempotencyPort;
 import br.com.ecofy.ms_users.core.port.out.LoadUserProfilePort;
 import br.com.ecofy.ms_users.core.port.out.PublishUserEventPort;
@@ -79,17 +80,19 @@ public class UserProfileService implements
                 phone
         ));
 
-        boolean first = idempotencyPort.registerOnce(
+        IdempotencyOutcome outcome = idempotencyPort.registerOnce(
                 OP_CREATE,
                 command.idempotencyKey(),
                 reqHash,
                 idempotencyProps.ttl()
         );
 
-        if (!first) {
-            log.info("[UserProfileService] - [create] -> idempotency violation op={} userId={}", OP_CREATE, userId);
+        if (outcome == IdempotencyOutcome.CONFLICT) {
+            log.info("[UserProfileService] - [create] -> idempotency CONFLICT op={} userId={}", OP_CREATE, userId);
             throw new IdempotencyViolationException("Idempotency key already used for operation=" + OP_CREATE);
         }
+        // DUPLICATE (retry legítimo) e REGISTERED seguem: o load abaixo retorna o perfil já criado
+        // para o retry, garantindo resposta idempotente sem duplicar recurso.
 
         Optional<EcoUserProfile> existing = loadPort.findById(userId);
         if (existing.isPresent()) {
@@ -143,16 +146,21 @@ public class UserProfileService implements
                 blankToNull(command.status())
         ));
 
-        boolean first = idempotencyPort.registerOnce(
+        IdempotencyOutcome outcome = idempotencyPort.registerOnce(
                 OP_UPDATE,
                 command.idempotencyKey(),
                 reqHash,
                 idempotencyProps.ttl()
         );
 
-        if (!first) {
-            log.info("[UserProfileService] - [update] -> idempotency violation op={} userId={}", OP_UPDATE, userId);
+        if (outcome == IdempotencyOutcome.CONFLICT) {
+            log.info("[UserProfileService] - [update] -> idempotency CONFLICT op={} userId={}", OP_UPDATE, userId);
             throw new IdempotencyViolationException("Idempotency key already used for operation=" + OP_UPDATE);
+        }
+        if (outcome == IdempotencyOutcome.DUPLICATE) {
+            // Retry legítimo: a atualização já foi aplicada; retorna o estado atual sem reaplicar/republicar.
+            log.info("[UserProfileService] - [update] -> idempotency DUPLICATE (legit retry) op={} userId={}", OP_UPDATE, userId);
+            return getById(userId);
         }
 
         EcoUserProfile current = loadPort.findById(userId)
@@ -257,16 +265,7 @@ public class UserProfileService implements
 
     // Converte um EcoUserProfile (domínio) para UserProfileResult (DTO de saída/publicação).
     private static UserProfileResult toResult(EcoUserProfile p) {
-        return new UserProfileResult(
-                p.getId().value(),
-                p.getExternalAuthId() != null ? p.getExternalAuthId().value() : null,
-                p.getFullName(),
-                p.getEmail() != null ? p.getEmail().value() : null,
-                p.getPhone() != null ? p.getPhone().value() : null,
-                p.getStatus(),
-                p.getCreatedAt(),
-                p.getUpdatedAt()
-        );
+        return UserProfileResult.from(p);
     }
 
     // Calcula SHA-256 de uma string e retorna o hex; em falha, retorna um placeholder.

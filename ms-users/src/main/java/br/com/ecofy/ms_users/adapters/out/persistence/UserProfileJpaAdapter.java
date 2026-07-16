@@ -75,7 +75,9 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
     // Busca um EcoUserProfile pelo externalAuthId (ID do provedor de autenticação) e retorna Optional com o domínio quando encontrado.
     @Override
     public Optional<EcoUserProfile> findByExternalAuthId(ExternalAuthId externalAuthId) {
-        String ext = blankToNull(String.valueOf(externalAuthId));
+        // Corrigido: usar o VALOR real do value object, não String.valueOf(VO) (que produziria
+        // "ExternalAuthId[value=...]" e nunca casaria com o valor persistido no banco).
+        String ext = (externalAuthId == null) ? null : blankToNull(externalAuthId.value());
         if (ext == null) {
             log.debug("[UserProfileJpaAdapter] - [findByExternalAuthId] -> externalAuthId=<blank> found=false");
             return Optional.empty();

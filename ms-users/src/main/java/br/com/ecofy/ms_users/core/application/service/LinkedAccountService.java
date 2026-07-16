@@ -10,6 +10,7 @@ import br.com.ecofy.ms_users.core.domain.exception.IdempotencyViolationException
 import br.com.ecofy.ms_users.core.domain.exception.UserProfileNotFoundException;
 import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 import br.com.ecofy.ms_users.core.port.in.LinkAccountUseCase;
+import br.com.ecofy.ms_users.core.port.out.IdempotencyOutcome;
 import br.com.ecofy.ms_users.core.port.out.IdempotencyPort;
 import br.com.ecofy.ms_users.core.port.out.LoadUserProfilePort;
 import br.com.ecofy.ms_users.core.port.out.SaveLinkedAccountPort;
@@ -62,22 +63,29 @@ public class LinkedAccountService implements LinkAccountUseCase {
                 command.active()
         ));
 
-        boolean first = idempotencyPort.registerOnce(
+        IdempotencyOutcome outcome = idempotencyPort.registerOnce(
                 OPERATION,
                 command.idempotencyKey(),
                 requestHash,
                 idempotencyProps.ttl()
         );
 
-        if (!first) {
+        if (outcome == IdempotencyOutcome.CONFLICT) {
             log.info(
-                    "[LinkedAccountService] - [linkAccount] -> idempotency violation op={} userId={} provider={} externalAccountRef={}",
+                    "[LinkedAccountService] - [linkAccount] -> idempotency CONFLICT op={} userId={} provider={} externalAccountRef={}",
                     OPERATION,
                     command.userId(),
                     command.provider(),
                     safeRef(command.externalAccountRef())
             );
             throw new IdempotencyViolationException("Idempotency key already used for operation=" + OPERATION);
+        }
+        if (outcome == IdempotencyOutcome.DUPLICATE) {
+            // Retry legítimo: a conta já foi vinculada; retorna o perfil atual sem duplicar o vínculo.
+            log.info("[LinkedAccountService] - [linkAccount] -> idempotency DUPLICATE (legit retry) op={} userId={}", OPERATION, command.userId());
+            var existingProfile = loadUserProfilePort.findById(command.userId())
+                    .orElseThrow(() -> new UserProfileNotFoundException(command.userId()));
+            return toResult(existingProfile);
         }
 
         var profile = loadUserProfilePort.findById(command.userId())
@@ -143,16 +151,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
 
     // Converte um EcoUserProfile (domínio) para UserProfileResult (DTO de saída).
     private static UserProfileResult toResult(br.com.ecofy.ms_users.core.domain.EcoUserProfile p) {
-        return new UserProfileResult(
-                p.getId().value(),
-                p.getExternalAuthId() != null ? p.getExternalAuthId().value() : null,
-                p.getFullName(),
-                p.getEmail() != null ? p.getEmail().value() : null,
-                p.getPhone() != null ? p.getPhone().value() : null,
-                p.getStatus(),
-                p.getCreatedAt(),
-                p.getUpdatedAt()
-        );
+        return UserProfileResult.from(p);
     }
 
     // Mascara o externalAccountRef para logging seguro, evitando expor o identificador completo.

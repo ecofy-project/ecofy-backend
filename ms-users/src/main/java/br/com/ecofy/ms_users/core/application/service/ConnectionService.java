@@ -10,6 +10,7 @@ import br.com.ecofy.ms_users.core.domain.exception.IdempotencyViolationException
 import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 import br.com.ecofy.ms_users.core.port.in.CreateConnectionUseCase;
 import br.com.ecofy.ms_users.core.port.in.ListConnectionsUseCase;
+import br.com.ecofy.ms_users.core.port.out.IdempotencyOutcome;
 import br.com.ecofy.ms_users.core.port.out.IdempotencyPort;
 import br.com.ecofy.ms_users.core.port.out.LoadConnectionsPort;
 import br.com.ecofy.ms_users.core.port.out.SaveConnectionPort;
@@ -66,19 +67,31 @@ public class ConnectionService implements CreateConnectionUseCase, ListConnectio
 
         final String requestHash = requestHash(userId, type, provider);
 
-        final boolean first = idempotencyPort.registerOnce(
+        final IdempotencyOutcome outcome = idempotencyPort.registerOnce(
                 OP_CREATE_CONNECTION,
                 idempotencyKey,
                 requestHash,
                 idempotencyTtl
         );
 
-        if (!first) {
+        if (outcome == IdempotencyOutcome.CONFLICT) {
             log.warn(
-                    "[ConnectionService] - [create] -> status=idempotency_violation operation={} userId={} idempotencyKey={}",
+                    "[ConnectionService] - [create] -> status=idempotency_conflict operation={} userId={} idempotencyKey={}",
                     OP_CREATE_CONNECTION, userId, idempotencyKey
             );
             throw new IdempotencyViolationException("Idempotency key already used for operation=" + OP_CREATE_CONNECTION);
+        }
+        if (outcome == IdempotencyOutcome.DUPLICATE) {
+            // Retry legítimo: retorna a conexão já criada (mesmo type+provider) sem duplicar.
+            var existing = loadPort.findByUserId(userId).stream()
+                    .filter(c -> c.getType() == type && c.getProvider() == provider)
+                    .findFirst();
+            if (existing.isPresent()) {
+                log.info("[ConnectionService] - [create] -> status=idempotent_retry connectionId={} userId={}",
+                        existing.get().getId(), userId);
+                return toResult(existing.get());
+            }
+            // Edge: chave registrada mas conexão não encontrada -> segue para criar.
         }
 
         final Instant now = Instant.now();

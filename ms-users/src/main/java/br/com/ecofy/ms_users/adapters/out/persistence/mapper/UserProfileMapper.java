@@ -30,6 +30,8 @@ public final class UserProfileMapper {
                 .email(toEmailOrNull(e.getEmail()))
                 .phone(toPhoneOrNull(e.getPhone()))
                 .status(e.getStatus())
+                .emailVerified(e.isEmailVerified())
+                .locale(e.getLocale())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .build();
@@ -47,6 +49,8 @@ public final class UserProfileMapper {
         e.setEmail(fromEmailOrNull(d.getEmail()));
         e.setPhone(fromPhoneOrNull(d.getPhone()));
         e.setStatus(d.getStatus());
+        e.setEmailVerified(d.isEmailVerified());
+        e.setLocale(d.getLocale());
         e.setCreatedAt(d.getCreatedAt());
         e.setUpdatedAt(d.getUpdatedAt());
         return e;

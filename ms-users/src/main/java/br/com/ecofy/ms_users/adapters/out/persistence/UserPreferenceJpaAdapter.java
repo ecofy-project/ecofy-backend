@@ -4,6 +4,8 @@ import br.com.ecofy.ms_users.adapters.out.persistence.entity.UserPreferenceEntit
 import br.com.ecofy.ms_users.adapters.out.persistence.mapper.PreferenceMapper;
 import br.com.ecofy.ms_users.adapters.out.persistence.repository.UserPreferenceRepository;
 import br.com.ecofy.ms_users.core.domain.UserPreference;
+import br.com.ecofy.ms_users.core.domain.enums.PreferenceKey;
+import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 import br.com.ecofy.ms_users.core.port.out.LoadUserPreferencesPort;
 import br.com.ecofy.ms_users.core.port.out.SaveUserPreferencePort;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -87,6 +90,25 @@ public class UserPreferenceJpaAdapter implements SaveUserPreferencePort, LoadUse
         );
 
         return out;
+    }
+
+    // Remove as preferências das chaves informadas para o usuário (política: valor vazio => remoção).
+    @Override
+    @Transactional
+    public int deleteByUserIdAndKeys(UserId userId, Collection<PreferenceKey> keys) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        if (keys == null || keys.isEmpty()) {
+            return 0;
+        }
+
+        int removed = repo.deleteByUserIdAndKeyIn(userId.value(), keys);
+
+        log.info(
+                "[UserPreferenceJpaAdapter] - [deleteByUserIdAndKeys] -> userId={} requestedKeys={} removed={}",
+                userId.value(), keys.size(), removed
+        );
+
+        return removed;
     }
 
     // Carrega todas as preferências (UserPreference) de um usuário pelo userId, convertendo de entity para domínio.
