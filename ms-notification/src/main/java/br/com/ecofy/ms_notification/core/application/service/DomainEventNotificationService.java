@@ -1,8 +1,8 @@
 package br.com.ecofy.ms_notification.core.application.service;
 
-import br.com.ecofy.ms_notification.config.NotificationProperties;
 import br.com.ecofy.ms_notification.core.application.command.HandleDomainEventCommand;
 import br.com.ecofy.ms_notification.core.application.command.SendNotificationCommand;
+import br.com.ecofy.ms_notification.core.application.config.NotificationSettings;
 import br.com.ecofy.ms_notification.core.domain.enums.DomainEventType;
 import br.com.ecofy.ms_notification.core.domain.enums.NotificationChannel;
 import br.com.ecofy.ms_notification.core.port.in.HandleDomainEventNotificationUseCase;
@@ -21,17 +21,16 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
 
     private static final NotificationChannel FALLBACK_CHANNEL = NotificationChannel.EMAIL;
 
-    private final NotificationProperties props;
+    // Correção Dia 7 (item #5): depende do tipo neutro do core, não de config.NotificationProperties.
+    private final NotificationSettings settings;
     private final SendNotificationUseCase sendNotificationUseCase;
 
     public DomainEventNotificationService(
-            NotificationProperties props,
+            NotificationSettings settings,
             SendNotificationUseCase sendNotificationUseCase
     ) {
-        this.props = Objects.requireNonNull(props, "props must not be null");
+        this.settings = Objects.requireNonNull(settings, "settings must not be null");
         this.sendNotificationUseCase = Objects.requireNonNull(sendNotificationUseCase, "sendNotificationUseCase must not be null");
-        Objects.requireNonNull(props.getTemplates(), "props.templates must not be null");
-        Objects.requireNonNull(props.getTemplates().getDefaultChannels(), "props.templates.defaultChannels must not be null");
     }
 
     // Orquestra o tratamento de um evento de domínio: valida entrada, resolve canal padrão, normaliza payload/idempotency e dispara o caso de uso de envio.
@@ -70,7 +69,7 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
 
     // Resolve o canal padrão configurado para um tipo de evento, aplicando fallback seguro e tolerância a configuração inválida.
     private NotificationChannel resolveDefaultChannel(DomainEventType type) {
-        String raw = props.getTemplates().getDefaultChannels().get(type.name());
+        String raw = settings.defaultChannelFor(type.name());
 
         if (raw == null || raw.isBlank()) {
             log.debug(

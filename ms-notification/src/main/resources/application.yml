@@ -68,6 +68,10 @@ spring:
 
 ecofy:
   notification:
+    # Segurança da API por ambiente: dev/test/local liberam /api/notification/**; prod exige JWT.
+    security:
+      permit-all: ${NTF_SECURITY_PERMIT_ALL:true}   # dev default: true
+
     topics:
       budget-alert: ${NTF_TOPIC_BUDGET_ALERT:eco.budget.alert}
       insight-created: ${NTF_TOPIC_INSIGHT_CREATED:eco.insight.created}
@@ -147,6 +151,8 @@ logging:
 
 ecofy:
   notification:
+    security:
+      permit-all: true            # test: facilita testes locais
     idempotency:
       ttl: PT1M
 
@@ -180,3 +186,8 @@ logging:
     org.springframework.security: WARN
     org.springframework.web: WARN
     org.springframework.kafka: INFO
+
+ecofy:
+  notification:
+    security:
+      permit-all: ${NTF_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/notification/**

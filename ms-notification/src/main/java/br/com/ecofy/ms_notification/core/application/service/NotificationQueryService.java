@@ -1,8 +1,8 @@
 package br.com.ecofy.ms_notification.core.application.service;
 
-import br.com.ecofy.ms_notification.adapters.out.persistence.mongo.NotificationMongoAdapter;
 import br.com.ecofy.ms_notification.core.application.result.NotificationResult;
 import br.com.ecofy.ms_notification.core.port.in.ListNotificationsUseCase;
+import br.com.ecofy.ms_notification.core.port.out.ListNotificationsPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -17,10 +17,11 @@ public class NotificationQueryService implements ListNotificationsUseCase {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 200;
 
-    private final NotificationMongoAdapter notificationMongoAdapter;
+    // Correção Dia 7 (item #5): depende do port de saída, não do adapter Mongo concreto.
+    private final ListNotificationsPort listNotificationsPort;
 
-    public NotificationQueryService(NotificationMongoAdapter notificationMongoAdapter) {
-        this.notificationMongoAdapter = Objects.requireNonNull(notificationMongoAdapter, "notificationMongoAdapter must not be null");
+    public NotificationQueryService(ListNotificationsPort listNotificationsPort) {
+        this.listNotificationsPort = Objects.requireNonNull(listNotificationsPort, "listNotificationsPort must not be null");
     }
 
     // Lista notificações recentes de um usuário, aplicando normalização de limite (default/máximo) e delegando a consulta ao adapter Mongo.
@@ -36,7 +37,7 @@ public class NotificationQueryService implements ListNotificationsUseCase {
                 safeLimit
         );
 
-        return notificationMongoAdapter.listByUser(userId, safeLimit);
+        return listNotificationsPort.listByUser(userId, safeLimit);
     }
 
     // Garante um limite seguro para paginação: aplica default quando inválido e impõe teto máximo para proteger o sistema.

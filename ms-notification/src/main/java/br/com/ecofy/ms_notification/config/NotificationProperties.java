@@ -9,7 +9,10 @@ import java.util.Map;
 
 @Getter
 @Setter
-@ConfigurationProperties(prefix = "notification")
+// Correção Dia 7 (item #1): o application.yml define as propriedades sob "ecofy.notification",
+// mas o prefixo aqui era "notification" -> nada era bindado e o serviço rodava só com defaults.
+// Prefixo alinhado ao YAML.
+@ConfigurationProperties(prefix = "ecofy.notification")
 public class NotificationProperties {
 
     // Agrupa os nomes dos tópicos Kafka consumidos/publicados pelo ms-notification (com defaults seguros).

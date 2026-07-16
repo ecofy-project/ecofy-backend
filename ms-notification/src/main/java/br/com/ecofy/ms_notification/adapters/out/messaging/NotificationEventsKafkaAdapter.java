@@ -2,6 +2,7 @@ package br.com.ecofy.ms_notification.adapters.out.messaging;
 
 import br.com.ecofy.ms_notification.adapters.out.messaging.dto.NotificationSentEvent;
 import br.com.ecofy.ms_notification.config.NotificationProperties;
+import br.com.ecofy.ms_notification.core.domain.Notification;
 import br.com.ecofy.ms_notification.core.port.out.PublishNotificationEventPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -32,8 +33,11 @@ public class NotificationEventsKafkaAdapter implements PublishNotificationEventP
     }
 
     @Override
-    public void publish(NotificationSentEvent event) {
-        Objects.requireNonNull(event, "event must not be null");
+    public void publish(Notification notification) {
+        Objects.requireNonNull(notification, "notification must not be null");
+
+        // Adapter converte o domínio -> DTO externo (mantém o core livre do DTO Kafka).
+        final NotificationSentEvent event = NotificationSentEvent.from(notification);
 
         final String topic = notificationSentTopic;
         final String key = resolveKey(event);

@@ -8,6 +8,7 @@ import br.com.ecofy.ms_notification.core.domain.enums.NotificationChannel;
 import br.com.ecofy.ms_notification.core.domain.valueobject.TemplateId;
 import br.com.ecofy.ms_notification.core.domain.valueobject.UserId;
 import br.com.ecofy.ms_notification.core.port.out.LoadNotificationTemplatePort;
+import br.com.ecofy.ms_notification.core.port.out.SaveNotificationTemplatePort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +18,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class NotificationTemplateMongoAdapter implements LoadNotificationTemplatePort {
+public class NotificationTemplateMongoAdapter implements LoadNotificationTemplatePort, SaveNotificationTemplatePort {
 
     private final NotificationTemplateMongoRepository repo;
     private final TemplateMapper mapper;
@@ -28,6 +29,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
     }
 
     // Persiste um NotificationTemplate no Mongo (doc -> repo.save -> domain) com logs de sucesso/falha e rethrow em erro.
+    @Override
     public NotificationTemplate save(NotificationTemplate template) {
         if (template == null) throw new IllegalArgumentException("template must not be null");
 

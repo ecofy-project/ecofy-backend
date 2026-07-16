@@ -1,6 +1,6 @@
 package br.com.ecofy.ms_notification.core.application.service;
 
-import br.com.ecofy.ms_notification.config.NotificationProperties;
+import br.com.ecofy.ms_notification.core.application.config.NotificationSettings;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -13,18 +13,18 @@ public class RetryPolicyService {
 
     private static final Duration MAX_BACKOFF = Duration.ofSeconds(60);
 
-    private final NotificationProperties.Retry retryProps;
+    // Correção Dia 7 (item #5): depende do tipo neutro do core, não de config.NotificationProperties.
+    private final NotificationSettings settings;
 
-    public RetryPolicyService(NotificationProperties props) {
-        Objects.requireNonNull(props, "props must not be null");
-        this.retryProps = Objects.requireNonNull(props.getRetry(), "props.retry must not be null");
-        Objects.requireNonNull(retryProps.getBaseBackoff(), "props.retry.baseBackoff must not be null");
+    public RetryPolicyService(NotificationSettings settings) {
+        this.settings = Objects.requireNonNull(settings, "settings must not be null");
+        Objects.requireNonNull(settings.retryBaseBackoff(), "settings.retryBaseBackoff must not be null");
     }
 
     // Verifica se ainda é permitido re-tentar com base no attemptCount atual e no maxAttempts configurado.
     public boolean canRetry(int attemptCount) {
         int safeAttempts = Math.max(0, attemptCount);
-        int maxAttempts = Math.max(1, retryProps.getMaxAttempts());
+        int maxAttempts = Math.max(1, settings.retryMaxAttempts());
 
         boolean can = safeAttempts < maxAttempts;
 
@@ -42,7 +42,7 @@ public class RetryPolicyService {
     public Duration computeBackoff(int attemptCount) {
         int safeAttempts = Math.max(0, attemptCount);
 
-        Duration base = retryProps.getBaseBackoff();
+        Duration base = settings.retryBaseBackoff();
         double multiplier = retryMultiplier();
         double factor = Math.pow(multiplier, safeAttempts);
 
@@ -65,7 +65,7 @@ public class RetryPolicyService {
 
     // Normaliza o multiplier de retry para um valor válido (fallback 1.0) quando configurado inválido (NaN/Infinity/<=0).
     private double retryMultiplier() {
-        double m = retryProps.getMultiplier();
+        double m = settings.retryMultiplier();
         if (Double.isNaN(m) || Double.isInfinite(m) || m <= 0d) return 1d;
         return m;
     }

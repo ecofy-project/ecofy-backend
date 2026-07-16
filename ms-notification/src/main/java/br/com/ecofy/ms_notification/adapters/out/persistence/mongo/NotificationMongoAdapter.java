@@ -5,6 +5,7 @@ import br.com.ecofy.ms_notification.adapters.out.persistence.repository.Notifica
 import br.com.ecofy.ms_notification.core.application.result.NotificationResult;
 import br.com.ecofy.ms_notification.core.domain.Notification;
 import br.com.ecofy.ms_notification.core.domain.valueobject.NotificationId;
+import br.com.ecofy.ms_notification.core.port.out.ListNotificationsPort;
 import br.com.ecofy.ms_notification.core.port.out.SaveNotificationPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -16,7 +17,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class NotificationMongoAdapter implements SaveNotificationPort {
+public class NotificationMongoAdapter implements SaveNotificationPort, ListNotificationsPort {
 
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 200;
@@ -88,6 +89,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort {
     }
 
     // Lista notificações do usuário ordenadas por createdAt desc, aplicando clamp no limit e retornando DTOs NotificationResult (com logs e rethrow em erro).
+    @Override
     public List<NotificationResult> listByUser(UUID userId, int limit) {
         Objects.requireNonNull(userId, "userId must not be null");
 

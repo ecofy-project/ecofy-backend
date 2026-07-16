@@ -25,7 +25,7 @@ public class BudgetAlertEventConsumer {
     @KafkaListener(
             id = "budgetAlertEventConsumer",
             // Evita dependência de SpEL/bean (resiliente e padrão Spring)
-            topics = "${notification.topics.budget-alert:eco.budget.alert}",
+            topics = "${ecofy.notification.topics.budget-alert:eco.budget.alert}",
             containerFactory = "budgetAlertKafkaListenerContainerFactory"
     )
     public void consume(

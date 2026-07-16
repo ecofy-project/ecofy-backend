@@ -24,7 +24,7 @@ public class InsightCreatedEventConsumer {
     // Consome eventos eco.insight.created do Kafka, transforma a mensagem em comando de domínio e dispara o caso de uso de notificação com observabilidade e propagação de falhas.
     @KafkaListener(
             id = "insightCreatedEventConsumer",
-            topics = "${notification.topics.insight-created:eco.insight.created}",
+            topics = "${ecofy.notification.topics.insight-created:eco.insight.created}",
             containerFactory = "insightCreatedKafkaListenerContainerFactory"
     )
     public void consume(

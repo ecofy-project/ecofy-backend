@@ -3,6 +3,7 @@ package br.com.ecofy.ms_notification.config;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -15,6 +16,8 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 @Slf4j
 public class SecurityConfig {
+
+    private static final String PERMIT_ALL_PROPERTY = "ecofy.notification.security.permit-all";
 
     private static final String[] PUBLIC_ENDPOINTS = {
             "/actuator/health",
@@ -31,9 +34,14 @@ public class SecurityConfig {
     };
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, Environment env) throws Exception {
 
-        log.info("[SecurityConfig] - [securityFilterChain] -> Configurando HTTP security para ms-notification (LOCAL DEV MODE)");
+        // Correção Dia 7 (item #2): antes /api/notification/** era permitAll fixo e o Resource Server
+        // JWT estava comentado -> API totalmente aberta apesar do OpenAPI declarar JWT.
+        // Agora: JWT sempre configurado; permit-all controlado por profile (default: exigir JWT).
+        boolean devPermitAll = env.getProperty(PERMIT_ALL_PROPERTY, Boolean.class, false);
+
+        log.info("[SecurityConfig] - [securityFilterChain] -> ms-notification security (permitAll={})", devPermitAll);
 
         http
                 // API stateless
@@ -45,21 +53,22 @@ public class SecurityConfig {
                 // CORS: habilite/ajuste se o dashboard estiver em outro domínio
                 .cors(Customizer.withDefaults())
 
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll();
 
-                        // LOCAL DEV MODE (sem token) — DEIXE ATIVO para testes locais
-                        .requestMatchers(NOTIFICATION_API_ENDPOINTS).permitAll()
+                    if (devPermitAll) {
+                        // dev/test/local: libera a API principal para facilitar testes (documentado)
+                        auth.requestMatchers(NOTIFICATION_API_ENDPOINTS).permitAll();
+                    } else {
+                        // prod: exige JWT válido nos endpoints de negócio
+                        auth.requestMatchers(NOTIFICATION_API_ENDPOINTS).authenticated();
+                    }
 
-                        // PROD MODE (com token) — DESCOMENTE para exigir JWT
-                        // .requestMatchers(NOTIFICATION_API_ENDPOINTS).authenticated()
+                    auth.anyRequest().authenticated();
+                })
 
-                        .anyRequest().authenticated()
-                )
-
-                // PROD MODE (com token) — DEIXE ATIVO para exigir JWT
-                // (em local dev mode, pode comentar este bloco inteiro)
-                // .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                // Resource Server JWT sempre ativo (validação via JWKS do ms-auth), alinhado ao OpenAPI
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
 
                 // Respostas corretas para 401/403 com Bearer token
                 .exceptionHandling(ex -> ex

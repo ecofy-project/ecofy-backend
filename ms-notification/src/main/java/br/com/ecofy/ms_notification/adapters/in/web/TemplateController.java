@@ -4,11 +4,12 @@ import br.com.ecofy.ms_notification.adapters.in.web.dto.request.SendNotification
 import br.com.ecofy.ms_notification.adapters.in.web.dto.response.TemplatePreviewResponse;
 import br.com.ecofy.ms_notification.adapters.in.web.dto.request.TemplateRequest;
 import br.com.ecofy.ms_notification.adapters.in.web.dto.response.TemplateResponse;
-import br.com.ecofy.ms_notification.adapters.out.persistence.mongo.NotificationTemplateMongoAdapter;
+import br.com.ecofy.ms_notification.core.application.command.CreateTemplateCommand;
 import br.com.ecofy.ms_notification.core.application.command.PreviewTemplateCommand;
 import br.com.ecofy.ms_notification.core.domain.NotificationTemplate;
 import br.com.ecofy.ms_notification.core.domain.valueobject.TemplateId;
-import br.com.ecofy.ms_notification.core.domain.valueobject.UserId;
+import br.com.ecofy.ms_notification.core.port.in.CreateTemplateUseCase;
+import br.com.ecofy.ms_notification.core.port.in.GetTemplateUseCase;
 import br.com.ecofy.ms_notification.core.port.in.PreviewTemplateUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -27,7 +28,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
-import java.time.Instant;
 import java.util.UUID;
 
 @Slf4j
@@ -38,7 +38,9 @@ import java.util.UUID;
 @RequestMapping(path = "/api/notification/v1/templates", produces = MediaType.APPLICATION_JSON_VALUE)
 public class TemplateController {
 
-    private final NotificationTemplateMongoAdapter templateAdapter;
+    // Correção Dia 7 (item #6): controller depende de use cases/ports, não do adapter Mongo concreto.
+    private final CreateTemplateUseCase createUseCase;
+    private final GetTemplateUseCase getUseCase;
     private final PreviewTemplateUseCase previewUseCase;
 
     @Operation(
@@ -68,23 +70,15 @@ public class TemplateController {
                 req.ownerUserId(), req.eventType(), req.channel(), req.engine(), req.active()
         );
 
-        var now = Instant.now();
-
-        var template = NotificationTemplate.builder()
-                .id(TemplateId.newId())
-                .ownerUserId(req.ownerUserId() == null ? null : new UserId(req.ownerUserId()))
-                .eventType(req.eventType())
-                .channel(req.channel())
-                .engine(req.engine())
-                .subjectTemplate(req.subjectTemplate())
-                .bodyTemplate(req.bodyTemplate())
-                .active(req.active())
-                .createdAt(now)
-                .updatedAt(now)
-                .build()
-                .validate();
-
-        var saved = templateAdapter.save(template);
+        var saved = createUseCase.create(new CreateTemplateCommand(
+                req.ownerUserId(),
+                req.eventType(),
+                req.channel(),
+                req.engine(),
+                req.subjectTemplate(),
+                req.bodyTemplate(),
+                req.active()
+        ));
 
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
@@ -114,7 +108,7 @@ public class TemplateController {
     public ResponseEntity<TemplateResponse> get(@PathVariable("id") @NotNull UUID id) {
         log.debug("[TemplateController] - [get] -> id={}", id);
 
-        return templateAdapter.loadById(new TemplateId(id))
+        return getUseCase.findById(new TemplateId(id))
                 .map(t -> ResponseEntity.ok(toResponse(t)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

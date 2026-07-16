@@ -1,7 +1,6 @@
 package br.com.ecofy.ms_notification.core.application.service;
 
-import br.com.ecofy.ms_notification.adapters.out.messaging.dto.NotificationSentEvent;
-import br.com.ecofy.ms_notification.config.NotificationProperties;
+import br.com.ecofy.ms_notification.core.application.config.NotificationSettings;
 import br.com.ecofy.ms_notification.core.application.command.ResendNotificationCommand;
 import br.com.ecofy.ms_notification.core.application.command.SendNotificationCommand;
 import br.com.ecofy.ms_notification.core.application.result.NotificationResult;
@@ -35,7 +34,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
     private static final String DELIVERY_ERROR_CODE = "DELIVERY_FAILED";
     private static final String FAILURE_PROVIDER_PLACEHOLDER = "provider";
 
-    private final NotificationProperties props;
+    private final NotificationSettings settings;
 
     private final LoadNotificationTemplatePort loadTemplatePort;
     private final LoadUserContactInfoPort loadUserContactInfoPort;
@@ -48,10 +47,11 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
     private final PushSenderPort pushSenderPort;
 
     private final IdempotencyPort idempotencyPort;
+    private final RetryPolicyService retryPolicy;                            // Correção Dia 7 (item #7)
     private final PublishNotificationEventPort publishNotificationEventPort; // opcional
 
     public NotificationService(
-            NotificationProperties props,
+            NotificationSettings settings,
             LoadNotificationTemplatePort loadTemplatePort,
             LoadUserContactInfoPort loadUserContactInfoPort,
             SaveNotificationPort saveNotificationPort,
@@ -60,9 +60,10 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
             WhatsAppSenderPort whatsAppSenderPort,
             PushSenderPort pushSenderPort,
             IdempotencyPort idempotencyPort,
+            RetryPolicyService retryPolicy,
             Optional<PublishNotificationEventPort> publishNotificationEventPort
     ) {
-        this.props = Objects.requireNonNull(props, "props must not be null");
+        this.settings = Objects.requireNonNull(settings, "settings must not be null");
         this.loadTemplatePort = Objects.requireNonNull(loadTemplatePort, "loadTemplatePort must not be null");
         this.loadUserContactInfoPort = Objects.requireNonNull(loadUserContactInfoPort, "loadUserContactInfoPort must not be null");
         this.saveNotificationPort = Objects.requireNonNull(saveNotificationPort, "saveNotificationPort must not be null");
@@ -71,9 +72,8 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         this.whatsAppSenderPort = Objects.requireNonNull(whatsAppSenderPort, "whatsAppSenderPort must not be null");
         this.pushSenderPort = Objects.requireNonNull(pushSenderPort, "pushSenderPort must not be null");
         this.idempotencyPort = Objects.requireNonNull(idempotencyPort, "idempotencyPort must not be null");
+        this.retryPolicy = Objects.requireNonNull(retryPolicy, "retryPolicy must not be null");
         this.publishNotificationEventPort = publishNotificationEventPort.orElse(null);
-
-        Objects.requireNonNull(props.getIdempotency(), "props.idempotency must not be null");
     }
 
     // Cria e envia uma notificação a partir do template ativo, resolve destino (override ou contatos do usuário), persiste e tenta entregar com idempotência.
@@ -98,7 +98,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
                 channel,
                 command.destinationOverride() != null && !command.destinationOverride().isBlank(),
                 !payload.isEmpty(),
-                props.getIdempotency().isEnabled(),
+                settings.idempotencyEnabled(),
                 idem != null
         );
 
@@ -141,7 +141,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
                 saved.getAttemptCount()
         );
 
-        Notification delivered = attemptDelivery(saved);
+        Notification delivered = deliverWithRetry(saved);
 
         log.info(
                 "[NotificationService] - [send] -> completed notificationId={} status={} attemptCount={}",
@@ -167,7 +167,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         log.info(
                 "[NotificationService] - [resend] -> start notificationId={} idempotencyEnabled={} hasIdempotencyKey={}",
                 notificationUuid,
-                props.getIdempotency().isEnabled(),
+                settings.idempotencyEnabled(),
                 idem != null
         );
 
@@ -189,7 +189,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
                 saved.getAttemptCount()
         );
 
-        Notification delivered = attemptDelivery(saved);
+        Notification delivered = deliverWithRetry(saved);
 
         log.info(
                 "[NotificationService] - [resend] -> completed notificationId={} status={} attemptCount={}",
@@ -201,97 +201,115 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         return toResult(delivered);
     }
 
-    // Executa a entrega para o canal configurado (EMAIL/WHATSAPP/PUSH), grava tentativa (sucesso/erro), atualiza status e publica evento "sent" quando aplicável.
-    private Notification attemptDelivery(Notification notification) {
+    // Correção Dia 7 (item #7): integra RetryPolicyService ao fluxo de entrega.
+    // Tenta entregar; em falha do provider grava a tentativa, incrementa attemptCount e, se a
+    // política permitir (canRetry), re-tenta; senão marca FAILED e propaga DeliveryProviderException.
+    // NOTA: o backoff é calculado/logado, mas NÃO há sleep no thread da request — retry com atraso
+    // real + DLT/outbox fica como próximo passo documentado.
+    private Notification deliverWithRetry(Notification notification) {
         Objects.requireNonNull(notification, "notification must not be null");
 
-        int attemptNumber = notification.getAttemptCount() + 1;
+        Notification current = notification;
+        RuntimeException lastError;
 
-        try {
-            log.debug(
-                    "[NotificationService] - [attemptDelivery] -> attempting delivery notificationId={} channel={} attemptNumber={}",
-                    notification.getId().value(),
-                    notification.getChannel(),
-                    attemptNumber
-            );
+        while (true) {
+            int attemptNumber = current.getAttemptCount() + 1;
 
-            switch (notification.getChannel()) {
-                case EMAIL -> {
-                    var result = emailSenderPort.sendEmail(
-                            notification.getDestination(),
-                            requireNonNull(notification.getSubject(), "email subject must not be null"),
-                            requireNonNull(notification.getBody(), "email body must not be null")
-                    );
-                    saveDeliveryAttemptPort.save(successAttempt(notification, attemptNumber, result.provider(), result.providerMessageId()));
-                }
-                case WHATSAPP -> {
-                    var result = whatsAppSenderPort.sendWhatsApp(
-                            notification.getDestination(),
-                            requireNonNull(notification.getBody(), "whatsapp body must not be null")
-                    );
-                    saveDeliveryAttemptPort.save(successAttempt(notification, attemptNumber, result.provider(), result.providerMessageId()));
-                }
-                case PUSH -> {
-                    String title = (notification.getSubject() == null || notification.getSubject().isBlank())
-                            ? DEFAULT_PUSH_TITLE
-                            : notification.getSubject();
+            try {
+                return attemptDeliveryOnce(current, attemptNumber);
+            } catch (BusinessValidationException ex) {
+                // Erro de validação/canal não é falha transitória de provider: não re-tenta.
+                throw ex;
+            } catch (RuntimeException ex) {
+                lastError = ex;
 
-                    var result = pushSenderPort.sendPush(
-                            notification.getDestination(),
-                            title,
-                            requireNonNull(notification.getBody(), "push body must not be null")
+                log.warn(
+                        "[NotificationService] - [deliverWithRetry] -> delivery failed notificationId={} channel={} attemptNumber={} error={}",
+                        current.getId().value(), current.getChannel(), attemptNumber, safeErrorMessage(ex)
+                );
+
+                saveDeliveryAttemptPort.save(failureAttempt(current, attemptNumber, FAILURE_PROVIDER_PLACEHOLDER, DELIVERY_ERROR_CODE, safeErrorMessage(ex)));
+
+                current = saveNotificationPort.save(current.toBuilder()
+                        .status(NotificationStatus.FAILED)
+                        .attemptCount(attemptNumber)
+                        .updatedAt(Instant.now())
+                        .build());
+
+                if (retryPolicy.canRetry(attemptNumber)) {
+                    var backoff = retryPolicy.computeBackoff(attemptNumber);
+                    log.info(
+                            "[NotificationService] - [deliverWithRetry] -> scheduling retry notificationId={} attemptNumber={} nextBackoffMs={}",
+                            current.getId().value(), attemptNumber, backoff.toMillis()
                     );
-                    saveDeliveryAttemptPort.save(successAttempt(notification, attemptNumber, result.provider(), result.providerMessageId()));
+                    continue; // re-tenta imediatamente (sem sleep); atraso/DLT real é próximo passo
                 }
-                default -> throw new BusinessValidationException("Unsupported channel: " + notification.getChannel());
+
+                log.error(
+                        "[NotificationService] - [deliverWithRetry] -> delivery failed permanently notificationId={} attempts={}",
+                        current.getId().value(), attemptNumber
+                );
+
+                throw new DeliveryProviderException(
+                        "Delivery failed for notificationId=" + current.getId().value(),
+                        lastError
+                );
             }
-
-            var updated = notification.toBuilder()
-                    .status(NotificationStatus.SENT)
-                    .attemptCount(attemptNumber)
-                    .updatedAt(Instant.now())
-                    .build();
-
-            Notification saved = saveNotificationPort.save(updated);
-
-            log.debug(
-                    "[NotificationService] - [attemptDelivery] -> delivery success notificationId={} channel={} attemptNumber={} status={}",
-                    saved.getId().value(),
-                    saved.getChannel(),
-                    attemptNumber,
-                    saved.getStatus()
-            );
-
-            publishSentEventIfEnabled(saved);
-
-            return saved;
-
-        } catch (RuntimeException ex) {
-
-            log.warn(
-                    "[NotificationService] - [attemptDelivery] -> delivery failed notificationId={} channel={} attemptNumber={} error={}",
-                    notification.getId().value(),
-                    notification.getChannel(),
-                    attemptNumber,
-                    safeErrorMessage(ex)
-            );
-
-            // grava tentativa com erro
-            saveDeliveryAttemptPort.save(failureAttempt(notification, attemptNumber, FAILURE_PROVIDER_PLACEHOLDER, DELIVERY_ERROR_CODE, safeErrorMessage(ex)));
-
-            var updated = notification.toBuilder()
-                    .status(NotificationStatus.FAILED)
-                    .attemptCount(attemptNumber)
-                    .updatedAt(Instant.now())
-                    .build();
-
-            saveNotificationPort.save(updated);
-
-            throw new DeliveryProviderException(
-                    "Delivery failed for notificationId=" + notification.getId().value(),
-                    ex
-            );
         }
+    }
+
+    // Executa UMA tentativa de entrega para o canal configurado, grava a tentativa de sucesso,
+    // atualiza status para SENT e publica o evento "notification.sent" quando aplicável.
+    private Notification attemptDeliveryOnce(Notification notification, int attemptNumber) {
+        log.debug(
+                "[NotificationService] - [attemptDeliveryOnce] -> attempting delivery notificationId={} channel={} attemptNumber={}",
+                notification.getId().value(), notification.getChannel(), attemptNumber
+        );
+
+        switch (notification.getChannel()) {
+            case EMAIL -> {
+                var result = emailSenderPort.sendEmail(
+                        notification.getDestination(),
+                        requireNonNull(notification.getSubject(), "email subject must not be null"),
+                        requireNonNull(notification.getBody(), "email body must not be null")
+                );
+                saveDeliveryAttemptPort.save(successAttempt(notification, attemptNumber, result.provider(), result.providerMessageId()));
+            }
+            case WHATSAPP -> {
+                var result = whatsAppSenderPort.sendWhatsApp(
+                        notification.getDestination(),
+                        requireNonNull(notification.getBody(), "whatsapp body must not be null")
+                );
+                saveDeliveryAttemptPort.save(successAttempt(notification, attemptNumber, result.provider(), result.providerMessageId()));
+            }
+            case PUSH -> {
+                String title = (notification.getSubject() == null || notification.getSubject().isBlank())
+                        ? DEFAULT_PUSH_TITLE
+                        : notification.getSubject();
+
+                var result = pushSenderPort.sendPush(
+                        notification.getDestination(),
+                        title,
+                        requireNonNull(notification.getBody(), "push body must not be null")
+                );
+                saveDeliveryAttemptPort.save(successAttempt(notification, attemptNumber, result.provider(), result.providerMessageId()));
+            }
+            default -> throw new BusinessValidationException("Unsupported channel: " + notification.getChannel());
+        }
+
+        Notification saved = saveNotificationPort.save(notification.toBuilder()
+                .status(NotificationStatus.SENT)
+                .attemptCount(attemptNumber)
+                .updatedAt(Instant.now())
+                .build());
+
+        log.debug(
+                "[NotificationService] - [attemptDeliveryOnce] -> delivery success notificationId={} channel={} attemptNumber={} status={}",
+                saved.getId().value(), saved.getChannel(), attemptNumber, saved.getStatus()
+        );
+
+        publishSentEventIfEnabled(saved);
+        return saved;
     }
 
     // Publica o evento "notification.sent" no Kafka quando o publisher estiver disponível, sem quebrar o fluxo principal em caso de falha downstream.
@@ -299,7 +317,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
         if (publishNotificationEventPort == null) return;
 
         try {
-            publishNotificationEventPort.publish(NotificationSentEvent.from(saved));
+            publishNotificationEventPort.publish(saved);
             log.debug(
                     "[NotificationService] - [publishSentEventIfEnabled] -> published notification.sent notificationId={}",
                     saved.getId().value()
@@ -351,7 +369,7 @@ public class NotificationService implements SendNotificationUseCase, ResendNotif
 
     // Aplica a política de idempotência (se habilitada): normaliza/gera chave, tenta adquirir no repositório e falha com conflito se já utilizada.
     private void acquireIdempotencyIfEnabled(String idempotencyKey) {
-        if (!props.getIdempotency().isEnabled()) return;
+        if (!settings.idempotencyEnabled()) return;
 
         String keyValue = blankToNull(idempotencyKey);
         if (keyValue == null) {
