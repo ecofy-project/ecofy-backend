@@ -1,17 +1,22 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.AuthUserEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity;
 import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.AuthUserRepository;
+import br.com.ecofy.auth.adapters.out.persistence.repository.RoleRepository;
 import br.com.ecofy.auth.core.domain.AuthUser;
+import br.com.ecofy.auth.core.domain.Role;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.port.out.LoadAuthUserByEmailPort;
 import br.com.ecofy.auth.core.port.out.LoadAuthUserByIdPort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +27,17 @@ public class AuthUserJpaAdapter
         implements SaveAuthUserPort, LoadAuthUserByEmailPort, LoadAuthUserByIdPort {
 
     private final AuthUserRepository authUserRepository;
+    private final RoleRepository roleRepository;
 
-    // Injeta o repositório JPA e garante que ele não seja nulo para operações de persistência/consulta.
-    public AuthUserJpaAdapter(AuthUserRepository authUserRepository) {
+    // Injeta os repositórios JPA e garante que não sejam nulos para operações de persistência/consulta.
+    public AuthUserJpaAdapter(AuthUserRepository authUserRepository, RoleRepository roleRepository) {
         this.authUserRepository = Objects.requireNonNull(
                 authUserRepository,
                 "authUserRepository must not be null"
+        );
+        this.roleRepository = Objects.requireNonNull(
+                roleRepository,
+                "roleRepository must not be null"
         );
     }
 
@@ -123,11 +133,34 @@ public class AuthUserJpaAdapter
         entity.setLastName(user.lastName());
         entity.setLocale(user.locale());
         entity.setLastLoginAt(user.lastLoginAt());
+        // Regra crítica de segurança: persistir o contador de tentativas para que o lock funcione.
+        entity.setFailedLoginAttempts(user.failedLoginAttempts());
+
+        // Persiste as roles associando entidades JÁ EXISTENTES (evita FK inválida e duplicação).
+        entity.setRoles(resolveRoleEntities(user));
 
         // garante createdAt preenchido mesmo se alguém criar entidade "na mão"
         if (entity.getCreatedAt() == null) {
             entity.setCreatedAt(now);
         }
         entity.setUpdatedAt(now);
+    }
+
+    // Resolve as roles do domínio para entidades gerenciadas, ignorando (com log) nomes inexistentes no banco.
+    private Set<RoleEntity> resolveRoleEntities(AuthUser user) {
+        Set<RoleEntity> roleEntities = new HashSet<>();
+        for (Role role : user.roles()) {
+            if (role == null || role.name() == null) {
+                continue;
+            }
+            roleRepository.findById(role.name()).ifPresentOrElse(
+                    roleEntities::add,
+                    () -> log.warn(
+                            "[AuthUserJpaAdapter] - [resolveRoleEntities] -> Role '{}' inexistente no banco; ignorada na persistência",
+                            role.name()
+                    )
+            );
+        }
+        return roleEntities;
     }
 }

@@ -54,8 +54,8 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
         Objects.requireNonNull(tokenValue, "tokenValue must not be null");
 
         log.debug(
-                "[RefreshTokenJpaAdapter] - [findByTokenValue] -> Buscando refreshToken tokenValue={}",
-                tokenValue
+                "[RefreshTokenJpaAdapter] - [findByTokenValue] -> Buscando refreshToken tokenMask={}",
+                maskToken(tokenValue)
         );
 
         return repository.findByTokenValue(tokenValue)
@@ -76,8 +76,8 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
         Objects.requireNonNull(tokenValue, "tokenValue must not be null");
 
         log.debug(
-                "[RefreshTokenJpaAdapter] - [revoke] -> Revogando refreshToken tokenValue={}",
-                tokenValue
+                "[RefreshTokenJpaAdapter] - [revoke] -> Revogando refreshToken tokenMask={}",
+                maskToken(tokenValue)
         );
 
         repository.findByTokenValue(tokenValue).ifPresentOrElse(entity -> {
@@ -86,20 +86,26 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
                 repository.save(entity);
 
                 log.debug(
-                        "[RefreshTokenJpaAdapter] - [revoke] -> RefreshToken revogado id={} tokenValue={}",
-                        entity.getId(),
-                        tokenValue
+                        "[RefreshTokenJpaAdapter] - [revoke] -> RefreshToken revogado id={}",
+                        entity.getId()
                 );
             } else {
                 log.debug(
-                        "[RefreshTokenJpaAdapter] - [revoke] -> RefreshToken já estava revogado id={} tokenValue={}",
-                        entity.getId(),
-                        tokenValue
+                        "[RefreshTokenJpaAdapter] - [revoke] -> RefreshToken já estava revogado id={}",
+                        entity.getId()
                 );
             }
         }, () -> log.debug(
-                "[RefreshTokenJpaAdapter] - [revoke] -> Nenhum refreshToken encontrado para tokenValue={}",
-                tokenValue
+                "[RefreshTokenJpaAdapter] - [revoke] -> Nenhum refreshToken encontrado para tokenMask={}",
+                maskToken(tokenValue)
         ));
+    }
+
+    // Mascara o refresh token para logging, evitando expor o valor completo em logs.
+    private String maskToken(String token) {
+        if (token == null || token.isBlank()) {
+            return "***";
+        }
+        return token.length() > 12 ? token.substring(0, 12) + "..." : "***";
     }
 }

@@ -79,10 +79,8 @@ public class PasswordController {
     @PostMapping(path = "/reset-confirm", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> confirmReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
 
-        log.debug(
-                "[PasswordController] - [confirmReset] -> Confirmando reset de senha token={}",
-                request.token()
-        );
+        // Segurança: não logar o token de reset (nem parcial) no controller.
+        log.debug("[PasswordController] - [confirmReset] -> Confirmando reset de senha");
 
         resetPasswordUseCase.resetPassword(
                 new ResetPasswordUseCase.ResetPasswordCommand(
@@ -91,10 +89,7 @@ public class PasswordController {
                 )
         );
 
-        log.debug(
-                "[PasswordController] - [confirmReset] -> Reset de senha concluído token={}",
-                request.token()
-        );
+        log.debug("[PasswordController] - [confirmReset] -> Reset de senha concluído");
 
         return ResponseEntity.noContent().build();
     }

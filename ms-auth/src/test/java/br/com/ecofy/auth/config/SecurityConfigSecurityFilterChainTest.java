@@ -7,6 +7,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
@@ -41,6 +42,17 @@ class SecurityConfigSecurityFilterChainTest {
 
         doAnswer(inv -> {
             @SuppressWarnings("unchecked")
+            Customizer<CorsConfigurer<HttpSecurity>> customizer = (Customizer<CorsConfigurer<HttpSecurity>>) inv.getArgument(0);
+
+            @SuppressWarnings("unchecked")
+            CorsConfigurer<HttpSecurity> cors = mock(CorsConfigurer.class);
+
+            customizer.customize(cors);
+            return http;
+        }).when(http).cors(any());
+
+        doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
             Customizer<CsrfConfigurer<HttpSecurity>> customizer = (Customizer<CsrfConfigurer<HttpSecurity>>) inv.getArgument(0);
 
             @SuppressWarnings("unchecked")
@@ -67,6 +79,7 @@ class SecurityConfigSecurityFilterChainTest {
 
             when(registry.requestMatchers(any(String[].class))).thenReturn(authorizedUrl);
             when(authorizedUrl.permitAll()).thenReturn(registry);
+            when(authorizedUrl.hasRole(anyString())).thenReturn(registry);
             when(registry.anyRequest()).thenReturn(authorizedUrl);
             when(authorizedUrl.authenticated()).thenReturn(registry);
 
@@ -92,6 +105,7 @@ class SecurityConfigSecurityFilterChainTest {
                         mock(OAuth2ResourceServerConfigurer.JwtConfigurer.class);
 
                 when(jwtCfg.decoder(any(JwtDecoder.class))).thenReturn(jwtCfg);
+                when(jwtCfg.jwtAuthenticationConverter(any())).thenReturn(jwtCfg);
 
                 jwtCustomizer.customize(jwtCfg);
                 return oauth2;
@@ -147,6 +161,7 @@ class SecurityConfigSecurityFilterChainTest {
 
         assertSame(builtChain, chain);
 
+        verify(http).cors(any());
         verify(http).csrf(any());
         verify(http).authorizeHttpRequests(any());
         verify(http).oauth2ResourceServer(any());

@@ -221,7 +221,7 @@ class RegisterUserServiceTest {
                         @SuppressWarnings("unchecked")
                         Set<Role> roles = (Set<Role>) inv.getArgument(5);
                         assertEquals(1, roles.size());
-                        assertTrue(roles.stream().anyMatch(r -> "AUTH_USER".equals(r.name())));
+                        assertTrue(roles.stream().anyMatch(r -> "ROLE_USER".equals(r.name())));
                         return newUser;
                     });
 

@@ -15,6 +15,7 @@ import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
 import br.com.ecofy.auth.core.port.out.SendResetPasswordEmailPort;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -65,18 +66,16 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
                 email.value()
         );
 
-        AuthUser user = loadAuthUserByEmailPort
-                .loadByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn(
-                            "[PasswordResetService] - [requestReset] -> Usuário não encontrado email={}",
-                            email.value()
-                    );
-                    return new AuthException(
-                            AuthErrorCode.USER_NOT_FOUND,
-                            "User not found"
-                    );
-                });
+        // Anti-enumeração: NÃO revela se o e-mail existe. Se não existir, encerra
+        // silenciosamente (o controller retorna 202 igualmente) — resposta indistinguível.
+        Optional<AuthUser> maybeUser = loadAuthUserByEmailPort.loadByEmail(email);
+        if (maybeUser.isEmpty()) {
+            log.info(
+                    "[PasswordResetService] - [requestReset] -> Solicitação de reset para e-mail não cadastrado (no-op, sem enumeração)"
+            );
+            return;
+        }
+        AuthUser user = maybeUser.get();
 
         String resetToken = UUID.randomUUID().toString();
         String masked = maskToken(resetToken);

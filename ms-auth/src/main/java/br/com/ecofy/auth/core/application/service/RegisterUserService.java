@@ -72,7 +72,7 @@ public class RegisterUserService implements RegisterUserUseCase {
         String locale = command.locale() != null ? command.locale() : "pt-BR";
 
         List<String> roleNames = (command.roles() == null || command.roles().isEmpty())
-                ? List.of("AUTH_USER")
+                ? List.of("ROLE_USER")
                 : command.roles();
 
         Set<Role> roles = roleNames.stream()

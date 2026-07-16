@@ -2,15 +2,13 @@ package br.com.ecofy.auth.core.application.service;
 
 import br.com.ecofy.auth.core.application.exception.AuthErrorCode;
 import br.com.ecofy.auth.core.application.exception.AuthException;
-import br.com.ecofy.auth.core.domain.JwkKey;
-import br.com.ecofy.auth.core.port.out.JwksRepositoryPort;
+import br.com.ecofy.auth.core.port.out.PublicSigningKeyProviderPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,85 +19,71 @@ import static org.mockito.Mockito.*;
 class JwksServiceTest {
 
     @Mock
-    private JwksRepositoryPort jwksRepositoryPort;
+    private PublicSigningKeyProviderPort publicSigningKeyProviderPort;
 
     @Test
-    void constructor_shouldRejectNullRepository() {
+    void constructor_shouldRejectNullProvider() {
         NullPointerException ex = assertThrows(NullPointerException.class, () -> new JwksService(null));
-        assertEquals("jwksRepositoryPort must not be null", ex.getMessage());
+        assertEquals("publicSigningKeyProviderPort must not be null", ex.getMessage());
     }
 
     @Test
     void getJwks_shouldThrowAuthException_whenNoActiveKeys() {
-        JwksService service = new JwksService(jwksRepositoryPort);
+        JwksService service = new JwksService(publicSigningKeyProviderPort);
 
-        when(jwksRepositoryPort.findActiveSigningKeys()).thenReturn(List.of());
+        when(publicSigningKeyProviderPort.currentPublicJwks()).thenReturn(List.of());
 
         AuthException ex = assertThrows(AuthException.class, service::getJwks);
         assertEquals(AuthErrorCode.JWKS_NOT_AVAILABLE, ex.getErrorCode());
         assertEquals("No active signing keys available", ex.getMessage());
 
-        verify(jwksRepositoryPort).findActiveSigningKeys();
-        verifyNoMoreInteractions(jwksRepositoryPort);
+        verify(publicSigningKeyProviderPort).currentPublicJwks();
+        verifyNoMoreInteractions(publicSigningKeyProviderPort);
     }
 
     @Test
-    void getJwks_shouldReturnKeysList_whenActiveKeysExist() {
-        JwksService service = new JwksService(jwksRepositoryPort);
+    void getJwks_shouldThrowAuthException_whenProviderReturnsNull() {
+        JwksService service = new JwksService(publicSigningKeyProviderPort);
 
-        JwkKey k1 = mock(JwkKey.class);
-        when(k1.keyId()).thenReturn("kid-1");
-        when(k1.algorithm()).thenReturn("RS256");
-        when(k1.use()).thenReturn("sig");
+        when(publicSigningKeyProviderPort.currentPublicJwks()).thenReturn(null);
 
-        JwkKey k2 = mock(JwkKey.class);
-        when(k2.keyId()).thenReturn("kid-2");
-        when(k2.algorithm()).thenReturn("RS256");
-        when(k2.use()).thenReturn("sig");
+        AuthException ex = assertThrows(AuthException.class, service::getJwks);
+        assertEquals(AuthErrorCode.JWKS_NOT_AVAILABLE, ex.getErrorCode());
+    }
 
-        when(jwksRepositoryPort.findActiveSigningKeys()).thenReturn(List.of(k1, k2));
+    @Test
+    void getJwks_shouldExposeFullRsaPublicMaterial_includingModulusAndExponent() {
+        JwksService service = new JwksService(publicSigningKeyProviderPort);
+
+        Map<String, Object> jwk = new LinkedHashMap<>();
+        jwk.put("kty", "RSA");
+        jwk.put("kid", "ecofy-auth-key-1");
+        jwk.put("use", "sig");
+        jwk.put("alg", "RS256");
+        jwk.put("n", "some-base64url-modulus");
+        jwk.put("e", "AQAB");
+
+        when(publicSigningKeyProviderPort.currentPublicJwks()).thenReturn(List.of(jwk));
 
         Map<String, Object> jwks = service.getJwks();
 
         assertNotNull(jwks);
         assertTrue(jwks.containsKey("keys"));
 
-        Object keysObj = jwks.get("keys");
-        assertInstanceOf(List.class, keysObj);
-
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> keys = (List<Map<String, Object>>) keysObj;
+        List<Map<String, Object>> keys = (List<Map<String, Object>>) jwks.get("keys");
+        assertEquals(1, keys.size());
 
-        assertEquals(2, keys.size());
-
-        assertEquals(Map.of("kid", "kid-1", "alg", "RS256", "use", "sig", "kty", "RSA"), keys.get(0));
-        assertEquals(Map.of("kid", "kid-2", "alg", "RS256", "use", "sig", "kty", "RSA"), keys.get(1));
-
-        verify(jwksRepositoryPort).findActiveSigningKeys();
-        verifyNoMoreInteractions(jwksRepositoryPort);
-    }
-
-    @Test
-    void convertToJwkEntry_shouldMapAllFields_andKeepInsertionOrder() throws Exception {
-        JwksService service = new JwksService(jwksRepositoryPort);
-
-        JwkKey key = mock(JwkKey.class);
-        when(key.keyId()).thenReturn("kid-x");
-        when(key.algorithm()).thenReturn("RS256");
-        when(key.use()).thenReturn("sig");
-
-        Method m = JwksService.class.getDeclaredMethod("convertToJwkEntry", JwkKey.class);
-        m.setAccessible(true);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> entry = (Map<String, Object>) m.invoke(service, key);
-
-        assertEquals("kid-x", entry.get("kid"));
+        Map<String, Object> entry = keys.get(0);
+        // Material público RSA obrigatório para validação por Resource Servers:
+        assertEquals("RSA", entry.get("kty"));
+        assertEquals("ecofy-auth-key-1", entry.get("kid"));
         assertEquals("RS256", entry.get("alg"));
         assertEquals("sig", entry.get("use"));
-        assertEquals("RSA", entry.get("kty"));
+        assertTrue(entry.containsKey("n"), "JWK deve conter o modulus 'n'");
+        assertTrue(entry.containsKey("e"), "JWK deve conter o expoente 'e'");
 
-        String joinedKeys = String.join(",", entry.keySet());
-        assertEquals("kid,alg,use,kty", joinedKeys);
+        verify(publicSigningKeyProviderPort).currentPublicJwks();
+        verifyNoMoreInteractions(publicSigningKeyProviderPort);
     }
 }

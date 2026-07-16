@@ -485,6 +485,80 @@ class JwtNimbusTokenProviderAdapterTest {
         }
     }
 
+    @Test
+    @DisplayName("verifyAndParseClaims: token válido (mesma chave) -> retorna claims")
+    void verifyAndParseClaims_validToken_returnsClaims() {
+        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("roles", java.util.List.of("ROLE_USER"));
+
+        JwtToken t = a.generateAccessToken("sub-1", claims, 60);
+
+        Map<String, Object> parsed = a.verifyAndParseClaims(t.value());
+
+        assertThat(parsed).containsKey("sub");
+        assertThat(parsed.get("sub")).isEqualTo("sub-1");
+    }
+
+    @Test
+    @DisplayName("verifyAndParseClaims: assinatura inválida (chave diferente) -> IllegalArgumentException")
+    void verifyAndParseClaims_invalidSignature_throws() {
+        JwtNimbusTokenProviderAdapter signer = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
+        JwtNimbusTokenProviderAdapter otherKey = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
+
+        JwtToken t = signer.generateAccessToken("sub-1", new HashMap<>(), 60);
+
+        // 'otherKey' tem outro par RSA em memória -> assinatura não confere.
+        assertThatThrownBy(() -> otherKey.verifyAndParseClaims(t.value()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid token");
+    }
+
+    @Test
+    @DisplayName("verifyAndParseClaims: token expirado -> IllegalArgumentException")
+    void verifyAndParseClaims_expiredToken_throws() throws Exception {
+        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
+
+        RSAPrivateKey pk = (RSAPrivateKey) getField(a, "privateKey");
+        JWSHeader header = (JWSHeader) getField(a, "jwsHeader");
+
+        JWTClaimsSet cs = new JWTClaimsSet.Builder()
+                .subject("sub-exp")
+                .issuer("iss")
+                .audience("aud")
+                .issueTime(Date.from(Instant.now().minusSeconds(600)))
+                .expirationTime(Date.from(Instant.now().minusSeconds(300)))
+                .claim("typ", "ACCESS")
+                .build();
+
+        String raw = signRawJwt(pk, header, cs);
+
+        assertThatThrownBy(() -> a.verifyAndParseClaims(raw))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid token");
+    }
+
+    @Test
+    @DisplayName("currentPublicJwks: expõe material público RSA completo (kty, kid, alg, use, n, e)")
+    void currentPublicJwks_exposesFullRsaPublicMaterial() {
+        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-abc", "iss", "aud", 0));
+
+        java.util.List<Map<String, Object>> jwks = a.currentPublicJwks();
+
+        assertThat(jwks).hasSize(1);
+        Map<String, Object> jwk = jwks.get(0);
+
+        assertThat(jwk).containsEntry("kty", "RSA");
+        assertThat(jwk).containsEntry("kid", "kid-abc");
+        assertThat(jwk).containsEntry("alg", "RS256");
+        assertThat(jwk).containsEntry("use", "sig");
+        assertThat(jwk).containsKey("n");
+        assertThat(jwk).containsKey("e");
+        // Nunca expor material privado no JWKS.
+        assertThat(jwk).doesNotContainKey("d");
+    }
+
     // heapers
 
     private JwtNimbusTokenProviderAdapter adapter(JwtProperties props) {
@@ -500,13 +574,15 @@ class JwtNimbusTokenProviderAdapterTest {
     }
 
     private JwtProperties propsForTokenFlow(String keyId, String issuer, String audience, long skewSeconds) {
+        // lenient: alguns testes (ex.: currentPublicJwks / verifyAndParseClaims) não geram token,
+        // então nem todos os stubs de claims são exercidos — não é stubbing desnecessário real.
         JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any-private");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any-public");
-        when(p.getKeyId()).thenReturn(keyId);
-        when(p.getIssuer()).thenReturn(issuer);
-        when(p.getAudience()).thenReturn(audience);
-        when(p.getClockSkewSeconds()).thenReturn(skewSeconds);
+        lenient().when(p.getPrivateKeyLocation()).thenReturn("classpath:any-private");
+        lenient().when(p.getPublicKeyLocation()).thenReturn("classpath:any-public");
+        lenient().when(p.getKeyId()).thenReturn(keyId);
+        lenient().when(p.getIssuer()).thenReturn(issuer);
+        lenient().when(p.getAudience()).thenReturn(audience);
+        lenient().when(p.getClockSkewSeconds()).thenReturn(skewSeconds);
         return p;
     }
 

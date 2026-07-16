@@ -145,7 +145,7 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void requestReset_shouldThrowUserNotFound_whenUserMissing() {
+    void requestReset_shouldBeNoOp_whenUserMissing_toPreventEnumeration() {
         PasswordResetService s = service();
 
         RequestPasswordResetUseCase.RequestPasswordResetCommand cmd = mock(RequestPasswordResetUseCase.RequestPasswordResetCommand.class);
@@ -153,12 +153,12 @@ class PasswordResetServiceTest {
 
         when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.empty());
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.requestReset(cmd));
-        assertEquals(AuthErrorCode.USER_NOT_FOUND, ex.getErrorCode());
-        assertEquals("User not found", ex.getMessage());
+        // Anti-enumeração: e-mail inexistente NÃO gera exceção nem revela ausência do usuário.
+        assertDoesNotThrow(() -> s.requestReset(cmd));
 
         verify(loadAuthUserByEmailPort).loadByEmail(any(EmailAddress.class));
         verifyNoMoreInteractions(loadAuthUserByEmailPort);
+        // Nenhum token é gerado/armazenado, nenhum e-mail enviado, nenhum evento publicado.
         verifyNoInteractions(passwordResetTokenStorePort, sendResetPasswordEmailPort, saveAuthUserPort, passwordHashingPort, publishAuthEventPort);
     }
 

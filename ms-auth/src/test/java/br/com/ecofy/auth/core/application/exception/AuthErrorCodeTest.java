@@ -16,6 +16,7 @@ class AuthErrorCodeTest {
                 Map.entry(AuthErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED),
                 Map.entry(AuthErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND),
                 Map.entry(AuthErrorCode.USER_BLOCKED, HttpStatus.FORBIDDEN),
+                Map.entry(AuthErrorCode.USER_LOCKED, HttpStatus.FORBIDDEN),
                 Map.entry(AuthErrorCode.EMAIL_NOT_VERIFIED, HttpStatus.FORBIDDEN),
 
                 Map.entry(AuthErrorCode.CLIENT_NOT_FOUND, HttpStatus.NOT_FOUND),
@@ -73,6 +74,7 @@ class AuthErrorCodeTest {
                         AuthErrorCode.INVALID_CREDENTIALS,
                         AuthErrorCode.USER_NOT_FOUND,
                         AuthErrorCode.USER_BLOCKED,
+                        AuthErrorCode.USER_LOCKED,
                         AuthErrorCode.EMAIL_NOT_VERIFIED,
 
                         AuthErrorCode.CLIENT_NOT_FOUND,

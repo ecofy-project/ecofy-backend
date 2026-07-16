@@ -6,7 +6,10 @@ import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.domain.JwtToken;
+import br.com.ecofy.auth.core.domain.Permission;
 import br.com.ecofy.auth.core.domain.RefreshToken;
+import br.com.ecofy.auth.core.domain.Role;
+import br.com.ecofy.auth.core.domain.enums.AuthUserStatus;
 import br.com.ecofy.auth.core.domain.enums.ClientType;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
 import br.com.ecofy.auth.core.domain.enums.TokenType;
@@ -20,9 +23,12 @@ import br.com.ecofy.auth.core.port.out.LoadClientApplicationByClientIdPort;
 import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
 import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
 import br.com.ecofy.auth.core.port.out.RefreshTokenStorePort;
+import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +43,10 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
     private final JwtTokenProviderPort jwtTokenProviderPort;
     private final RefreshTokenStorePort refreshTokenStorePort;
     private final PublishAuthEventPort publishAuthEventPort;
+    private final SaveAuthUserPort saveAuthUserPort;
+
+    // Máximo de tentativas de senha antes de o domínio bloquear (LOCKED) o usuário.
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
 
     private final long accessTokenTtlSeconds;
     private final long refreshTokenTtlSeconds;
@@ -49,6 +59,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
             JwtTokenProviderPort jwtTokenProviderPort,
             RefreshTokenStorePort refreshTokenStorePort,
             PublishAuthEventPort publishAuthEventPort,
+            SaveAuthUserPort saveAuthUserPort,
             JwtProperties jwtProperties
     ) {
 
@@ -67,6 +78,8 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                 Objects.requireNonNull(refreshTokenStorePort, "refreshTokenStorePort must not be null");
         this.publishAuthEventPort =
                 Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
+        this.saveAuthUserPort =
+                Objects.requireNonNull(saveAuthUserPort, "saveAuthUserPort must not be null");
 
         JwtProperties props = Objects.requireNonNull(jwtProperties, "jwtProperties must not be null");
 
@@ -115,7 +128,9 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                 });
 
         if (!passwordHashingPort.matches(command.password(), user.passwordHash())) {
-            user.registerFailedLogin(5); // política de lock no domínio
+            user.registerFailedLogin(MAX_FAILED_LOGIN_ATTEMPTS); // política de lock no domínio
+            // Persiste o incremento de tentativas (e eventual LOCKED) para que o bloqueio seja efetivo.
+            saveAuthUserPort.save(user);
             log.warn(
                     "[AuthService] - [authenticate] -> Senha inválida username={} failedAttempts={}",
                     command.username(),
@@ -124,7 +139,12 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
             throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS, "Invalid credentials");
         }
 
+        // Senha correta: só emite token se a conta estiver realmente apta (status + e-mail confirmado).
+        ensureUserCanAuthenticate(user);
+
         user.registerSuccessfulLogin();
+        // Persiste lastLoginAt e o reset de tentativas de login.
+        saveAuthUserPort.save(user);
 
         Map<String, Object> accessClaims = buildAccessTokenClaims(user, client, command.scope());
         JwtToken accessToken = jwtTokenProviderPort
@@ -269,6 +289,47 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         );
     }
 
+    // Garante que o usuário está apto a autenticar (status válido e e-mail confirmado) antes de emitir tokens.
+    private void ensureUserCanAuthenticate(AuthUser user) {
+        AuthUserStatus status = user.status();
+
+        switch (status) {
+            case DELETED, BLOCKED -> {
+                log.warn(
+                        "[AuthService] - [ensureUserCanAuthenticate] -> Usuário bloqueado/deletado userId={} status={}",
+                        user.id().value(),
+                        status
+                );
+                throw new AuthException(AuthErrorCode.USER_BLOCKED, "User is not allowed to authenticate");
+            }
+            case LOCKED -> {
+                log.warn(
+                        "[AuthService] - [ensureUserCanAuthenticate] -> Usuário bloqueado por tentativas userId={}",
+                        user.id().value()
+                );
+                throw new AuthException(AuthErrorCode.USER_LOCKED, "User account is locked");
+            }
+            case PENDING_EMAIL_CONFIRMATION -> {
+                log.warn(
+                        "[AuthService] - [ensureUserCanAuthenticate] -> Usuário pendente de confirmação userId={}",
+                        user.id().value()
+                );
+                throw new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED, "Email is not verified");
+            }
+            case ACTIVE -> {
+                // segue para checagem de e-mail confirmado
+            }
+        }
+
+        if (!user.isEmailVerified()) {
+            log.warn(
+                    "[AuthService] - [ensureUserCanAuthenticate] -> E-mail não confirmado userId={}",
+                    user.id().value()
+            );
+            throw new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED, "Email is not verified");
+        }
+    }
+
     // Valida se o client é ativo e permitido para o fluxo PASSWORD (grant + tipo de client).
     private void validateClientForPasswordGrant(ClientApplication client) {
 
@@ -351,9 +412,24 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
             claims.put("scope", scope);
         }
 
-        // Futuro: roles / permissions
-        // claims.put("roles", ...);
-        // claims.put("permissions", ...);
+        // Roles (ex.: ["ROLE_ADMIN","ROLE_USER"]) — consumidas pelo Resource Server para autorização.
+        List<String> roleNames = user.roles().stream()
+                .map(Role::name)
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
+        if (!roleNames.isEmpty()) {
+            claims.put("roles", roleNames);
+        }
+
+        // Permissions efetivas: união das permissões das roles + permissões diretas do usuário.
+        TreeSet<String> permissionNames = new TreeSet<>();
+        user.roles().forEach(role ->
+                role.permissions().forEach(p -> permissionNames.add(p.name())));
+        user.directPermissions().stream().map(Permission::name).forEach(permissionNames::add);
+        if (!permissionNames.isEmpty()) {
+            claims.put("permissions", List.copyOf(permissionNames));
+        }
 
         return claims;
     }

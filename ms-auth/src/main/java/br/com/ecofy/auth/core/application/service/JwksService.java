@@ -2,10 +2,8 @@ package br.com.ecofy.auth.core.application.service;
 
 import br.com.ecofy.auth.core.application.exception.AuthErrorCode;
 import br.com.ecofy.auth.core.application.exception.AuthException;
-import br.com.ecofy.auth.core.domain.JwkKey;
 import br.com.ecofy.auth.core.port.in.GetJwksUseCase;
-import br.com.ecofy.auth.core.port.out.JwksRepositoryPort;
-import java.util.LinkedHashMap;
+import br.com.ecofy.auth.core.port.out.PublicSigningKeyProviderPort;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,41 +11,36 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 // Serviço responsável por montar o JWKS (JSON Web Key Set) para exposição no endpoint /.well-known/jwks.json.
+//
+// O JWKS é derivado da CHAVE PÚBLICA REAL de assinatura (mesmo material n/e e kid
+// usados para assinar os JWTs), garantindo que Resource Servers consigam validar
+// os tokens emitidos pelo ms-auth em qualquer profile (dev/test/prod).
 @Slf4j
 @Service
 public class JwksService implements GetJwksUseCase {
 
-    private final JwksRepositoryPort jwksRepositoryPort;
+    private final PublicSigningKeyProviderPort publicSigningKeyProviderPort;
 
-    // Injeta o repositório de JWKS e garante que ele não seja nulo para consulta das chaves ativas.
-    public JwksService(JwksRepositoryPort jwksRepositoryPort) {
-        this.jwksRepositoryPort =
-                Objects.requireNonNull(jwksRepositoryPort, "jwksRepositoryPort must not be null");
+    // Injeta o provedor da chave pública de assinatura e garante que ele não seja nulo.
+    public JwksService(PublicSigningKeyProviderPort publicSigningKeyProviderPort) {
+        this.publicSigningKeyProviderPort =
+                Objects.requireNonNull(publicSigningKeyProviderPort, "publicSigningKeyProviderPort must not be null");
     }
 
-    // Carrega as chaves de assinatura ativas e retorna um JWKS no formato {"keys": [...]} ou lança erro se não houver chaves.
+    // Carrega as chaves públicas de assinatura e retorna um JWKS no formato {"keys": [...]} ou lança erro se não houver chaves.
     @Override
     public Map<String, Object> getJwks() {
-        log.debug("[JwksService] - [getJwks] -> Buscando chaves ativas…");
+        log.debug("[JwksService] - [getJwks] -> Derivando JWKS da chave pública de assinatura…");
 
-        List<JwkKey> keys = jwksRepositoryPort.findActiveSigningKeys();
+        List<Map<String, Object>> jwkList = publicSigningKeyProviderPort.currentPublicJwks();
 
-        if (keys.isEmpty()) {
-            log.warn("[JwksService] - [getJwks] -> Nenhuma JWK ativa encontrada.");
+        if (jwkList == null || jwkList.isEmpty()) {
+            log.warn("[JwksService] - [getJwks] -> Nenhuma chave pública de assinatura disponível.");
             throw new AuthException(
                     AuthErrorCode.JWKS_NOT_AVAILABLE,
                     "No active signing keys available"
             );
-        } else {
-            log.debug(
-                    "[JwksService] - [getJwks] -> {} chave(s) ativa(s) encontrada(s).",
-                    keys.size()
-            );
         }
-
-        List<Map<String, Object>> jwkList = keys.stream()
-                .map(this::convertToJwkEntry)
-                .toList();
 
         Map<String, Object> response = Map.of("keys", jwkList);
 
@@ -57,24 +50,5 @@ public class JwksService implements GetJwksUseCase {
         );
 
         return response;
-    }
-
-    // Converte uma chave de domínio (JwkKey) em um entry de JWK contendo os metadados públicos do JWKS.
-    private Map<String, Object> convertToJwkEntry(JwkKey key) {
-        Map<String, Object> m = new LinkedHashMap<>();
-
-        m.put("kid", key.keyId());
-        m.put("alg", key.algorithm());
-        m.put("use", key.use());
-        m.put("kty", "RSA");
-
-        log.debug(
-                "[JwksService] - [convertToJwkEntry] -> Convertendo keyId={} alg={} use={}",
-                key.keyId(),
-                key.algorithm(),
-                key.use()
-        );
-
-        return m;
     }
 }

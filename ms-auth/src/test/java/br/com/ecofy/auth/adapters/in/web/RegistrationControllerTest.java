@@ -102,7 +102,7 @@ class RegistrationControllerTest {
             assertEquals("Doe", cmd.lastName());
             assertEquals("pt-BR", cmd.locale(), "Locale deve ser 'pt-BR' quando request.locale() é null");
             assertFalse(cmd.autoConfirmEmail(), "O controller envia false para emailConfirmed");
-            assertEquals(List.of("AUTH_USER"), cmd.roles(), "Roles padrão devem ser AUTH_USER");
+            assertEquals(List.of("ROLE_USER"), cmd.roles(), "Roles padrão devem ser ROLE_USER");
         }
 
     }
@@ -159,7 +159,7 @@ class RegistrationControllerTest {
             assertEquals("Smith", cmd.lastName());
             assertEquals("en-US", cmd.locale(), "Locale deve ser o do request quando não é null");
             assertFalse(cmd.autoConfirmEmail());
-            assertEquals(List.of("AUTH_USER"), cmd.roles());
+            assertEquals(List.of("ROLE_USER"), cmd.roles());
         }
 
     }

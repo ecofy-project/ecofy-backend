@@ -39,8 +39,8 @@ public class AdminUserController {
             description = """
                     Endpoint administrativo para criação de usuários com permissões elevadas.
 
-                    - Requer autenticação com um usuário que possua a role AUTH_ADMIN (configurado em SecurityConfig).
-                    - Gera um usuário com roles padrão AUTH_ADMIN e AUTH_USER, a menos que outra lista de roles seja enviada.
+                    - Requer autenticação com um usuário que possua a role ROLE_ADMIN (configurado em SecurityConfig).
+                    - Gera um usuário com roles padrão ROLE_ADMIN e ROLE_USER, a menos que outra lista de roles seja enviada.
                     - Marca o e-mail como confirmado automaticamente (dependendo da implementação do use case).
                     """
     )
@@ -69,7 +69,7 @@ public class AdminUserController {
         log.debug("[AdminUserController] - [createAdmin] -> Criando usuário admin email={}", request.email());
 
         List<String> roles = (request.roles() == null || request.roles().isEmpty())
-                ? List.of("AUTH_ADMIN", "AUTH_USER")
+                ? List.of("ROLE_ADMIN", "ROLE_USER")
                 : request.roles();
 
         String locale = request.locale() != null ? request.locale() : "pt-BR";

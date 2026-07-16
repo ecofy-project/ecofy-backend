@@ -20,9 +20,11 @@ import br.com.ecofy.auth.core.port.in.RefreshTokenUseCase;
 import br.com.ecofy.auth.core.port.out.JwtTokenProviderPort;
 import br.com.ecofy.auth.core.port.out.LoadAuthUserByEmailPort;
 import br.com.ecofy.auth.core.port.out.LoadClientApplicationByClientIdPort;
+import br.com.ecofy.auth.core.domain.enums.AuthUserStatus;
 import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
 import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
 import br.com.ecofy.auth.core.port.out.RefreshTokenStorePort;
+import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -60,6 +62,9 @@ class AuthServiceTest {
     @Mock
     private PublishAuthEventPort publishAuthEventPort;
 
+    @Mock
+    private SaveAuthUserPort saveAuthUserPort;
+
     private AuthService service(long accessTtl, long refreshTtl) {
         JwtProperties props = mock(JwtProperties.class);
         when(props.getAccessTokenTtlSeconds()).thenReturn(accessTtl);
@@ -72,8 +77,15 @@ class AuthServiceTest {
                 jwtTokenProviderPort,
                 refreshTokenStorePort,
                 publishAuthEventPort,
+                saveAuthUserPort,
                 props
         );
+    }
+
+    // Stub padrão de conta apta a autenticar (ACTIVE + e-mail verificado).
+    private static void stubActiveVerified(AuthUser user) {
+        when(user.status()).thenReturn(AuthUserStatus.ACTIVE);
+        when(user.isEmailVerified()).thenReturn(true);
     }
 
     @Test
@@ -89,6 +101,7 @@ class AuthServiceTest {
                         jwtTokenProviderPort,
                         refreshTokenStorePort,
                         publishAuthEventPort,
+                        saveAuthUserPort,
                         props
                 )).getMessage()
         );
@@ -102,6 +115,7 @@ class AuthServiceTest {
                         jwtTokenProviderPort,
                         refreshTokenStorePort,
                         publishAuthEventPort,
+                        saveAuthUserPort,
                         props
                 )).getMessage()
         );
@@ -115,6 +129,7 @@ class AuthServiceTest {
                         jwtTokenProviderPort,
                         refreshTokenStorePort,
                         publishAuthEventPort,
+                        saveAuthUserPort,
                         props
                 )).getMessage()
         );
@@ -128,6 +143,7 @@ class AuthServiceTest {
                         null,
                         refreshTokenStorePort,
                         publishAuthEventPort,
+                        saveAuthUserPort,
                         props
                 )).getMessage()
         );
@@ -141,6 +157,7 @@ class AuthServiceTest {
                         jwtTokenProviderPort,
                         null,
                         publishAuthEventPort,
+                        saveAuthUserPort,
                         props
                 )).getMessage()
         );
@@ -153,6 +170,21 @@ class AuthServiceTest {
                         passwordHashingPort,
                         jwtTokenProviderPort,
                         refreshTokenStorePort,
+                        null,
+                        saveAuthUserPort,
+                        props
+                )).getMessage()
+        );
+
+        assertEquals(
+                "saveAuthUserPort must not be null",
+                assertThrows(NullPointerException.class, () -> new AuthService(
+                        loadAuthUserByEmailPort,
+                        loadClientApplicationByClientIdPort,
+                        passwordHashingPort,
+                        jwtTokenProviderPort,
+                        refreshTokenStorePort,
+                        publishAuthEventPort,
                         null,
                         props
                 )).getMessage()
@@ -167,6 +199,7 @@ class AuthServiceTest {
                         jwtTokenProviderPort,
                         refreshTokenStorePort,
                         publishAuthEventPort,
+                        saveAuthUserPort,
                         null
                 )).getMessage()
         );
@@ -320,6 +353,7 @@ class AuthServiceTest {
         when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
         when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
         when(passwordHashingPort.matches("p", ph)).thenReturn(true);
+        stubActiveVerified(user);
 
         JwtToken access = mock(JwtToken.class);
 
@@ -685,6 +719,7 @@ class AuthServiceTest {
         when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
         when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
         when(passwordHashingPort.matches("p", ph)).thenReturn(true);
+        stubActiveVerified(user);
 
         JwtToken access = mock(JwtToken.class);
         JwtToken refresh = mock(JwtToken.class);
@@ -740,6 +775,7 @@ class AuthServiceTest {
         when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
         when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
         when(passwordHashingPort.matches("p", ph)).thenReturn(true);
+        stubActiveVerified(user);
 
         JwtToken access = mock(JwtToken.class);
         JwtToken refresh = mock(JwtToken.class);
@@ -794,6 +830,7 @@ class AuthServiceTest {
         when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
         when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
         when(passwordHashingPort.matches("p", ph)).thenReturn(true);
+        stubActiveVerified(user);
 
         JwtToken access = mock(JwtToken.class);
         JwtToken refresh = mock(JwtToken.class);
@@ -848,6 +885,7 @@ class AuthServiceTest {
         when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
         when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
         when(passwordHashingPort.matches("p", ph)).thenReturn(true);
+        stubActiveVerified(user);
 
         JwtToken access = mock(JwtToken.class);
         JwtToken refresh = mock(JwtToken.class);

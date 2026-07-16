@@ -3,6 +3,7 @@ package br.com.ecofy.auth.adapters.out.persistence;
 import br.com.ecofy.auth.adapters.out.persistence.entity.AuthUserEntity;
 import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.AuthUserRepository;
+import br.com.ecofy.auth.adapters.out.persistence.repository.RoleRepository;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
@@ -29,15 +30,23 @@ class AuthUserJpaAdapterTest {
     @Mock
     private AuthUserRepository authUserRepository;
 
+    @Mock
+    private RoleRepository roleRepository;
+
     @Test
     void constructor_shouldRejectNullRepository() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> new AuthUserJpaAdapter(null));
+        NullPointerException ex = assertThrows(NullPointerException.class,
+                () -> new AuthUserJpaAdapter(null, roleRepository));
         assertEquals("authUserRepository must not be null", ex.getMessage());
+
+        NullPointerException ex2 = assertThrows(NullPointerException.class,
+                () -> new AuthUserJpaAdapter(authUserRepository, null));
+        assertEquals("roleRepository must not be null", ex2.getMessage());
     }
 
     @Test
     void save_shouldRejectNullUser() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.save(null));
         assertEquals("user must not be null", ex.getMessage());
@@ -47,7 +56,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void save_shouldCreateNewEntity_whenNotFound_andSetCreatedAtAndUpdatedAt() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
         AuthUser user = mockAuthUser(id, "user@ecofy.com");
@@ -81,7 +90,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void save_shouldUpdateExistingEntity_whenFound_andKeepExistingCreatedAt_whenAlreadySet() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         UUID id = UUID.fromString("22222222-2222-2222-2222-222222222222");
         AuthUser user = mockAuthUser(id, "existing@ecofy.com");
@@ -118,7 +127,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void save_shouldSetCreatedAt_whenExistingEntityHasNullCreatedAt() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         UUID id = UUID.fromString("33333333-3333-3333-3333-333333333333");
         AuthUser user = mockAuthUser(id, "nullcreated@ecofy.com");
@@ -153,7 +162,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void loadByEmail_shouldRejectNullEmail() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadByEmail(null));
         assertEquals("email must not be null", ex.getMessage());
@@ -163,7 +172,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void loadByEmail_shouldReturnEmpty_whenNotFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         EmailAddress email = mock(EmailAddress.class);
         when(email.value()).thenReturn("missing@ecofy.com");
@@ -178,7 +187,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void loadByEmail_shouldMapToDomain_whenFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         EmailAddress email = mock(EmailAddress.class);
         when(email.value()).thenReturn("found@ecofy.com");
@@ -206,7 +215,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void loadById_shouldRejectNullId() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadById(null));
         assertEquals("id must not be null", ex.getMessage());
@@ -216,7 +225,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void loadById_shouldReturnEmpty_whenNotFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         UUID uuid = UUID.fromString("55555555-5555-5555-5555-555555555555");
         AuthUserId id = mock(AuthUserId.class);
@@ -232,7 +241,7 @@ class AuthUserJpaAdapterTest {
 
     @Test
     void loadById_shouldMapToDomain_whenFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository);
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
 
         UUID uuid = UUID.fromString("66666666-6666-6666-6666-666666666666");
         AuthUserId id = mock(AuthUserId.class);
@@ -257,6 +266,67 @@ class AuthUserJpaAdapterTest {
 
         verify(authUserRepository).findById(uuid);
         verifyNoMoreInteractions(authUserRepository);
+    }
+
+    @Test
+    void save_shouldPersistFailedLoginAttemptsAndResolvedRoles() {
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+
+        UUID id = UUID.fromString("77777777-7777-7777-7777-777777777777");
+        AuthUser user = mockAuthUser(id, "roles@ecofy.com");
+        when(user.failedLoginAttempts()).thenReturn(3);
+        when(user.roles()).thenReturn(java.util.Set.of(
+                new br.com.ecofy.auth.core.domain.Role("ROLE_ADMIN", null, java.util.Set.of())));
+
+        br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity adminEntity =
+                new br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity();
+        adminEntity.setName("ROLE_ADMIN");
+        when(roleRepository.findById("ROLE_ADMIN")).thenReturn(Optional.of(adminEntity));
+
+        when(authUserRepository.findById(id)).thenReturn(Optional.empty());
+
+        ArgumentCaptor<AuthUserEntity> entityCaptor = ArgumentCaptor.forClass(AuthUserEntity.class);
+        when(authUserRepository.save(entityCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        AuthUser mappedDomain = mock(AuthUser.class);
+        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
+            mocked.when(() -> PersistenceMapper.toDomain(any(AuthUserEntity.class), any(), any()))
+                    .thenReturn(mappedDomain);
+
+            adapter.save(user);
+        }
+
+        AuthUserEntity saved = entityCaptor.getValue();
+        assertEquals(3, saved.getFailedLoginAttempts());
+        assertTrue(saved.getRoles().contains(adminEntity), "Role ROLE_ADMIN deve ser persistida");
+        verify(roleRepository).findById("ROLE_ADMIN");
+    }
+
+    @Test
+    void save_shouldSkipUnknownRoles_withoutFailing() {
+        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+
+        UUID id = UUID.fromString("88888888-8888-8888-8888-888888888888");
+        AuthUser user = mockAuthUser(id, "unknownrole@ecofy.com");
+        when(user.roles()).thenReturn(java.util.Set.of(
+                new br.com.ecofy.auth.core.domain.Role("ROLE_GHOST", null, java.util.Set.of())));
+        when(roleRepository.findById("ROLE_GHOST")).thenReturn(Optional.empty());
+
+        when(authUserRepository.findById(id)).thenReturn(Optional.empty());
+
+        ArgumentCaptor<AuthUserEntity> entityCaptor = ArgumentCaptor.forClass(AuthUserEntity.class);
+        when(authUserRepository.save(entityCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        AuthUser mappedDomain = mock(AuthUser.class);
+        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
+            mocked.when(() -> PersistenceMapper.toDomain(any(AuthUserEntity.class), any(), any()))
+                    .thenReturn(mappedDomain);
+
+            adapter.save(user);
+        }
+
+        AuthUserEntity saved = entityCaptor.getValue();
+        assertTrue(saved.getRoles().isEmpty(), "Role inexistente é ignorada (sem FK inválida)");
     }
 
     // heapers

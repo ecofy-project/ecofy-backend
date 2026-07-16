@@ -37,32 +37,33 @@ class TokenValidationServiceTest {
     }
 
     @Test
-    void validate_shouldThrowAuthException_whenTokenInvalid() {
+    void validate_shouldThrowAuthException_whenSignatureOrExpiryInvalid() {
         TokenValidationService service = new TokenValidationService(jwtTokenProviderPort);
 
-        when(jwtTokenProviderPort.isValid("bad")).thenReturn(false);
+        // A validação REAL de assinatura/expiração lança IllegalArgumentException no provider.
+        when(jwtTokenProviderPort.verifyAndParseClaims("bad"))
+                .thenThrow(new IllegalArgumentException("Invalid token"));
 
         AuthException ex = assertThrows(AuthException.class, () -> service.validate("bad"));
         assertEquals(AuthErrorCode.INVALID_TOKEN_SIGNATURE, ex.getErrorCode());
         assertEquals("Invalid token", ex.getMessage());
 
-        verify(jwtTokenProviderPort).isValid("bad");
+        verify(jwtTokenProviderPort).verifyAndParseClaims("bad");
         verifyNoMoreInteractions(jwtTokenProviderPort);
     }
 
     @Test
-    void validate_shouldReturnClaims_whenTokenValid() {
+    void validate_shouldReturnClaims_whenTokenSignatureValid() {
         TokenValidationService service = new TokenValidationService(jwtTokenProviderPort);
 
-        when(jwtTokenProviderPort.isValid("good")).thenReturn(true);
-        when(jwtTokenProviderPort.parseClaims("good")).thenReturn(Map.of("sub", "u1", "typ", "ACCESS"));
+        when(jwtTokenProviderPort.verifyAndParseClaims("good"))
+                .thenReturn(Map.of("sub", "u1", "typ", "ACCESS"));
 
         Map<String, Object> claims = service.validate("good");
 
         assertEquals(Map.of("sub", "u1", "typ", "ACCESS"), claims);
 
-        verify(jwtTokenProviderPort).isValid("good");
-        verify(jwtTokenProviderPort).parseClaims("good");
+        verify(jwtTokenProviderPort).verifyAndParseClaims("good");
         verifyNoMoreInteractions(jwtTokenProviderPort);
     }
 

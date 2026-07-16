@@ -65,7 +65,7 @@ public class RegistrationController {
                 request.lastName(),
                 request.locale() != null ? request.locale() : "pt-BR",
                 false,
-                List.of("AUTH_USER")
+                List.of("ROLE_USER")
         );
 
         var user = registerUserUseCase.register(cmd);
@@ -108,7 +108,8 @@ public class RegistrationController {
     @PostMapping(path = "/confirm-email", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UserResponse> confirmEmail(@Valid @RequestBody ConfirmEmailRequest request) {
 
-        log.debug("[RegistrationController] - [confirmEmail] -> Confirmando e-mail token={}", request.token());
+        // Segurança: não logar o token de confirmação de e-mail.
+        log.debug("[RegistrationController] - [confirmEmail] -> Confirmando e-mail");
 
         var cmd = new ConfirmEmailUseCase.ConfirmEmailCommand(request.token());
         var user = confirmEmailUseCase.confirm(cmd);

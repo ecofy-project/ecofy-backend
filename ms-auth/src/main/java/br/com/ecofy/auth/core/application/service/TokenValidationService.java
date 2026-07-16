@@ -30,15 +30,17 @@ public class TokenValidationService implements ValidateTokenUseCase {
         String masked = maskToken(token);
 
         log.debug(
-                "[TokenValidationService] - [validate] -> Validando token tokenMask={}",
+                "[TokenValidationService] - [validate] -> Validando token (assinatura + expiração) tokenMask={}",
                 masked
         );
 
-        boolean valid = jwtTokenProviderPort.isValid(token);
-
-        if (!valid) {
+        final Map<String, Object> claims;
+        try {
+            // Validação REAL: verifica assinatura RSA, expiração e issuer (quando configurado).
+            claims = jwtTokenProviderPort.verifyAndParseClaims(token);
+        } catch (IllegalArgumentException e) {
             log.warn(
-                    "[TokenValidationService] - [validate] -> Token inválido tokenMask={}",
+                    "[TokenValidationService] - [validate] -> Token inválido (assinatura/expiração) tokenMask={}",
                     masked
             );
             throw new AuthException(
@@ -46,8 +48,6 @@ public class TokenValidationService implements ValidateTokenUseCase {
                     "Invalid token"
             );
         }
-
-        Map<String, Object> claims = jwtTokenProviderPort.parseClaims(token);
 
         log.debug(
                 "[TokenValidationService] - [validate] -> Token válido, claims extraídas tokenMask={} claimsKeys={}",
