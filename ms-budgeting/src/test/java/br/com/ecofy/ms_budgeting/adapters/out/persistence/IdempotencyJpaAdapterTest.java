@@ -23,8 +23,10 @@ import static org.mockito.Mockito.*;
 
 class IdempotencyJpaAdapterTest {
 
-    private static final String KEY = "123";
-    private static final Long KEY_ID = 123L;
+    // Chave textual (não numérica) — reproduz o cenário real (ex.: "kafka:...", "alert:...").
+    private static final String KEY = "kafka:categorized-tx:tx:abc";
+    // PK numérico REAL da linha existente (diferente da chave textual).
+    private static final Long EXISTING_ID = 999L;
     private static final String SCOPE = "budget:create";
     private static final Duration TTL = Duration.ofMinutes(10);
 
@@ -227,7 +229,7 @@ class IdempotencyJpaAdapterTest {
         when(repo.save(any(IdempotencyKeyEntity.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
-        when(repo.findById(KEY_ID))
+        when(repo.findByKey(KEY))
                 .thenReturn(Optional.of(existing));
 
         boolean result = adapter.tryAcquire(KEY, TTL, SCOPE);
@@ -235,7 +237,7 @@ class IdempotencyJpaAdapterTest {
         assertFalse(result);
 
         verify(repo).save(any(IdempotencyKeyEntity.class));
-        verify(repo).findById(KEY_ID);
+        verify(repo).findByKey(KEY);
         verify(repo, never()).deleteById(any(Long.class));
         verifyNoMoreInteractions(repo);
     }
@@ -256,7 +258,7 @@ class IdempotencyJpaAdapterTest {
         when(repo.save(any(IdempotencyKeyEntity.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
-        when(repo.findById(KEY_ID))
+        when(repo.findByKey(KEY))
                 .thenReturn(Optional.of(existing));
 
         boolean result = adapter.tryAcquire(KEY, TTL, SCOPE);
@@ -264,7 +266,7 @@ class IdempotencyJpaAdapterTest {
         assertFalse(result);
 
         verify(repo).save(any(IdempotencyKeyEntity.class));
-        verify(repo).findById(KEY_ID);
+        verify(repo).findByKey(KEY);
         verify(repo, never()).deleteById(any(Long.class));
         verifyNoMoreInteractions(repo);
     }
@@ -278,7 +280,7 @@ class IdempotencyJpaAdapterTest {
         when(repo.save(any(IdempotencyKeyEntity.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
-        when(repo.findById(KEY_ID))
+        when(repo.findByKey(KEY))
                 .thenReturn(Optional.empty());
 
         boolean result = adapter.tryAcquire(KEY, TTL, SCOPE);
@@ -286,7 +288,7 @@ class IdempotencyJpaAdapterTest {
         assertFalse(result);
 
         verify(repo).save(any(IdempotencyKeyEntity.class));
-        verify(repo).findById(KEY_ID);
+        verify(repo).findByKey(KEY);
         verify(repo, never()).deleteById(any(Long.class));
         verifyNoMoreInteractions(repo);
     }
@@ -308,7 +310,7 @@ class IdempotencyJpaAdapterTest {
                 .thenThrow(new DataIntegrityViolationException("duplicate key"))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(repo.findById(KEY_ID))
+        when(repo.findByKey(KEY))
                 .thenReturn(Optional.of(expired));
 
         boolean result = adapter.tryAcquire(KEY, TTL, SCOPE);
@@ -319,8 +321,8 @@ class IdempotencyJpaAdapterTest {
                 ArgumentCaptor.forClass(IdempotencyKeyEntity.class);
 
         verify(repo, times(2)).save(captor.capture());
-        verify(repo).findById(KEY_ID);
-        verify(repo).deleteById(KEY_ID);
+        verify(repo).findByKey(KEY);
+        verify(repo).deleteById(EXISTING_ID);
         verifyNoMoreInteractions(repo);
 
         IdempotencyKeyEntity reacquired = captor.getAllValues().get(1);
@@ -348,7 +350,7 @@ class IdempotencyJpaAdapterTest {
                 .thenThrow(new DataIntegrityViolationException("duplicate key"))
                 .thenThrow(new DataIntegrityViolationException("race condition"));
 
-        when(repo.findById(KEY_ID))
+        when(repo.findByKey(KEY))
                 .thenReturn(Optional.of(expired));
 
         boolean result = adapter.tryAcquire(KEY, TTL, SCOPE);
@@ -356,8 +358,8 @@ class IdempotencyJpaAdapterTest {
         assertFalse(result);
 
         verify(repo, times(2)).save(any(IdempotencyKeyEntity.class));
-        verify(repo).findById(KEY_ID);
-        verify(repo).deleteById(KEY_ID);
+        verify(repo).findByKey(KEY);
+        verify(repo).deleteById(EXISTING_ID);
         verifyNoMoreInteractions(repo);
     }
 
@@ -396,7 +398,7 @@ class IdempotencyJpaAdapterTest {
         when(repo.save(any(IdempotencyKeyEntity.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
-        when(repo.findById(KEY_ID))
+        when(repo.findByKey(KEY))
                 .thenThrow(repositoryException);
 
         RuntimeException exception = assertThrows(
@@ -407,27 +409,33 @@ class IdempotencyJpaAdapterTest {
         assertSame(repositoryException, exception);
 
         verify(repo).save(any(IdempotencyKeyEntity.class));
-        verify(repo).findById(KEY_ID);
+        verify(repo).findByKey(KEY);
         verifyNoMoreInteractions(repo);
     }
 
     @Test
-    void shouldPropagateNumberFormatExceptionWhenKeyIsNotNumericAndReacquireIsNeeded() {
+    void shouldReacquireWhenKeyIsNonNumeric_bugFix() {
+        // Correção Dia 6: chave textual (não numérica) NÃO deve estourar NumberFormatException.
+        // Antes o adapter fazia Long.valueOf(key) e quebrava para chaves como "kafka:...".
         IdempotencyRepository repo = mock(IdempotencyRepository.class);
         IdempotencyJpaAdapter adapter =
                 new IdempotencyJpaAdapter(repo, FIXED_CLOCK);
 
+        String textualKey = "alert:budget-x:severity-CRITICAL";
+        IdempotencyKeyEntity expired = entity(
+                textualKey, SCOPE, NOW.minus(TTL.multipliedBy(2)), NOW.minusSeconds(1));
+
         when(repo.save(any(IdempotencyKeyEntity.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+                .thenThrow(new DataIntegrityViolationException("duplicate key"))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(repo.findByKey(textualKey)).thenReturn(Optional.of(expired));
 
-        NumberFormatException exception = assertThrows(
-                NumberFormatException.class,
-                () -> adapter.tryAcquire("abc", TTL, SCOPE)
-        );
+        boolean result = adapter.tryAcquire(textualKey, TTL, SCOPE);
 
-        assertNotNull(exception);
-
-        verify(repo).save(any(IdempotencyKeyEntity.class));
+        assertTrue(result);
+        verify(repo, times(2)).save(any(IdempotencyKeyEntity.class));
+        verify(repo).findByKey(textualKey);
+        verify(repo).deleteById(EXISTING_ID);
         verifyNoMoreInteractions(repo);
     }
 
@@ -511,6 +519,7 @@ class IdempotencyJpaAdapterTest {
             Instant expiresAt
     ) {
         return IdempotencyKeyEntity.builder()
+                .id(EXISTING_ID)
                 .key(key)
                 .scope(scope)
                 .createdAt(createdAt)

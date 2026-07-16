@@ -42,15 +42,16 @@ public class BudgetAlertKafkaAdapter implements PublishBudgetAlertEventPort {
         String key = String.valueOf(alert.getBudgetId());
 
         var event = EventMapper.toEvent(alert, clock);
+        String eventId = event.metadata() != null ? event.metadata().eventId() : null;
 
         ProducerRecord<String, Object> record = new ProducerRecord<>(topic, key, event);
-        addHeaders(record, event.eventId(), alert);
+        addHeaders(record, eventId, alert);
 
         kafkaTemplate.send(record).whenComplete((result, ex) -> {
             if (ex != null) {
                 log.error(
                         "[BudgetAlertKafkaAdapter] PUBLISH_FAIL topic={} key={} eventId={} budgetId={} severity={} error={}",
-                        topic, key, event.eventId(), alert.getBudgetId(), alert.getSeverity(), ex.getMessage(), ex
+                        topic, key, eventId, alert.getBudgetId(), alert.getSeverity(), ex.getMessage(), ex
                 );
                 return;
             }
@@ -58,7 +59,7 @@ public class BudgetAlertKafkaAdapter implements PublishBudgetAlertEventPort {
             var md = result.getRecordMetadata();
             log.info(
                     "[BudgetAlertKafkaAdapter] PUBLISHED topic={} key={} partition={} offset={} eventId={} budgetId={} severity={}",
-                    topic, key, md.partition(), md.offset(), event.eventId(), alert.getBudgetId(), alert.getSeverity()
+                    topic, key, md.partition(), md.offset(), eventId, alert.getBudgetId(), alert.getSeverity()
             );
         });
     }

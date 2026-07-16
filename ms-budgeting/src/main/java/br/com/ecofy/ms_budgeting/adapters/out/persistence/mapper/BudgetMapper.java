@@ -2,6 +2,7 @@ package br.com.ecofy.ms_budgeting.adapters.out.persistence.mapper;
 
 import br.com.ecofy.ms_budgeting.adapters.out.persistence.entity.BudgetEntity;
 import br.com.ecofy.ms_budgeting.core.domain.Budget;
+import br.com.ecofy.ms_budgeting.core.domain.enums.BudgetStatus;
 import br.com.ecofy.ms_budgeting.core.domain.valueobject.BudgetKey;
 import br.com.ecofy.ms_budgeting.core.domain.valueobject.CategoryId;
 import br.com.ecofy.ms_budgeting.core.domain.valueobject.Money;
@@ -9,6 +10,8 @@ import br.com.ecofy.ms_budgeting.core.domain.valueobject.Period;
 import br.com.ecofy.ms_budgeting.core.domain.valueobject.UserId;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.Objects;
 import java.util.UUID;
@@ -77,6 +80,13 @@ public final class BudgetMapper {
         Instant createdAt = b.getCreatedAt() != null ? b.getCreatedAt() : Instant.now();
         Instant updatedAt = b.getUpdatedAt() != null ? b.getUpdatedAt() : createdAt;
 
+        // archived_at é preenchido ao arquivar (status ARCHIVED) e usado pelo cleanup para expurgo.
+        // Antes nunca era setado -> budgets arquivados nunca eram removidos. Deriva do updatedAt
+        // (instante em que o status foi alterado para ARCHIVED via updateStatus).
+        LocalDate archivedAt = (b.getStatus() == BudgetStatus.ARCHIVED)
+                ? updatedAt.atZone(ZoneOffset.UTC).toLocalDate()
+                : null;
+
         return BudgetEntity.builder()
                 .id(requireNonNull(b.getId(), "id"))
                 .userId(requireNonNull(b.getKey().userId(), "key.userId").value())
@@ -87,6 +97,7 @@ public final class BudgetMapper {
                 .limitAmount(requireNonNull(b.getLimit().amount(), "limit.amount"))
                 .currency(requireNonNull(b.getLimit().currency(), "limit.currency").getCurrencyCode())
                 .status(requireNonNull(b.getStatus(), "status"))
+                .archivedAt(archivedAt)
                 .naturalKey(naturalKey)
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)

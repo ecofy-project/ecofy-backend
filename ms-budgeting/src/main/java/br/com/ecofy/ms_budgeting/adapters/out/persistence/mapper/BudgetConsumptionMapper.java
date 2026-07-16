@@ -31,6 +31,10 @@ public final class BudgetConsumptionMapper {
         return BudgetConsumptionEntity.builder()
                 .id(d.getId())
                 .budgetId(d.getBudgetId())
+                // reference_date é NOT NULL no schema (usado p/ retenção/limpeza). Antes não era
+                // preenchido -> todo save quebrava por violação de NOT NULL. Usa period_end como
+                // referência (mesma convenção do backfill da migration V3).
+                .referenceDate(d.getPeriodEnd())
                 .periodStart(d.getPeriodStart())
                 .periodEnd(d.getPeriodEnd())
                 .consumedCents(consumedCents)

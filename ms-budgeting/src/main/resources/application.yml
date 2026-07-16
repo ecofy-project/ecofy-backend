@@ -99,6 +99,10 @@ spring:
 
 ecofy:
   budgeting:
+    # Segurança da API por ambiente: dev/test/local liberam /api/budgeting/**; prod exige JWT.
+    security:
+      permit-all: ${BGT_SECURITY_PERMIT_ALL:true}             # dev default: true
+
     topics:
       categorized-transaction: ${BGT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
       budget-alert: ${BGT_TOPIC_BUDGET_ALERT:eco.budget.alert}
@@ -111,7 +115,10 @@ ecofy:
       critical-threshold-pct: ${BGT_ALERT_CRITICAL_PCT:95}
       publish-on-every-update: ${BGT_ALERT_PUBLISH_ON_EVERY_UPDATE:false}
 
-    schedulers:
+    # Prefixo ÚNICO alinhado ao código (BudgetingSchedulingProperties + @Scheduled placeholders):
+    # antes o YAML usava "schedulers" enquanto o código lia "scheduling" -> config era ignorada.
+    scheduling:
+      enabled: ${BGT_SCHED_ENABLED:true}                       # liga @EnableScheduling (SchedulingConfig)
       recalculation-enabled: ${BGT_SCHED_RECALC_ENABLED:true}
       cleanup-enabled: ${BGT_SCHED_CLEANUP_ENABLED:false}
       cleanup-retention-days: ${BGT_CLEANUP_RETENTION_DAYS:90}
@@ -186,6 +193,10 @@ logging:
 
 ecofy:
   budgeting:
+    security:
+      permit-all: true            # test: facilita testes locais
+    scheduling:
+      enabled: false              # test: não inicia jobs agendados no contexto de testes
     idempotency:
       ttl: PT1M
     alerts:
@@ -246,6 +257,9 @@ logging:
 
 ecofy:
   budgeting:
+    security:
+      permit-all: ${BGT_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/budgeting/**
+
     topics:
       categorized-transaction: ${BGT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
       budget-alert: ${BGT_TOPIC_BUDGET_ALERT:eco.budget.alert}

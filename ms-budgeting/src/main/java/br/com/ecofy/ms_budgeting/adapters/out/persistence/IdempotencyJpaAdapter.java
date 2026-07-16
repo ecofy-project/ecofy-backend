@@ -63,14 +63,15 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
     }
 
     // Tenta re-adquirir uma chave existente se ela estiver expirada, removendo-a e recriando com novo TTL.
+    // Correção Dia 6: a busca é pela CHAVE textual (idem_key), não por Long.valueOf(key) — a chave é
+    // textual (ex.: "kafka:categorized-tx:tx:...", "alert:...") e converter para Long lançava
+    // NumberFormatException, quebrando sistematicamente a recuperação de chaves expiradas.
     private boolean tryReacquireIfExpired(String key, String scope, Duration ttl, Instant now) {
-        return repo.findById(Long.valueOf(key))
+        return repo.findByKey(key)
                 .filter(existing -> existing.getExpiresAt() != null && existing.getExpiresAt().isBefore(now))
                 .map(existing -> {
-                    // Se escopo for relevante, você pode exigir match aqui:
-                    // if (!scope.equals(existing.getScope())) return false;
-
-                    repo.deleteById(Long.valueOf(key));
+                    // Remove a linha expirada pelo PK numérico real da entidade encontrada.
+                    repo.deleteById(existing.getId());
 
                     try {
                         repo.save(IdempotencyKeyEntity.builder()

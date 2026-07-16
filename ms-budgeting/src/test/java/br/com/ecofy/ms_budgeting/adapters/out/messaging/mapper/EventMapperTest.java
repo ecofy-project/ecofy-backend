@@ -6,8 +6,8 @@ import br.com.ecofy.ms_budgeting.core.domain.enums.AlertSeverity;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -16,320 +16,128 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Correção Dia 6 (item #10): o EventMapper agora produz um evento compatível com o
+ * BudgetAlertEventMessage do ms-notification (userId/categoryId/limit/consumed/pct/severity + metadata).
+ */
 class EventMapperTest {
 
-    private static final UUID BUDGET_ID =
-            UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-
-    private static final UUID CONSUMPTION_ID =
-            UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-
-    private static final LocalDate PERIOD_START =
-            LocalDate.of(2026, 6, 1);
-
-    private static final LocalDate PERIOD_END =
-            LocalDate.of(2026, 6, 30);
-
-    private static final Instant FIXED_INSTANT =
-            Instant.parse("2026-06-25T10:30:00Z");
-
-    private static final Clock FIXED_CLOCK =
-            Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
+    private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID BUDGET_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static final UUID CATEGORY_ID = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static final UUID CONSUMPTION_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static final LocalDate PERIOD_START = LocalDate.of(2026, 6, 1);
+    private static final LocalDate PERIOD_END = LocalDate.of(2026, 6, 30);
+    private static final Instant FIXED_INSTANT = Instant.parse("2026-06-25T10:30:00Z");
+    private static final Clock FIXED_CLOCK = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
 
     @Test
     void shouldHavePrivateConstructor() throws Exception {
         Constructor<EventMapper> constructor = EventMapper.class.getDeclaredConstructor();
-
         assertTrue(Modifier.isPrivate(constructor.getModifiers()));
-
         constructor.setAccessible(true);
-
-        EventMapper instance = constructor.newInstance();
-
-        assertNotNull(instance);
+        assertNotNull(constructor.newInstance());
     }
 
     @Test
-    void shouldMapBudgetAlertToBudgetAlertEventUsingProvidedClock() {
-        AlertSeverity severity = anyAlertSeverity();
-
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                severity,
-                " Budget reached alert threshold ",
-                PERIOD_START,
-                PERIOD_END
-        );
+    void shouldMapEnrichedAlertToNotificationCompatibleEvent() {
+        AlertSeverity severity = AlertSeverity.WARNING;
+        BudgetAlert alert = enrichedAlert(severity, 80);
 
         BudgetAlertEvent event = EventMapper.toEvent(alert, FIXED_CLOCK);
 
-        assertEquals(expectedEventId(alert), event.eventId());
-        assertEquals(FIXED_INSTANT, event.occurredAt());
+        assertEquals(USER_ID, event.userId());
         assertEquals(BUDGET_ID, event.budgetId());
-        assertEquals(CONSUMPTION_ID, event.consumptionId());
-        assertEquals(severity, event.severity());
-        assertEquals("Budget reached alert threshold", event.message());
-        assertEquals(PERIOD_START, event.periodStart());
-        assertEquals(PERIOD_END, event.periodEnd());
+        assertEquals(CATEGORY_ID, event.categoryId());
+        assertEquals(new BigDecimal("1000.00"), event.limitAmount());
+        assertEquals(new BigDecimal("800.00"), event.consumedAmount());
+        assertEquals(80, event.consumedPct());
+        assertEquals("WARNING", event.severity());
+
+        assertNotNull(event.metadata());
+        assertEquals(expectedEventId(alert), event.metadata().eventId());
+        assertEquals(FIXED_INSTANT, event.metadata().occurredAt());
+        assertEquals("ms-budgeting", event.metadata().source());
+        assertNull(event.metadata().correlationId());
     }
 
     @Test
-    void shouldMapBudgetAlertToBudgetAlertEventUsingDefaultUtcClock() {
-        AlertSeverity severity = anyAlertSeverity();
-
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                severity,
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
+    void shouldUseDefaultUtcClockOverload() {
+        BudgetAlert alert = enrichedAlert(AlertSeverity.WARNING, 80);
 
         Instant before = Instant.now();
-
         BudgetAlertEvent event = EventMapper.toEvent(alert);
-
         Instant after = Instant.now();
 
-        assertEquals(expectedEventId(alert), event.eventId());
-        assertNotNull(event.occurredAt());
-        assertFalse(event.occurredAt().isBefore(before));
-        assertFalse(event.occurredAt().isAfter(after));
-        assertEquals(BUDGET_ID, event.budgetId());
-        assertEquals(CONSUMPTION_ID, event.consumptionId());
-        assertEquals(severity, event.severity());
-        assertEquals("Budget reached alert threshold", event.message());
-        assertEquals(PERIOD_START, event.periodStart());
-        assertEquals(PERIOD_END, event.periodEnd());
+        assertNotNull(event.metadata().occurredAt());
+        assertFalse(event.metadata().occurredAt().isBefore(before));
+        assertFalse(event.metadata().occurredAt().isAfter(after));
+        assertEquals(expectedEventId(alert), event.metadata().eventId());
     }
 
     @Test
     void shouldGenerateSameDeterministicEventIdForSameAlertData() {
-        AlertSeverity severity = anyAlertSeverity();
+        BudgetAlert first = enrichedAlert(AlertSeverity.WARNING, 80);
+        BudgetAlert second = enrichedAlert(AlertSeverity.WARNING, 80);
 
-        BudgetAlert firstAlert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                severity,
-                "First message",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        BudgetAlert secondAlert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                severity,
-                "Second message",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        BudgetAlertEvent firstEvent = EventMapper.toEvent(firstAlert, FIXED_CLOCK);
-        BudgetAlertEvent secondEvent = EventMapper.toEvent(secondAlert, FIXED_CLOCK);
-
-        assertEquals(firstEvent.eventId(), secondEvent.eventId());
-    }
-
-    @Test
-    void shouldGenerateDifferentDeterministicEventIdWhenBudgetIdChanges() {
-        AlertSeverity severity = anyAlertSeverity();
-
-        BudgetAlert firstAlert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                severity,
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        BudgetAlert secondAlert = alert(
-                UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-                CONSUMPTION_ID,
-                severity,
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        BudgetAlertEvent firstEvent = EventMapper.toEvent(firstAlert, FIXED_CLOCK);
-        BudgetAlertEvent secondEvent = EventMapper.toEvent(secondAlert, FIXED_CLOCK);
-
-        assertNotEquals(firstEvent.eventId(), secondEvent.eventId());
-    }
-
-    @Test
-    void shouldAcceptNullOptionalFieldsUsedInDeterministicEventId() {
-        AlertSeverity severity = anyAlertSeverity();
-
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                null,
-                severity,
-                "Budget reached alert threshold",
-                null,
-                null
-        );
-
-        BudgetAlertEvent event = EventMapper.toEvent(alert, FIXED_CLOCK);
-
-        assertEquals(expectedEventId(alert), event.eventId());
-        assertEquals(FIXED_INSTANT, event.occurredAt());
-        assertEquals(BUDGET_ID, event.budgetId());
-        assertNull(event.consumptionId());
-        assertEquals(severity, event.severity());
-        assertEquals("Budget reached alert threshold", event.message());
-        assertNull(event.periodStart());
-        assertNull(event.periodEnd());
+        assertEquals(
+                EventMapper.toEvent(first, FIXED_CLOCK).metadata().eventId(),
+                EventMapper.toEvent(second, FIXED_CLOCK).metadata().eventId());
     }
 
     @Test
     void shouldThrowNullPointerExceptionWhenAlertIsNull() {
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> EventMapper.toEvent(null, FIXED_CLOCK)
-        );
-
-        assertEquals("alert must not be null", exception.getMessage());
+        NullPointerException ex = assertThrows(
+                NullPointerException.class, () -> EventMapper.toEvent(null, FIXED_CLOCK));
+        assertEquals("alert must not be null", ex.getMessage());
     }
 
     @Test
     void shouldThrowNullPointerExceptionWhenClockIsNull() {
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> EventMapper.toEvent(alert, null)
-        );
-
-        assertEquals("clock must not be null", exception.getMessage());
+        BudgetAlert alert = enrichedAlert(AlertSeverity.WARNING, 80);
+        NullPointerException ex = assertThrows(
+                NullPointerException.class, () -> EventMapper.toEvent(alert, null));
+        assertEquals("clock must not be null", ex.getMessage());
     }
 
     @Test
     void shouldThrowIllegalArgumentExceptionWhenBudgetIdIsNull() {
-        BudgetAlert alert = alert(
-                null,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
+        BudgetAlert alert = mock(BudgetAlert.class);
+        when(alert.getBudgetId()).thenReturn(null);
+        lenient().when(alert.getSeverity()).thenReturn(AlertSeverity.WARNING);
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> EventMapper.toEvent(alert, FIXED_CLOCK)
-        );
-
-        assertEquals("alert.budgetId must not be null", exception.getMessage());
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> EventMapper.toEvent(alert, FIXED_CLOCK));
+        assertEquals("alert.budgetId must not be null", ex.getMessage());
     }
 
     @Test
     void shouldThrowIllegalArgumentExceptionWhenSeverityIsNull() {
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                null,
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> EventMapper.toEvent(alert, FIXED_CLOCK)
-        );
-
-        assertEquals("alert.severity must not be null", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowIllegalArgumentExceptionWhenMessageIsNull() {
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                null,
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> EventMapper.toEvent(alert, FIXED_CLOCK)
-        );
-
-        assertEquals("alert.message must not be blank", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowIllegalArgumentExceptionWhenMessageIsBlank() {
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "   ",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> EventMapper.toEvent(alert, FIXED_CLOCK)
-        );
-
-        assertEquals("alert.message must not be blank", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowIllegalArgumentExceptionWhenMessageIsEmptyAfterTrim() {
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "\t\n ",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> EventMapper.toEvent(alert, FIXED_CLOCK)
-        );
-
-        assertEquals("alert.message must not be blank", exception.getMessage());
-    }
-
-    private static BudgetAlert alert(
-            UUID budgetId,
-            UUID consumptionId,
-            AlertSeverity severity,
-            String message,
-            LocalDate periodStart,
-            LocalDate periodEnd
-    ) {
         BudgetAlert alert = mock(BudgetAlert.class);
+        when(alert.getBudgetId()).thenReturn(BUDGET_ID);
+        when(alert.getSeverity()).thenReturn(null);
 
-        when(alert.getBudgetId()).thenReturn(budgetId);
-        when(alert.getConsumptionId()).thenReturn(consumptionId);
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> EventMapper.toEvent(alert, FIXED_CLOCK));
+        assertEquals("alert.severity must not be null", ex.getMessage());
+    }
+
+    private static BudgetAlert enrichedAlert(AlertSeverity severity, int pct) {
+        BudgetAlert alert = mock(BudgetAlert.class);
+        when(alert.getBudgetId()).thenReturn(BUDGET_ID);
         when(alert.getSeverity()).thenReturn(severity);
-        when(alert.getMessage()).thenReturn(message);
-        when(alert.getPeriodStart()).thenReturn(periodStart);
-        when(alert.getPeriodEnd()).thenReturn(periodEnd);
-
+        when(alert.getUserId()).thenReturn(USER_ID);
+        when(alert.getCategoryId()).thenReturn(CATEGORY_ID);
+        when(alert.getLimitAmount()).thenReturn(new BigDecimal("1000.00"));
+        when(alert.getConsumedAmount()).thenReturn(new BigDecimal("800.00"));
+        when(alert.getConsumedPct()).thenReturn(pct);
+        lenient().when(alert.getConsumptionId()).thenReturn(CONSUMPTION_ID);
+        lenient().when(alert.getPeriodStart()).thenReturn(PERIOD_START);
+        lenient().when(alert.getPeriodEnd()).thenReturn(PERIOD_END);
         return alert;
     }
 
@@ -339,17 +147,6 @@ class EventMapperTest {
                 + "|" + String.valueOf(alert.getSeverity())
                 + "|" + String.valueOf(alert.getPeriodStart())
                 + "|" + String.valueOf(alert.getPeriodEnd());
-
         return UUID.nameUUIDFromBytes(base.getBytes(StandardCharsets.UTF_8)).toString();
-    }
-
-    private static AlertSeverity anyAlertSeverity() {
-        AlertSeverity[] values = AlertSeverity.values();
-
-        if (values.length == 0) {
-            throw new IllegalStateException("AlertSeverity enum must have at least one value");
-        }
-
-        return values[0];
     }
 }

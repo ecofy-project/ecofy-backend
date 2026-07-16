@@ -1,28 +1,48 @@
 package br.com.ecofy.ms_budgeting.adapters.out.messaging.dto;
 
-
-import br.com.ecofy.ms_budgeting.core.domain.enums.AlertSeverity;
-
+import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.UUID;
 
-public record BudgetAlertEvent (
-        
-        String eventId,
+/**
+ * Evento BUDGET_ALERT publicado em {@code eco.budget.alert} e consumido pelo ms-notification.
+ *
+ * <p>Correção Dia 6 (item #10 / compatibilidade): a estrutura anterior
+ * (eventId, occurredAt, budgetId, consumptionId, severity, message, periodStart, periodEnd)
+ * era INCOMPATÍVEL com o consumidor {@code BudgetAlertEventMessage} do ms-notification, que
+ * exige {@code userId} (não-nulo) e lê {@code categoryId/limitAmount/consumedAmount/consumedPct}.
+ * Os nomes dos campos abaixo espelham exatamente o contrato do ms-notification (tópico inalterado).</p>
+ */
+public record BudgetAlertEvent(
 
-        Instant occurredAt,
+        UUID userId,
 
         UUID budgetId,
 
-        UUID consumptionId,
+        UUID categoryId,
 
-        AlertSeverity severity,
+        BigDecimal limitAmount,
 
-        String message,
+        BigDecimal consumedAmount,
 
-        LocalDate periodStart,
+        Integer consumedPct,
 
-        LocalDate periodEnd
+        String severity,
 
-) { }
+        EventMetadata metadata
+
+) {
+
+    /** Metadados espelhando {@code MessageMetadata} do ms-notification (eventId/correlationId/occurredAt/source). */
+    public record EventMetadata(
+
+            String eventId,
+
+            String correlationId,
+
+            Instant occurredAt,
+
+            String source
+
+    ) { }
+}

@@ -1,5 +1,7 @@
 package br.com.ecofy.ms_budgeting.adapters.in.web.advice;
 
+import br.com.ecofy.ms_budgeting.core.application.exception.BudgetingApplicationException;
+import br.com.ecofy.ms_budgeting.core.application.exception.BudgetingValidationException;
 import br.com.ecofy.ms_budgeting.core.domain.exception.BudgetAlreadyExistsException;
 import br.com.ecofy.ms_budgeting.core.domain.exception.BudgetNotFoundException;
 import br.com.ecofy.ms_budgeting.core.domain.exception.BusinessValidationException;
@@ -18,6 +20,20 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class RestExceptionHandler {
+
+    // retorna 400 para exceções de VALIDAÇÃO da aplicação (InvalidFieldException, InvalidCurrencyCodeException,
+    // MissingIdempotencyKeyException, BudgetingValidationException) — antes caíam no fallback 500.
+    @ExceptionHandler(BudgetingValidationException.class)
+    ResponseEntity<ApiErrorResponse> handleAppValidation(BudgetingValidationException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("code", ex.getCode()));
+    }
+
+    // retorna 500 para as demais exceções de aplicação (processamento/ingestão/projeção),
+    // expondo o code padronizado sem stack trace.
+    @ExceptionHandler(BudgetingApplicationException.class)
+    ResponseEntity<ApiErrorResponse> handleApplication(BudgetingApplicationException ex, HttpServletRequest req) {
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Processing error", req, Map.of("code", ex.getCode()));
+    }
 
     // retorna 404 quando o budget não existe
     @ExceptionHandler(BudgetNotFoundException.class)

@@ -15,6 +15,7 @@ import org.springframework.kafka.support.SendResult;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -31,325 +32,189 @@ class BudgetAlertKafkaAdapterTest {
 
     private static final String TOPIC = "budget.alerts";
 
+    private static final UUID USER_ID =
+            UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID BUDGET_ID =
             UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-
+    private static final UUID CATEGORY_ID =
+            UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private static final UUID CONSUMPTION_ID =
             UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-    private static final LocalDate PERIOD_START =
-            LocalDate.of(2026, 6, 1);
+    private static final BigDecimal LIMIT = new BigDecimal("1000.00");
+    private static final BigDecimal CONSUMED = new BigDecimal("800.00");
+    private static final Integer PCT = 80;
 
-    private static final LocalDate PERIOD_END =
-            LocalDate.of(2026, 6, 30);
+    private static final LocalDate PERIOD_START = LocalDate.of(2026, 6, 1);
+    private static final LocalDate PERIOD_END = LocalDate.of(2026, 6, 30);
 
-    private static final Instant FIXED_INSTANT =
-            Instant.parse("2026-06-25T10:30:00Z");
-
-    private static final Clock FIXED_CLOCK =
-            Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
+    private static final Instant FIXED_INSTANT = Instant.parse("2026-06-25T10:30:00Z");
+    private static final Clock FIXED_CLOCK = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
 
     @Test
     void shouldCreateAdapterWhenAllDependenciesAreValid() {
-        KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
-
+                new BudgetAlertKafkaAdapter(kafkaTemplate(), propsWithTopic(TOPIC), FIXED_CLOCK);
         assertNotNull(adapter);
     }
 
     @Test
     void shouldThrowNullPointerExceptionWhenKafkaTemplateIsNull() {
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> new BudgetAlertKafkaAdapter(null, props, FIXED_CLOCK)
-        );
-
-        assertEquals("kafkaTemplate must not be null", exception.getMessage());
+        NullPointerException ex = assertThrows(NullPointerException.class,
+                () -> new BudgetAlertKafkaAdapter(null, propsWithTopic(TOPIC), FIXED_CLOCK));
+        assertEquals("kafkaTemplate must not be null", ex.getMessage());
     }
 
     @Test
     void shouldThrowNullPointerExceptionWhenPropsIsNull() {
-        KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> new BudgetAlertKafkaAdapter(kafkaTemplate, null, FIXED_CLOCK)
-        );
-
-        assertEquals("props must not be null", exception.getMessage());
+        NullPointerException ex = assertThrows(NullPointerException.class,
+                () -> new BudgetAlertKafkaAdapter(kafkaTemplate(), null, FIXED_CLOCK));
+        assertEquals("props must not be null", ex.getMessage());
     }
 
     @Test
     void shouldThrowNullPointerExceptionWhenClockIsNull() {
-        KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> new BudgetAlertKafkaAdapter(kafkaTemplate, props, null)
-        );
-
-        assertEquals("clock must not be null", exception.getMessage());
+        NullPointerException ex = assertThrows(NullPointerException.class,
+                () -> new BudgetAlertKafkaAdapter(kafkaTemplate(), propsWithTopic(TOPIC), null));
+        assertEquals("clock must not be null", ex.getMessage());
     }
 
     @Test
-    void shouldPublishBudgetAlertWithConsumptionIdAndSuccessCallback() {
+    void shouldPublishNotificationCompatibleEventWithConsumptionIdHeader() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic("  " + TOPIC + "  ");
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic("  " + TOPIC + "  "), FIXED_CLOCK);
 
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                " Budget reached alert threshold ",
-                PERIOD_START,
-                PERIOD_END
-        );
-
+        BudgetAlert alert = enrichedAlert(CONSUMPTION_ID);
         stubKafkaSendSuccess(kafkaTemplate);
 
         adapter.publish(alert);
 
-        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor =
-                producerRecordCaptor();
-
+        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = producerRecordCaptor();
         verify(kafkaTemplate).send(recordCaptor.capture());
-
         ProducerRecord<String, Object> record = recordCaptor.getValue();
 
         assertEquals(TOPIC, record.topic());
         assertEquals(BUDGET_ID.toString(), record.key());
-
         assertInstanceOf(BudgetAlertEvent.class, record.value());
 
         BudgetAlertEvent event = (BudgetAlertEvent) record.value();
-
-        assertNotNull(event.eventId());
-        assertEquals(FIXED_INSTANT, event.occurredAt());
+        assertEquals(USER_ID, event.userId());
         assertEquals(BUDGET_ID, event.budgetId());
-        assertEquals(CONSUMPTION_ID, event.consumptionId());
-        assertEquals(alert.getSeverity(), event.severity());
-        assertEquals("Budget reached alert threshold", event.message());
-        assertEquals(PERIOD_START, event.periodStart());
-        assertEquals(PERIOD_END, event.periodEnd());
+        assertEquals(CATEGORY_ID, event.categoryId());
+        assertEquals(LIMIT, event.limitAmount());
+        assertEquals(CONSUMED, event.consumedAmount());
+        assertEquals(PCT, event.consumedPct());
+        assertEquals("WARNING", event.severity());
+        assertNotNull(event.metadata());
+        assertEquals(FIXED_INSTANT, event.metadata().occurredAt());
+        assertEquals("ms-budgeting", event.metadata().source());
 
-        assertEquals(event.eventId(), headerValue(record, "eventId"));
+        assertEquals(event.metadata().eventId(), headerValue(record, "eventId"));
         assertEquals(BUDGET_ID.toString(), headerValue(record, "budgetId"));
-        assertEquals(alert.getSeverity().toString(), headerValue(record, "severity"));
+        assertEquals("WARNING", headerValue(record, "severity"));
         assertEquals(CONSUMPTION_ID.toString(), headerValue(record, "consumptionId"));
     }
 
     @Test
-    void shouldPublishBudgetAlertWithoutConsumptionId() {
+    void shouldPublishWithoutConsumptionIdHeader() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic(TOPIC), FIXED_CLOCK);
 
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                null,
-                anyAlertSeverity(),
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
-
+        BudgetAlert alert = enrichedAlert(null);
         stubKafkaSendSuccess(kafkaTemplate);
 
         adapter.publish(alert);
 
-        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor =
-                producerRecordCaptor();
-
+        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = producerRecordCaptor();
         verify(kafkaTemplate).send(recordCaptor.capture());
-
         ProducerRecord<String, Object> record = recordCaptor.getValue();
 
-        assertEquals(TOPIC, record.topic());
-        assertEquals(BUDGET_ID.toString(), record.key());
         assertNull(record.headers().lastHeader("consumptionId"));
-
         BudgetAlertEvent event = (BudgetAlertEvent) record.value();
-
-        assertNull(event.consumptionId());
-        assertEquals(event.eventId(), headerValue(record, "eventId"));
-        assertEquals(BUDGET_ID.toString(), headerValue(record, "budgetId"));
-        assertEquals(alert.getSeverity().toString(), headerValue(record, "severity"));
+        assertEquals(USER_ID, event.userId());
+        assertEquals(event.metadata().eventId(), headerValue(record, "eventId"));
     }
 
     @Test
     void shouldExecuteFailureCallbackWhenKafkaSendFails() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic(TOPIC), FIXED_CLOCK);
 
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        CompletableFuture<SendResult<String, Object>> failedFuture =
-                CompletableFuture.failedFuture(new RuntimeException("Kafka unavailable"));
-
-        stubKafkaSendFailure(kafkaTemplate, failedFuture);
+        BudgetAlert alert = enrichedAlert(CONSUMPTION_ID);
+        stubKafkaSendFailure(kafkaTemplate,
+                CompletableFuture.failedFuture(new RuntimeException("Kafka unavailable")));
 
         assertDoesNotThrow(() -> adapter.publish(alert));
-
         verify(kafkaTemplate).send(anyProducerRecord());
     }
 
     @Test
     void shouldThrowNullPointerExceptionWhenAlertIsNull() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic(TOPIC), FIXED_CLOCK);
 
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> adapter.publish(null)
-        );
-
-        assertEquals("alert must not be null", exception.getMessage());
-
+        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.publish(null));
+        assertEquals("alert must not be null", ex.getMessage());
         verifyNoInteractions(kafkaTemplate);
     }
 
     @Test
     void shouldThrowIllegalStateExceptionWhenTopicIsNull() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(null);
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic(null), FIXED_CLOCK);
 
-        BudgetAlert alert = validAlert();
-
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> adapter.publish(alert)
-        );
-
-        assertEquals("budgetAlert topic must not be blank", exception.getMessage());
-
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> adapter.publish(enrichedAlert(CONSUMPTION_ID)));
+        assertEquals("budgetAlert topic must not be blank", ex.getMessage());
         verify(kafkaTemplate, never()).send(anyProducerRecord());
     }
 
     @Test
     void shouldThrowIllegalStateExceptionWhenTopicIsBlank() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic("   ");
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic("   "), FIXED_CLOCK);
 
-        BudgetAlert alert = validAlert();
-
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> adapter.publish(alert)
-        );
-
-        assertEquals("budgetAlert topic must not be blank", exception.getMessage());
-
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> adapter.publish(enrichedAlert(CONSUMPTION_ID)));
+        assertEquals("budgetAlert topic must not be blank", ex.getMessage());
         verify(kafkaTemplate, never()).send(anyProducerRecord());
     }
 
     @Test
     void shouldPropagateExceptionWhenAlertHasNullBudgetId() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic(TOPIC), FIXED_CLOCK);
 
-        BudgetAlert alert = alert(
-                null,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
+        BudgetAlert alert = mock(BudgetAlert.class);
+        when(alert.getBudgetId()).thenReturn(null);
+        lenient().when(alert.getSeverity()).thenReturn(AlertSeverity.WARNING);
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> adapter.publish(alert)
-        );
-
-        assertEquals("alert.budgetId must not be null", exception.getMessage());
-
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> adapter.publish(alert));
+        assertEquals("alert.budgetId must not be null", ex.getMessage());
         verify(kafkaTemplate, never()).send(anyProducerRecord());
     }
 
     @Test
     void shouldPropagateExceptionWhenAlertHasNullSeverity() {
         KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
         BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
+                new BudgetAlertKafkaAdapter(kafkaTemplate, propsWithTopic(TOPIC), FIXED_CLOCK);
 
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                null,
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
+        BudgetAlert alert = mock(BudgetAlert.class);
+        when(alert.getBudgetId()).thenReturn(BUDGET_ID);
+        when(alert.getSeverity()).thenReturn(null);
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> adapter.publish(alert)
-        );
-
-        assertEquals("alert.severity must not be null", exception.getMessage());
-
-        verify(kafkaTemplate, never()).send(anyProducerRecord());
-    }
-
-    @Test
-    void shouldPropagateExceptionWhenAlertMessageIsBlank() {
-        KafkaTemplate<String, Object> kafkaTemplate = kafkaTemplate();
-        BudgetingProperties props = propsWithTopic(TOPIC);
-
-        BudgetAlertKafkaAdapter adapter =
-                new BudgetAlertKafkaAdapter(kafkaTemplate, props, FIXED_CLOCK);
-
-        BudgetAlert alert = alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "   ",
-                PERIOD_START,
-                PERIOD_END
-        );
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> adapter.publish(alert)
-        );
-
-        assertEquals("alert.message must not be blank", exception.getMessage());
-
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> adapter.publish(alert));
+        assertEquals("alert.severity must not be null", ex.getMessage());
         verify(kafkaTemplate, never()).send(anyProducerRecord());
     }
 
@@ -357,70 +222,42 @@ class BudgetAlertKafkaAdapterTest {
     void shouldInvokePrivateBytesWithNullValue() throws Exception {
         Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod("bytes", String.class);
         method.setAccessible(true);
-
-        byte[] result = (byte[]) method.invoke(null, new Object[]{null});
-
-        assertNull(result);
+        assertNull(method.invoke(null, new Object[]{null}));
     }
 
     @Test
     void shouldInvokePrivateBytesWithTextValue() throws Exception {
         Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod("bytes", String.class);
         method.setAccessible(true);
-
         byte[] result = (byte[]) method.invoke(null, "abc");
-
         assertArrayEquals("abc".getBytes(StandardCharsets.UTF_8), result);
     }
 
     @Test
     void shouldInvokePrivateRequireNonBlankWithValidValue() throws Exception {
-        Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod(
-                "requireNonBlank",
-                String.class,
-                String.class
-        );
+        Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod("requireNonBlank", String.class, String.class);
         method.setAccessible(true);
-
-        String result = (String) method.invoke(null, "  value  ", "field");
-
-        assertEquals("value", result);
+        assertEquals("value", method.invoke(null, "  value  ", "field"));
     }
 
     @Test
     void shouldInvokePrivateRequireNonBlankWithNullValue() throws Exception {
-        Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod(
-                "requireNonBlank",
-                String.class,
-                String.class
-        );
+        Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod("requireNonBlank", String.class, String.class);
         method.setAccessible(true);
-
-        InvocationTargetException exception = assertThrows(
-                InvocationTargetException.class,
-                () -> method.invoke(null, null, "field")
-        );
-
-        assertInstanceOf(IllegalStateException.class, exception.getCause());
-        assertEquals("field must not be blank", exception.getCause().getMessage());
+        InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+                () -> method.invoke(null, null, "field"));
+        assertInstanceOf(IllegalStateException.class, ex.getCause());
+        assertEquals("field must not be blank", ex.getCause().getMessage());
     }
 
     @Test
     void shouldInvokePrivateRequireNonBlankWithBlankValue() throws Exception {
-        Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod(
-                "requireNonBlank",
-                String.class,
-                String.class
-        );
+        Method method = BudgetAlertKafkaAdapter.class.getDeclaredMethod("requireNonBlank", String.class, String.class);
         method.setAccessible(true);
-
-        InvocationTargetException exception = assertThrows(
-                InvocationTargetException.class,
-                () -> method.invoke(null, "   ", "field")
-        );
-
-        assertInstanceOf(IllegalStateException.class, exception.getCause());
-        assertEquals("field must not be blank", exception.getCause().getMessage());
+        InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+                () -> method.invoke(null, "   ", "field"));
+        assertInstanceOf(IllegalStateException.class, ex.getCause());
+        assertEquals("field must not be blank", ex.getCause().getMessage());
     }
 
     @SuppressWarnings("unchecked")
@@ -431,57 +268,33 @@ class BudgetAlertKafkaAdapterTest {
     private static BudgetingProperties propsWithTopic(String topic) {
         BudgetingProperties props = mock(BudgetingProperties.class);
         BudgetingProperties.Topics topics = mock(BudgetingProperties.Topics.class);
-
         when(props.topics()).thenReturn(topics);
         when(topics.budgetAlert()).thenReturn(topic);
-
         return props;
     }
 
-    private static BudgetAlert validAlert() {
-        return alert(
-                BUDGET_ID,
-                CONSUMPTION_ID,
-                anyAlertSeverity(),
-                "Budget reached alert threshold",
-                PERIOD_START,
-                PERIOD_END
-        );
-    }
-
-    private static BudgetAlert alert(
-            UUID budgetId,
-            UUID consumptionId,
-            AlertSeverity severity,
-            String message,
-            LocalDate periodStart,
-            LocalDate periodEnd
-    ) {
+    private static BudgetAlert enrichedAlert(UUID consumptionId) {
         BudgetAlert alert = mock(BudgetAlert.class);
-
-        when(alert.getBudgetId()).thenReturn(budgetId);
+        when(alert.getBudgetId()).thenReturn(BUDGET_ID);
         when(alert.getConsumptionId()).thenReturn(consumptionId);
-        when(alert.getSeverity()).thenReturn(severity);
-        when(alert.getMessage()).thenReturn(message);
-        when(alert.getPeriodStart()).thenReturn(periodStart);
-        when(alert.getPeriodEnd()).thenReturn(periodEnd);
-
+        when(alert.getSeverity()).thenReturn(AlertSeverity.WARNING);
+        when(alert.getUserId()).thenReturn(USER_ID);
+        when(alert.getCategoryId()).thenReturn(CATEGORY_ID);
+        when(alert.getLimitAmount()).thenReturn(LIMIT);
+        when(alert.getConsumedAmount()).thenReturn(CONSUMED);
+        when(alert.getConsumedPct()).thenReturn(PCT);
+        lenient().when(alert.getPeriodStart()).thenReturn(PERIOD_START);
+        lenient().when(alert.getPeriodEnd()).thenReturn(PERIOD_END);
         return alert;
     }
 
     private static void stubKafkaSendSuccess(KafkaTemplate<String, Object> kafkaTemplate) {
-        doReturn(successfulSend())
-                .when(kafkaTemplate)
-                .send(anyProducerRecord());
+        doReturn(successfulSend()).when(kafkaTemplate).send(anyProducerRecord());
     }
 
-    private static void stubKafkaSendFailure(
-            KafkaTemplate<String, Object> kafkaTemplate,
-            CompletableFuture<SendResult<String, Object>> failedFuture
-    ) {
-        doReturn(failedFuture)
-                .when(kafkaTemplate)
-                .send(anyProducerRecord());
+    private static void stubKafkaSendFailure(KafkaTemplate<String, Object> kafkaTemplate,
+                                             CompletableFuture<SendResult<String, Object>> failedFuture) {
+        doReturn(failedFuture).when(kafkaTemplate).send(anyProducerRecord());
     }
 
     @SuppressWarnings("unchecked")
@@ -497,40 +310,14 @@ class BudgetAlertKafkaAdapterTest {
     private static CompletableFuture<SendResult<String, Object>> successfulSend() {
         ProducerRecord<String, Object> producerRecord =
                 new ProducerRecord<>(TOPIC, BUDGET_ID.toString(), new Object());
-
         RecordMetadata metadata = new RecordMetadata(
-                new TopicPartition(TOPIC, 1),
-                0L,
-                0,
-                FIXED_INSTANT.toEpochMilli(),
-                10,
-                20
-        );
-
-        SendResult<String, Object> sendResult =
-                new SendResult<>(producerRecord, metadata);
-
-        return CompletableFuture.completedFuture(sendResult);
+                new TopicPartition(TOPIC, 1), 0L, 0, FIXED_INSTANT.toEpochMilli(), 10, 20);
+        return CompletableFuture.completedFuture(new SendResult<>(producerRecord, metadata));
     }
 
-    private static String headerValue(
-            ProducerRecord<String, Object> record,
-            String headerName
-    ) {
+    private static String headerValue(ProducerRecord<String, Object> record, String headerName) {
         Header header = record.headers().lastHeader(headerName);
-
         assertNotNull(header);
-
         return new String(header.value(), StandardCharsets.UTF_8);
-    }
-
-    private static AlertSeverity anyAlertSeverity() {
-        AlertSeverity[] values = AlertSeverity.values();
-
-        if (values.length == 0) {
-            throw new IllegalStateException("AlertSeverity enum must have at least one value");
-        }
-
-        return values[0];
     }
 }

@@ -3,7 +3,7 @@ package br.com.ecofy.ms_budgeting.adapters.in.kafka;
 import br.com.ecofy.ms_budgeting.adapters.in.kafka.dto.CategorizedTransactionMessage;
 import br.com.ecofy.ms_budgeting.adapters.in.kafka.mapper.InboundEventMapper;
 import br.com.ecofy.ms_budgeting.core.application.command.ProcessTransactionCommand;
-import br.com.ecofy.ms_budgeting.core.port.in.ProcessTransactionForBudgetUseCase;
+import br.com.ecofy.ms_budgeting.core.application.service.BudgetEventIngestionService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
@@ -24,6 +24,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Correção Dia 6 (item #9): o consumer passou a delegar para o BudgetEventIngestionService,
+ * que centraliza MDC/validação/logs/tratamento de exceções. A validação de campos obrigatórios
+ * é coberta por BudgetEventIngestionServiceTest.
+ */
 class CategorizedTransactionConsumerTest {
 
     private static final String TOPIC = "categorized-transactions";
@@ -42,13 +47,13 @@ class CategorizedTransactionConsumerTest {
             UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     private final InboundEventMapper mapper = mock(InboundEventMapper.class);
-    private final ProcessTransactionForBudgetUseCase useCase = mock(ProcessTransactionForBudgetUseCase.class);
+    private final BudgetEventIngestionService ingestionService = mock(BudgetEventIngestionService.class);
 
     private final CategorizedTransactionConsumer consumer =
-            new CategorizedTransactionConsumer(mapper, useCase);
+            new CategorizedTransactionConsumer(mapper, ingestionService);
 
     @Test
-    void shouldConsumeMessageMapCommandAndCallUseCase() {
+    void shouldConsumeMessageMapCommandAndDelegateToIngestionService() {
         CategorizedTransactionMessage msg = validMessage();
         ProcessTransactionCommand command = mock(ProcessTransactionCommand.class);
 
@@ -81,11 +86,7 @@ class CategorizedTransactionConsumerTest {
 
         assertNotNull(runIdCaptor.getValue());
 
-        verify(useCase).process(command);
-
-        verify(msg, atLeastOnce()).transactionId();
-        verify(msg, atLeastOnce()).userId();
-        verify(msg, atLeastOnce()).categoryId();
+        verify(ingestionService).ingest(command);
     }
 
     @Test
@@ -116,7 +117,7 @@ class CategorizedTransactionConsumerTest {
                 same(record)
         );
 
-        verify(useCase).process(command);
+        verify(ingestionService).ingest(command);
     }
 
     @Test
@@ -149,11 +150,11 @@ class CategorizedTransactionConsumerTest {
                 same(record)
         );
 
-        verify(useCase).process(command);
+        verify(ingestionService).ingest(command);
     }
 
     @Test
-    void shouldIgnoreNullPayloadAndNotCallMapperOrUseCase() {
+    void shouldIgnoreNullPayloadAndNotCallMapperOrIngestionService() {
         ConsumerRecord<String, CategorizedTransactionMessage> record = record(
                 null,
                 new RecordHeaders()
@@ -164,69 +165,27 @@ class CategorizedTransactionConsumerTest {
         consumer.onMessage(record);
 
         verifyNoInteractions(mapper);
-        verifyNoInteractions(useCase);
+        verifyNoInteractions(ingestionService);
     }
 
     @Test
-    void shouldThrowExceptionWhenTransactionIdIsBlank() {
+    void shouldPropagateExceptionFromIngestionService() {
         CategorizedTransactionMessage msg = validMessage();
-
-        UUID blankTransactionId = mock(UUID.class);
-        when(blankTransactionId.toString()).thenReturn("   ");
-        when(msg.transactionId()).thenReturn(blankTransactionId);
+        ProcessTransactionCommand command = mock(ProcessTransactionCommand.class);
 
         ConsumerRecord<String, CategorizedTransactionMessage> record = record(
                 msg,
                 new RecordHeaders()
         );
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> consumer.onMessage(record)
-        );
+        when(mapper.toCommand(same(msg), any(UUID.class), isNull(), isNull(), same(record)))
+                .thenReturn(command);
+        doThrow(new RuntimeException("ingestion boom")).when(ingestionService).ingest(command);
 
-        assertEquals("transactionId is required", exception.getMessage());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> consumer.onMessage(record));
+        assertEquals("ingestion boom", ex.getMessage());
 
-        verifyNoInteractions(mapper);
-        verifyNoInteractions(useCase);
-    }
-
-    @Test
-    void shouldThrowExceptionWhenUserIdIsBlank() {
-        CategorizedTransactionMessage msg = validMessage();
-
-        UUID blankUserId = mock(UUID.class);
-        when(blankUserId.toString()).thenReturn("   ");
-        when(msg.userId()).thenReturn(blankUserId);
-
-        ConsumerRecord<String, CategorizedTransactionMessage> record = record(
-                msg,
-                new RecordHeaders()
-        );
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> consumer.onMessage(record)
-        );
-
-        assertEquals("userId is required", exception.getMessage());
-
-        verifyNoInteractions(mapper);
-        verifyNoInteractions(useCase);
-    }
-
-    @Test
-    void shouldReturnTrueForBlankValuesUsingPrivateIsBlank() throws Exception {
-        assertTrue(invokeIsBlank(null));
-        assertTrue(invokeIsBlank(""));
-        assertTrue(invokeIsBlank("   "));
-        assertTrue(invokeIsBlank("\t"));
-    }
-
-    @Test
-    void shouldReturnFalseForNonBlankValuesUsingPrivateIsBlank() throws Exception {
-        assertFalse(invokeIsBlank("abc"));
-        assertFalse(invokeIsBlank("  abc  "));
+        verify(ingestionService).ingest(command);
     }
 
     @Test
@@ -273,9 +232,9 @@ class CategorizedTransactionConsumerTest {
         when(msg.transactionId()).thenReturn(TRANSACTION_ID);
         when(msg.userId()).thenReturn(USER_ID);
         when(msg.categoryId()).thenReturn(CATEGORY_ID);
-        when(msg.amount()).thenReturn(BigDecimal.valueOf(150.75));
-        when(msg.currency()).thenReturn("BRL");
-        when(msg.transactionDate()).thenReturn(LocalDate.of(2026, 1, 1));
+        lenient().when(msg.amount()).thenReturn(BigDecimal.valueOf(150.75));
+        lenient().when(msg.currency()).thenReturn("BRL");
+        lenient().when(msg.transactionDate()).thenReturn(LocalDate.of(2026, 1, 1));
 
         return msg;
     }
@@ -304,17 +263,6 @@ class CategorizedTransactionConsumerTest {
                 key,
                 value.getBytes(StandardCharsets.UTF_8)
         );
-    }
-
-    private static boolean invokeIsBlank(String value) throws Exception {
-        Method method = CategorizedTransactionConsumer.class.getDeclaredMethod(
-                "isBlank",
-                String.class
-        );
-
-        method.setAccessible(true);
-
-        return (boolean) method.invoke(null, value);
     }
 
     private static String invokeHeaderAsString(

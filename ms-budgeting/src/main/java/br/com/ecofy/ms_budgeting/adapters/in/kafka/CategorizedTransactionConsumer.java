@@ -2,7 +2,8 @@ package br.com.ecofy.ms_budgeting.adapters.in.kafka;
 
 import br.com.ecofy.ms_budgeting.adapters.in.kafka.dto.CategorizedTransactionMessage;
 import br.com.ecofy.ms_budgeting.adapters.in.kafka.mapper.InboundEventMapper;
-import br.com.ecofy.ms_budgeting.core.port.in.ProcessTransactionForBudgetUseCase;
+import br.com.ecofy.ms_budgeting.core.application.command.ProcessTransactionCommand;
+import br.com.ecofy.ms_budgeting.core.application.service.BudgetEventIngestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -19,29 +20,32 @@ import java.util.UUID;
 public class CategorizedTransactionConsumer {
 
     private final InboundEventMapper mapper;
-    private final ProcessTransactionForBudgetUseCase useCase;
+    // Correção Dia 6 (item #9): delega ao serviço de ingestão, que centraliza MDC,
+    // validação de campos obrigatórios, logs padronizados START/DONE/FAIL e o wrapping
+    // de exceções (BudgetEventIngestionFailedException). Antes o consumer chamava o use case
+    // diretamente, duplicando MDC e ignorando esse tratamento padronizado.
+    private final BudgetEventIngestionService ingestionService;
 
     @KafkaListener(
             topics = "${ecofy.budgeting.topics.categorized-transaction}",
             groupId = "${spring.application.name}",
             containerFactory = "budgetingKafkaListenerContainerFactory"
     )
-    // Consome mensagens Kafka de transações categorizadas e dispara o caso de uso de processamento.
+    // Consome mensagens Kafka de transações categorizadas e delega ao serviço de ingestão.
     public void onMessage(ConsumerRecord<String, CategorizedTransactionMessage> record) {
         UUID runId = UUID.randomUUID();
         CategorizedTransactionMessage msg = record.value();
 
-        // headers úteis (opcional): traceId / correlationId / eventId
+        // headers úteis (opcional): correlationId / eventId (propagados p/ MDC no serviço de ingestão)
         String correlationId = headerAsString(record, "correlationId");
         String eventId = headerAsString(record, "eventId");
 
         if (msg == null) {
+            // payload nulo geralmente é descartável (tombstone/erro de serialização)
             log.warn("[CategorizedTransactionConsumer] IGNORE null payload runId={} topic={} partition={} offset={}",
                     runId, record.topic(), record.partition(), record.offset());
-            return; // payload nulo geralmente é descartável
+            return;
         }
-
-        validate(msg);
 
         log.info(
                 "[CategorizedTransactionConsumer] RECEIVED runId={} eventId={} correlationId={} topic={} partition={} offset={} key={} txId={} userId={} categoryId={}",
@@ -50,21 +54,9 @@ public class CategorizedTransactionConsumer {
                 msg.transactionId(), msg.userId(), msg.categoryId()
         );
 
-        // Se falhar, lança exception e o ErrorHandler toma conta (retry / DLT)
-        useCase.process(mapper.toCommand(msg, runId, eventId, correlationId, record));
-    }
-
-    // Valida os campos mínimos obrigatórios do payload antes de processar.
-    private static void validate(CategorizedTransactionMessage msg) {
-        if (isBlank(String.valueOf(msg.transactionId()))) throw new IllegalArgumentException("transactionId is required");
-        if (isBlank(String.valueOf(msg.userId()))) throw new IllegalArgumentException("userId is required");
-        // categoryId pode ser opcional dependendo do seu domínio; se for obrigatória, valide aqui:
-        // if (isBlank(msg.categoryId())) throw new IllegalArgumentException("categoryId is required");
-    }
-
-    // Verifica se uma string é nula, vazia ou contém apenas espaços.
-    private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
+        // Se falhar, o serviço de ingestão trata/loga e relança para o ErrorHandler (retry / DLT).
+        ProcessTransactionCommand command = mapper.toCommand(msg, runId, eventId, correlationId, record);
+        ingestionService.ingest(command);
     }
 
     // Extrai um header do Kafka como String (UTF-8) a partir da chave informada.

@@ -5,15 +5,18 @@ import br.com.ecofy.ms_budgeting.core.application.result.BudgetConsumptionResult
 import br.com.ecofy.ms_budgeting.core.application.result.BudgetOverviewResult;
 import br.com.ecofy.ms_budgeting.core.application.result.BudgetResult;
 import br.com.ecofy.ms_budgeting.core.domain.Budget;
+import br.com.ecofy.ms_budgeting.core.domain.BudgetConsumption;
 import br.com.ecofy.ms_budgeting.core.domain.exception.BudgetNotFoundException;
 import br.com.ecofy.ms_budgeting.core.port.in.GetBudgetOverviewUseCase;
 import br.com.ecofy.ms_budgeting.core.port.in.GetBudgetUseCase;
 import br.com.ecofy.ms_budgeting.core.port.in.ListBudgetsUseCase;
+import br.com.ecofy.ms_budgeting.core.port.out.LoadBudgetConsumptionPort;
 import br.com.ecofy.ms_budgeting.core.port.out.LoadBudgetsPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -23,10 +26,13 @@ import java.util.UUID;
 public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase, GetBudgetOverviewUseCase {
 
     private final LoadBudgetsPort loadBudgetsPort;
+    private final LoadBudgetConsumptionPort loadBudgetConsumptionPort;
 
-    // Injeta o port de leitura de budgets garantindo dependência não nula.
-    public BudgetQueryService(LoadBudgetsPort loadBudgetsPort) {
+    // Injeta os ports de leitura de budgets e de consumo garantindo dependências não nulas.
+    public BudgetQueryService(LoadBudgetsPort loadBudgetsPort,
+                              LoadBudgetConsumptionPort loadBudgetConsumptionPort) {
         this.loadBudgetsPort = Objects.requireNonNull(loadBudgetsPort, "loadBudgetsPort must not be null");
+        this.loadBudgetConsumptionPort = Objects.requireNonNull(loadBudgetConsumptionPort, "loadBudgetConsumptionPort must not be null");
     }
 
     // Lista budgets de um usuário, validando o userId, consultando o repositório e mapeando entidades para DTOs de resposta.
@@ -53,7 +59,8 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 .orElseThrow(() -> new BudgetNotFoundException(budgetId));
     }
 
-    // Retorna um overview do usuário com “stubs” de consumo (zeros), útil como baseline quando consumos reais não são agregados aqui.
+    // Retorna um overview HONESTO do usuário: carrega o consumo real de cada budget no seu período
+    // (antes retornava sempre zeros, o que era enganoso).
     @Override
     public BudgetOverviewResult overview(UUID userId) {
         requireNonNull(userId, "userId");
@@ -61,7 +68,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         var budgets = loadBudgetsPort.findByUserId(userId);
 
         var consumptions = budgets.stream()
-                .map(BudgetQueryService::toConsumptionStub)
+                .map(this::toConsumption)
                 .toList();
 
         log.debug("[BudgetQueryService] - [overview] -> userId={} budgets={}", userId, budgets.size());
@@ -69,14 +76,22 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         return new BudgetOverviewResult(userId, consumptions, List.of());
     }
 
-    // Cria um resumo de consumo “stub” para um budget (consumido e % zerados), preservando o limite do budget.
-    private static BudgetConsumptionResult toConsumptionStub(Budget b) {
-        return new BudgetConsumptionResult(
-                b.getId(),
-                BigDecimal.ZERO,
-                b.getLimit().amount(),
-                BigDecimal.ZERO
-        );
+    // Monta o resumo de consumo de um budget com valores REAIS (consumido + %), carregando o consumo do período.
+    private BudgetConsumptionResult toConsumption(Budget b) {
+        BigDecimal limit = b.getLimit().amount();
+        var period = b.getKey().period();
+
+        BigDecimal consumed = loadBudgetConsumptionPort
+                .findByBudgetAndPeriod(b.getId(), period.start(), period.end())
+                .map(BudgetConsumption::getConsumed)
+                .map(m -> m.amount())
+                .orElse(BigDecimal.ZERO);
+
+        BigDecimal pct = (limit == null || limit.signum() <= 0)
+                ? BigDecimal.ZERO
+                : consumed.multiply(BigDecimal.valueOf(100)).divide(limit, 2, RoundingMode.HALF_UP);
+
+        return new BudgetConsumptionResult(b.getId(), consumed, limit, pct);
     }
 
     // Converte a entidade Budget em BudgetResult, extraindo chave, período, limite, moeda, status e timestamps.

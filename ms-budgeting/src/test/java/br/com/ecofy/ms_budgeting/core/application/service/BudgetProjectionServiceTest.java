@@ -823,7 +823,7 @@ class BudgetProjectionServiceTest {
                 "event-invalid-after-lookup"
         );
 
-        when(command.currency()).thenReturn("BRL", "INVALID");
+        lenient().when(command.currency()).thenReturn("BRL", "INVALID");
 
         Budget budget = budget(
                 UUID.randomUUID(),
@@ -835,12 +835,13 @@ class BudgetProjectionServiceTest {
                 new BigDecimal("1000.00")
         );
 
-        when(idempotencyPort.tryAcquire(
+        // lenient: validate() já rejeita a moeda inválida antes destes ports serem exercitados.
+        lenient().when(idempotencyPort.tryAcquire(
                 "kafka:categorized-tx:event:event-invalid-after-lookup",
                 IDEMPOTENCY_TTL,
                 SCOPE_KAFKA_CATEGORIZED_TX
         )).thenReturn(true);
-        when(loadBudgetsPort.findByUserId(userId)).thenReturn(List.of(budget));
+        lenient().when(loadBudgetsPort.findByUserId(userId)).thenReturn(List.of(budget));
 
         assertThrows(
                 InvalidCurrencyCodeException.class,
@@ -1060,18 +1061,19 @@ class BudgetProjectionServiceTest {
     ) {
         ProcessTransactionCommand command = mock(ProcessTransactionCommand.class, Answers.RETURNS_DEEP_STUBS);
 
-        when(command.runId()).thenReturn(runId);
-        when(command.transactionId()).thenReturn(transactionId);
-        when(command.userId()).thenReturn(userId);
-        when(command.categoryId()).thenReturn(categoryId);
-        when(command.amount()).thenReturn(amount);
-        when(command.currency()).thenReturn(currency);
-        when(command.transactionDate()).thenReturn(transactionDate);
+        // lenient: testes de validação lançam antes de exercitar todos os campos (evita UnnecessaryStubbing).
+        lenient().when(command.runId()).thenReturn(runId);
+        lenient().when(command.transactionId()).thenReturn(transactionId);
+        lenient().when(command.userId()).thenReturn(userId);
+        lenient().when(command.categoryId()).thenReturn(categoryId);
+        lenient().when(command.amount()).thenReturn(amount);
+        lenient().when(command.currency()).thenReturn(currency);
+        lenient().when(command.transactionDate()).thenReturn(transactionDate);
 
         if (eventId == null) {
-            when(command.metadata()).thenReturn(null);
+            lenient().when(command.metadata()).thenReturn(null);
         } else {
-            when(command.metadata().eventId()).thenReturn(eventId);
+            lenient().when(command.metadata().eventId()).thenReturn(eventId);
         }
 
         return command;

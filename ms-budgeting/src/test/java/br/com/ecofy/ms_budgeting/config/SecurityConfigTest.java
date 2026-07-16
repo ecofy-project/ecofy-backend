@@ -28,11 +28,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(classes = {
-        SecurityConfig.class,
-        SecurityConfigTest.TestController.class,
-        SecurityConfigTest.TestCorsConfig.class
-})
+@SpringBootTest(
+        classes = {
+                SecurityConfig.class,
+                SecurityConfigTest.TestController.class,
+                SecurityConfigTest.TestCorsConfig.class,
+                SecurityConfigTest.TestJwtConfig.class
+        },
+        properties = "ecofy.budgeting.security.permit-all=true"
+)
 @AutoConfigureMockMvc
 class SecurityConfigTest {
 
@@ -193,7 +197,8 @@ class SecurityConfigTest {
     void shouldHaveBeanAnnotationOnSecurityFilterChainMethod() throws Exception {
         Method method = SecurityConfig.class.getDeclaredMethod(
                 "securityFilterChain",
-                HttpSecurity.class
+                HttpSecurity.class,
+                org.springframework.core.env.Environment.class
         );
 
         Bean bean = method.getAnnotation(Bean.class);
@@ -238,6 +243,19 @@ class SecurityConfigTest {
         field.setAccessible(true);
 
         return (String[]) field.get(null);
+    }
+
+    @Configuration
+    static class TestJwtConfig {
+
+        // Stub de JwtDecoder para o oauth2ResourceServer.jwt() poder ser configurado no slice de teste
+        // (nenhum teste envia bearer token real; permit-all/WithMockUser não o exercitam).
+        @Bean
+        org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder() {
+            return token -> {
+                throw new org.springframework.security.oauth2.jwt.BadJwtException("stub decoder");
+            };
+        }
     }
 
     @Configuration

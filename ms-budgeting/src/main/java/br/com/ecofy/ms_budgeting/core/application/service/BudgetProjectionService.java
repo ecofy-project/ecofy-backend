@@ -172,6 +172,12 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
 
         String msg = buildAlertMessage(severityAfter, pctAfter, saved.getPeriodStart(), saved.getPeriodEnd());
 
+        // Enriquecimento p/ o evento BUDGET_ALERT consumido pelo ms-notification (item #10).
+        UUID userId = budget.getKey().userId().value();
+        UUID categoryId = budget.getKey().categoryId().value();
+        Integer consumedPct = pctAfter.setScale(0, RoundingMode.HALF_UP).intValueExact();
+        String currency = limit.currency().getCurrencyCode();
+
         BudgetAlert alert = new BudgetAlert(
                 UUID.randomUUID(),
                 budgetId,
@@ -180,11 +186,18 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
                 msg,
                 saved.getPeriodStart(),
                 saved.getPeriodEnd(),
-                now
+                now,
+                userId,
+                categoryId,
+                limit.amount(),
+                after,
+                consumedPct,
+                currency
         );
 
         BudgetAlert persisted = saveBudgetAlertPort.save(alert);
-        publishBudgetAlertEventPort.publish(persisted);
+        // Publica o alerta em memória (totalmente enriquecido); o reload de persistência não carrega o enriquecimento.
+        publishBudgetAlertEventPort.publish(persisted.getUserId() != null ? persisted : alert);
 
         log.info("[BudgetProjectionService] - [alert] -> budgetId={} severity={} pctAfter={} txDate={} eventId={}",
                 budgetId, severityAfter, pctAfter, txDate, eventId);
