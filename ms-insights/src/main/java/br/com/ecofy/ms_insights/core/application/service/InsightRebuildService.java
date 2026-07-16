@@ -12,6 +12,13 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * ⚠️ PLACEHOLDER (Dia 8 / item #9): este serviço NÃO reconstrói insights de fato.
+ * Hoje apenas executa um "health check" da porta de leitura (consulta um userId aleatório) e loga métricas.
+ * Não está exposto por nenhum endpoint/scheduler ativo. Um rebuild real (reprocessar períodos, recalcular
+ * métricas/trends, re-publicar eventos) fica documentado como próximo passo — ver README.
+ * Para evitar aparência de funcionalidade em produção, o método loga em WARN a cada execução.
+ */
 @Slf4j
 @Service
 public class InsightRebuildService implements RebuildInsightsUseCase {
@@ -32,7 +39,8 @@ public class InsightRebuildService implements RebuildInsightsUseCase {
         Instant startedAt = Instant.now();
         String runId = normalizeRunId(cmd.runId());
 
-        log.info("[InsightRebuildService] - [rebuild] -> START runId={}", runId);
+        // Deixa explícito que este é um placeholder (não reconstrói insights de verdade).
+        log.warn("[InsightRebuildService] - [rebuild] -> PLACEHOLDER: does NOT rebuild insights (health-check only) runId={}", runId);
 
         // Observação: como este serviço ainda é "placeholder", evitamos efeitos colaterais.
         // Em um rebuild real, você:

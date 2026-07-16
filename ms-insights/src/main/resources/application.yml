@@ -14,10 +14,11 @@ server:
   forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
 
   error:
+    # Correção Dia 8 (item #5): não expor stacktrace/exception ao cliente (evita vazamento de detalhes internos).
     include-message: always
-    include-exception: true
+    include-exception: false
     include-binding-errors: always
-    include-stacktrace: always
+    include-stacktrace: never
 
 spring:
 
@@ -109,6 +110,10 @@ spring:
 
 ecofy:
   insights:
+    # Segurança da API por ambiente: dev/test/local liberam /api/insights/**; prod exige JWT.
+    security:
+      permit-all: ${INS_SECURITY_PERMIT_ALL:true}   # dev default: true
+
     topics:
       categorized-transaction-topic: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
       budget-alert-topic: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
@@ -217,6 +222,8 @@ logging:
 
 ecofy:
   insights:
+    security:
+      permit-all: true            # test: facilita testes locais
     idempotency:
       ttl: PT1M
     schedulers:
@@ -280,6 +287,9 @@ logging:
 
 ecofy:
   insights:
+    security:
+      permit-all: ${INS_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/insights/**
+
     topics:
       categorized-transaction-topic: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
       budget-alert-topic: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}

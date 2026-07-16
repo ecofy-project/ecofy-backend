@@ -3,6 +3,7 @@ package br.com.ecofy.ms_insights.adapters.in.web;
 import br.com.ecofy.ms_insights.adapters.in.web.dto.request.GenerateInsightsRequest;
 import br.com.ecofy.ms_insights.adapters.in.web.dto.response.InsightsBundleResponse;
 import br.com.ecofy.ms_insights.adapters.in.web.dto.response.InsightResponse;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.response.MetricSnapshotResponse;
 import br.com.ecofy.ms_insights.adapters.in.web.dto.response.GoalResponse;
 import br.com.ecofy.ms_insights.core.application.command.GenerateInsightsCommand;
 import br.com.ecofy.ms_insights.core.application.result.InsightsBundleResult;
@@ -24,7 +25,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -131,8 +131,18 @@ public class InsightsController {
                 ))
                 .toList();
 
-        // 1 nível apenas: List<List<MetricSnapshotResult>>
-        var metricsAsSingletonList = java.util.Collections.singletonList(bundle.metrics());
+        // Correção Dia 8 (item #3): mapeamento direto List<MetricSnapshotResult> -> List<MetricSnapshotResponse>,
+        // sem aninhamento artificial (antes era lista de lista de lista via singletonList duplo).
+        List<MetricSnapshotResponse> metrics = bundle.metrics().stream()
+                .map(m -> new MetricSnapshotResponse(
+                        m.id(),
+                        m.userId(),
+                        m.metricType(),
+                        m.valueCents(),
+                        m.currency(),
+                        m.createdAt()
+                ))
+                .toList();
 
         List<GoalResponse> goals = bundle.goals().stream()
                 .map(g -> new GoalResponse(
@@ -147,8 +157,7 @@ public class InsightsController {
                 ))
                 .toList();
 
-        // REMOVE o Collections.singletonList(...) extra
-        return new InsightsBundleResponse(insights, Collections.singletonList(metricsAsSingletonList), goals);
+        return new InsightsBundleResponse(insights, metrics, goals);
     }
 
 }

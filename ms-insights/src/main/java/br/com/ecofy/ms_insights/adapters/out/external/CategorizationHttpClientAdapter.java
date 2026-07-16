@@ -2,6 +2,7 @@ package br.com.ecofy.ms_insights.adapters.out.external;
 
 import br.com.ecofy.ms_insights.config.ExternalClientsProperties;
 import br.com.ecofy.ms_insights.config.HttpClientConfig;
+import br.com.ecofy.ms_insights.core.domain.exception.ExternalDataUnavailableException;
 import br.com.ecofy.ms_insights.core.domain.valueobject.Period;
 import br.com.ecofy.ms_insights.core.port.out.CategorizedTxView;
 import br.com.ecofy.ms_insights.core.port.out.LoadCategorizedTransactionsPort;
@@ -11,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,8 +33,9 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
     @Override
     public List<CategorizedTxView> loadForUserAndPeriod(UUID userId, Period period, int limit) {
         var c = props.categorization();
+        // Client desabilitado por configuração -> lista vazia LEGÍTIMA (modo sem integração externa).
         if (!c.enabled()) {
-            log.debug("[CategorizationHttpClientAdapter] disabled -> returning empty list userId={}", userId);
+            log.debug("[CategorizationHttpClientAdapter] disabled -> returning empty list (legitimate) userId={}", userId);
             return List.of();
         }
 
@@ -42,6 +43,7 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
             // Endpoint “placeholder”: ajuste quando seu ms-categorization tiver endpoint real
             String url = c.baseUrl() + "/api/categorization/v1/transactions/categorized";
 
+            // Correção Dia 8 (item #7): sem onErrorResume silencioso — falha externa deve ser observável.
             var response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path(url)
@@ -55,13 +57,9 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
                     .retrieve()
                     .bodyToMono(CategorizedTxPageResponse.class)
                     .timeout(java.time.Duration.ofMillis(c.readTimeoutMs()))
-                    .onErrorResume(ex -> {
-                        log.warn("[CategorizationHttpClientAdapter] call failed -> fallback empty userId={} reason={}",
-                                userId, ex.toString());
-                        return Mono.just(new CategorizedTxPageResponse(List.of()));
-                    })
                     .block();
 
+            // Resposta vazia legítima (200 sem itens) -> lista vazia.
             if (response == null || response.items() == null) return List.of();
 
             return response.items().stream()
@@ -69,9 +67,10 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
                     .toList();
 
         } catch (Exception ex) {
-            log.warn("[CategorizationHttpClientAdapter] unexpected -> fallback empty userId={} reason={}",
-                    userId, ex.toString());
-            return List.of();
+            // Falha externa (client habilitado) -> NÃO vira "sucesso silencioso"; propaga erro controlado.
+            log.error("[CategorizationHttpClientAdapter] call FAILED (enabled) userId={} reason={}", userId, ex.toString());
+            throw new ExternalDataUnavailableException("categorization",
+                    "Failed to load categorized transactions from ms-categorization", ex);
         }
     }
 

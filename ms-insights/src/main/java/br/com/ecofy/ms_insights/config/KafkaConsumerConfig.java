@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -46,6 +48,14 @@ public class KafkaConsumerConfig {
 
         // Concorrência: default seguro (depois você pode parametrizar)
         factory.setConcurrency(1);
+
+        // Correção Dia 8 (item #6): antes os consumers engoliam Exception (sem retry) e uma falha
+        // transitória era tratada como "processada". Agora exceções relançadas pelo listener passam
+        // por retry com backoff (2 re-tentativas, 1s). Após esgotar, o DefaultErrorHandler loga e segue
+        // (sem DLT — publicação em Dead Letter Topic fica como próximo passo documentado).
+        var errorHandler = new DefaultErrorHandler(new FixedBackOff(1_000L, 2L));
+        errorHandler.setLogLevel(org.springframework.kafka.KafkaException.Level.ERROR);
+        factory.setCommonErrorHandler(errorHandler);
 
         log.info(
                 "[KafkaConsumerConfig] KafkaListenerContainerFactory | bootstrapServers={} | groupId={} | ackMode={}",

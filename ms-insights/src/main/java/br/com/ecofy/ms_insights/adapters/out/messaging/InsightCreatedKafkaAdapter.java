@@ -51,12 +51,24 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
                     topic, key, evt.insightId(), insight.getType(), insight.getScore()
             );
 
-            kafkaTemplate.send(topic, key, payload);
-
-            log.debug(
-                    "[InsightCreatedKafkaAdapter] - [publish] -> Sent insight.created topic={} key={} bytes={}",
-                    topic, key, payload.length()
-            );
+            // Correção Dia 8 (item #9): antes o resultado de send(...) era ignorado -> falhas assíncronas
+            // passavam despercebidas. Agora observamos o future com whenComplete (sucesso/erro logados).
+            final String logKey = key;
+            final int bytes = payload.length();
+            kafkaTemplate.send(topic, key, payload).whenComplete((result, ex) -> {
+                if (ex != null) {
+                    log.error(
+                            "[InsightCreatedKafkaAdapter] - [publish] -> ASYNC_FAILED insight.created topic={} key={} insightId={}",
+                            topic, logKey, evt.insightId(), ex
+                    );
+                    return;
+                }
+                var md = result.getRecordMetadata();
+                log.info(
+                        "[InsightCreatedKafkaAdapter] - [publish] -> PUBLISHED insight.created topic={} key={} partition={} offset={} bytes={}",
+                        topic, logKey, md.partition(), md.offset(), bytes
+                );
+            });
 
         } catch (Exception ex) {
             log.error(

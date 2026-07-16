@@ -2,6 +2,7 @@ package br.com.ecofy.ms_insights.adapters.out.messaging.mapper;
 
 import br.com.ecofy.ms_insights.adapters.out.messaging.dto.InsightCreatedEvent;
 import br.com.ecofy.ms_insights.core.domain.Insight;
+import br.com.ecofy.ms_insights.core.domain.valueobject.Period;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -10,38 +11,48 @@ import java.util.UUID;
 
 public final class EventMapper {
 
-    // Impede instanciação e reforça o uso estático (classe utilitária de mapeamento para eventos).
+    private static final String EVENT_TYPE = "insight.created";
+    private static final String SOURCE = "ms-insights";
+
     private EventMapper() {
     }
 
-    // Converte um Insight em InsightCreatedEvent usando o Clock padrão (UTC) para timestamp do evento.
+    // Converte um Insight em InsightCreatedEvent usando o Clock padrão (UTC).
     public static InsightCreatedEvent toCreatedEvent(Insight insight) {
         return toCreatedEvent(insight, Clock.systemUTC());
     }
 
-    // Converte um Insight em InsightCreatedEvent validando entradas, extraindo ids e criando metadados (eventId/eventType/occurredAt) de forma padronizada.
+    // Converte um Insight em InsightCreatedEvent compatível com o ms-notification (userId/insightId/insightType/período/metadata).
     public static InsightCreatedEvent toCreatedEvent(Insight insight, Clock clock) {
         Objects.requireNonNull(insight, "insight must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
 
-        // Mantém o contrato atual, mas evita NPE e padroniza a criação do evento
-        String userId = Objects.requireNonNull(insight.getKey(), "insight.key must not be null")
-                .userId()
-                .value()
-                .toString();
-
+        var key = Objects.requireNonNull(insight.getKey(), "insight.key must not be null");
+        String userId = key.userId().value().toString();
         String insightId = Objects.requireNonNull(insight.getId(), "insight.id must not be null").toString();
 
+        Period period = key.period();
+        String periodStart = period != null && period.start() != null ? period.start().toString() : null;
+        String periodEnd = period != null && period.end() != null ? period.end().toString() : null;
+        String insightType = insight.getType() != null ? insight.getType().name() : null;
+
         Instant occurredAt = Instant.now(clock);
+        String eventId = UUID.randomUUID().toString();
+
+        var metadata = new InsightCreatedEvent.EventMetadata(eventId, null, occurredAt, SOURCE);
 
         return new InsightCreatedEvent(
-                UUID.randomUUID().toString(),          // eventId
-                "insight.created",                      // eventType
-                userId,                                 // userId
-                insightId,                              // insightId
-                insight.getScore(),                     // score
-                occurredAt,                              // occurredAt
-                insight.getPayload()                    // payload
+                eventId,
+                EVENT_TYPE,
+                userId,
+                insightId,
+                insightType,
+                insight.getScore(),
+                periodStart,
+                periodEnd,
+                occurredAt,
+                insight.getPayload(),
+                metadata
         );
     }
 

@@ -1,12 +1,16 @@
 package br.com.ecofy.ms_insights.adapters.in.web.advice;
 
 import br.com.ecofy.ms_insights.core.domain.exception.BusinessValidationException;
+import br.com.ecofy.ms_insights.core.domain.exception.ExternalDataUnavailableException;
 import br.com.ecofy.ms_insights.core.domain.exception.GoalNotFoundException;
 import br.com.ecofy.ms_insights.core.domain.exception.IdempotencyViolationException;
 import br.com.ecofy.ms_insights.core.domain.exception.InsightNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +19,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class RestExceptionHandler {
 
@@ -52,9 +57,37 @@ public class RestExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Invalid payload", req, details);
     }
 
+    // Correção Dia 8 (item #2/#5): violações de constraint em params/headers (@Validated) -> 400.
+    @ExceptionHandler(ConstraintViolationException.class)
+    ResponseEntity<ApiErrorResponse> constraint(ConstraintViolationException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("reason", "CONSTRAINT_VIOLATION"));
+    }
+
+    // Correção Dia 8 (item #2/#5): corpo JSON malformado / enum inválido -> 400 (sem vazar detalhe interno).
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ApiErrorResponse> unreadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, "Malformed or unreadable request body", req, Map.of("reason", "MALFORMED_REQUEST"));
+    }
+
+    // Correção Dia 8 (item #2/#5): entradas inválidas de value objects de domínio (Period/Money) -> 400.
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<ApiErrorResponse> illegalArgument(IllegalArgumentException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("reason", "INVALID_ARGUMENT"));
+    }
+
+    // Correção Dia 8 (item #7): integração externa habilitada indisponível -> 503 (falha observável, não silenciosa).
+    @ExceptionHandler(ExternalDataUnavailableException.class)
+    ResponseEntity<ApiErrorResponse> externalUnavailable(ExternalDataUnavailableException ex, HttpServletRequest req) {
+        log.warn("[RestExceptionHandler] external data unavailable source={} message={}", ex.getSource(), ex.getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE, "External dependency unavailable: " + ex.getSource(), req,
+                Map.of("reason", "EXTERNAL_DATA_UNAVAILABLE", "source", ex.getSource()));
+    }
+
     // Trata exceções não mapeadas retornando 500 genérico para evitar vazamento de detalhes internos.
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiErrorResponse> generic(Exception ex, HttpServletRequest req) {
+        log.error("[RestExceptionHandler] unexpected error path={} type={} message={}",
+                req.getRequestURI(), ex.getClass().getName(), ex.getMessage(), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error", req, Map.of());
     }
 

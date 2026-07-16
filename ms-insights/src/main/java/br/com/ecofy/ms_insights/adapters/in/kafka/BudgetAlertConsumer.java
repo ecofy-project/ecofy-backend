@@ -48,35 +48,38 @@ public class BudgetAlertConsumer {
             return;
         }
 
+        // Correção Dia 8 (item #6): diferencia payload irrecuperável (poison) de falha transitória.
+        final UUID userId;
         try {
             JsonNode root = objectMapper.readTree(payload);
-
-            UUID userId = parseRequiredUuid(root, "userId");
+            userId = parseRequiredUuid(root, "userId");
             UUID budgetId = parseOptionalUuid(root, "budgetId");
             String severity = parseOptionalText(root, "severity");
             String status = parseOptionalText(root, "status");
 
             log.info(
                     "[BudgetAlertConsumer] - [consume] -> userId={} budgetId={} severity={} status={}",
-                    userId,
-                    budgetId,
-                    severity,
-                    status
+                    userId, budgetId, severity, status
             );
+        } catch (Exception poison) {
+            // Payload malformado/invalido: reprocessar não resolve. Loga em WARN e ACK (evita loop infinito
+            // sem DLT). Publicação em Dead Letter Topic fica como próximo passo documentado.
+            log.warn(
+                    "[BudgetAlertConsumer] - [consume] -> POISON payload skipped (no retry) payloadSize={} error={}",
+                    payload.length(), poison.getMessage()
+            );
+            return;
+        }
 
-            // Mantém o comportamento atual: sinaliza geração por usuário
+        try {
             ingestionService.onSignalGenerate(userId);
-
-        } catch (Exception ex) {
+        } catch (Exception transient_) {
+            // Falha transitória (ex.: downstream/DB): NÃO engole; relança para o DefaultErrorHandler (retry).
             log.error(
-                    "[BudgetAlertConsumer] - [consume] -> failed to parse/process payload. payloadSize={} error={}",
-                    payload.length(),
-                    ex.getMessage(),
-                    ex
+                    "[BudgetAlertConsumer] - [consume] -> TRANSIENT failure -> rethrow for retry userId={} error={}",
+                    userId, transient_.getMessage()
             );
-
-            // Se você estiver usando DLT/DefaultErrorHandler e quiser reprocessar/falhar a partição, relance:
-            // throw new RuntimeException(ex);
+            throw new RuntimeException("Transient failure processing budget-alert event", transient_);
         }
     }
 

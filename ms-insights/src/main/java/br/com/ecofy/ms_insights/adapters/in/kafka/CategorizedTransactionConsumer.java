@@ -41,36 +41,38 @@ public class CategorizedTransactionConsumer {
             return;
         }
 
+        // Correção Dia 8 (item #6): diferencia payload irrecuperável (poison) de falha transitória.
+        final UUID userId;
         try {
             JsonNode root = objectMapper.readTree(payload);
-
-            UUID userId = parseRequiredUuid(root, "userId");
+            userId = parseRequiredUuid(root, "userId");
             UUID transactionId = parseOptionalUuid(root, "transactionId");
             UUID categoryId = parseOptionalUuid(root, "categoryId");
 
             log.info(
                     "[CategorizedTransactionConsumer] - [consume] -> topic={} userId={} transactionId={} categoryId={}",
                     properties.topics().categorizedTransactionTopic(),
-                    userId,
-                    transactionId,
-                    categoryId
+                    userId, transactionId, categoryId
             );
+        } catch (Exception poison) {
+            // Payload malformado/invalido: reprocessar não resolve. Loga em WARN e ACK (evita loop infinito
+            // sem DLT). Publicação em Dead Letter Topic fica como próximo passo documentado.
+            log.warn(
+                    "[CategorizedTransactionConsumer] - [consume] -> POISON payload skipped (no retry) topic={} payloadSize={} error={}",
+                    properties.topics().categorizedTransactionTopic(), payload.length(), poison.getMessage()
+            );
+            return;
+        }
 
-            // Mantém o comportamento atual: sinaliza geração por usuário
+        try {
             ingestionService.onSignalGenerate(userId);
-
-        } catch (Exception ex) {
-            // Evita propagar exceção no listener, mantendo o consumer resiliente e registrando detalhes do erro.
+        } catch (Exception transient_) {
+            // Falha transitória (ex.: downstream/DB): NÃO engole; relança para o DefaultErrorHandler (retry).
             log.error(
-                    "[CategorizedTransactionConsumer] - [consume] -> failed to parse/process payload. topic={} payloadSize={} error={}",
-                    properties.topics().categorizedTransactionTopic(),
-                    payload.length(),
-                    ex.getMessage(),
-                    ex
+                    "[CategorizedTransactionConsumer] - [consume] -> TRANSIENT failure -> rethrow for retry userId={} error={}",
+                    userId, transient_.getMessage()
             );
-
-            // Se você tiver DLT / error-handler no container, pode apenas relançar RuntimeException.
-            // throw new RuntimeException(ex);
+            throw new RuntimeException("Transient failure processing categorized-transaction event", transient_);
         }
     }
 
