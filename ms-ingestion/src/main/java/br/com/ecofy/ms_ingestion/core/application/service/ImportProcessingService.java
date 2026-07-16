@@ -143,11 +143,11 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
 
             String fileContent = new String(fileBytes, StandardCharsets.UTF_8);
 
-            List<RawTransaction> parsedTransactions;
+            ParseResult parseResult;
             try {
                 switch (importFile.type()) {
-                    case CSV -> parsedTransactions = parseCsvPort.parse(job, fileContent);
-                    case OFX -> parsedTransactions = parseOfxPort.parse(job, fileContent);
+                    case CSV -> parseResult = parseCsvPort.parse(job, fileContent);
+                    case OFX -> parseResult = parseOfxPort.parse(job, fileContent);
                     default -> throw new UnsupportedImportFileTypeException(String.valueOf(importFile.type()), importFileId);
                 }
             } catch (IngestionException e) {
@@ -156,8 +156,8 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
                 throw new ParseException("Failed to parse import file", e);
             }
 
-            allTransactions.addAll(parsedTransactions);
-            // parsedErrors (quando existir) -> allErrors.addAll(parsedErrors);
+            allTransactions.addAll(parseResult.transactions());
+            allErrors.addAll(parseResult.errors());
 
             if (!allTransactions.isEmpty()) {
                 try {
@@ -187,11 +187,19 @@ public class ImportProcessingService implements StartImportJobUseCase, RetryFail
                 }
             }
 
+            // Atualiza os contadores do job ANTES de finalizar, refletindo o resultado real do parse.
+            int successCount = allTransactions.size();
+            int errorCount = allErrors.size();
+            int totalRecords = successCount + errorCount;
+            job.updateCounts(totalRecords, totalRecords, successCount, errorCount);
+
             if (allErrors.isEmpty()) {
                 job.markCompleted();
-            } else if (allErrors.size() > ingestionProperties.getMaxErrorsPerJob()) {
+            } else if (allTransactions.isEmpty() || allErrors.size() > ingestionProperties.getMaxErrorsPerJob()) {
+                // Nenhuma transação válida OU erros acima do limite -> falha (não é importação parcial).
                 job.markFailed();
             } else {
+                // Há transações válidas + erros parciais -> importação parcial rastreável.
                 job.markCompletedWithErrors();
             }
 

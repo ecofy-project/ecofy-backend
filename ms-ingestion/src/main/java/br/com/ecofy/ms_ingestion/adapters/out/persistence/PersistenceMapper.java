@@ -129,6 +129,7 @@ final class PersistenceMapper {
         return switch (type) {
             case CSV -> TransactionSourceType.FILE_CSV;
             case OFX -> TransactionSourceType.FILE_OFX;
+            case EVENT -> TransactionSourceType.KAFKA_EVENT;
         };
     }
 

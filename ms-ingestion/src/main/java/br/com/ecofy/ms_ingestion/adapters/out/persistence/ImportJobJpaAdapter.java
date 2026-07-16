@@ -11,7 +11,8 @@ import br.com.ecofy.ms_ingestion.core.port.out.SaveImportJobPort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
+import org.springframework.data.domain.PageRequest;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -57,25 +58,17 @@ public class ImportJobJpaAdapter implements SaveImportJobPort, LoadImportJobPort
                 .map(PersistenceMapper::toDomain);
     }
 
-    // Lista jobs elegíveis para retry (FAILED/COMPLETED_WITH_ERRORS) ordenando pelos mais antigos e aplicando limite.
+    // Lista jobs elegíveis para retry (FAILED/COMPLETED_WITH_ERRORS) via query PAGINADA por status,
+    // ordenando pelos mais antigos — evita findAll().stream() (que degrada com o crescimento da tabela).
     @Override
     @Transactional(readOnly = true)
     public List<ImportJob> loadJobsToRetry(int maxJobs) {
-        int limit = maxJobs <= 0 ? Integer.MAX_VALUE : maxJobs;
+        int limit = maxJobs <= 0 ? 100 : maxJobs;
 
-        return importJobRepository.findAll().stream()
-                // elegíveis para retry: FAILED ou COMPLETED_WITH_ERRORS
-                .filter(entity -> {
-                    ImportJobStatus status = entity.getStatus();
-                    return status == ImportJobStatus.FAILED
-                            || status == ImportJobStatus.COMPLETED_WITH_ERRORS;
-                })
-                // processa primeiro os mais antigos (updatedAt nulo vai pro fim)
-                .sorted(Comparator.comparing(
-                        ImportJobEntity::getUpdatedAt,
-                        Comparator.nullsLast(Comparator.naturalOrder())
-                ))
-                .limit(limit)
+        return importJobRepository.findByStatusInOrderByUpdatedAtAsc(
+                        List.of(ImportJobStatus.FAILED, ImportJobStatus.COMPLETED_WITH_ERRORS),
+                        PageRequest.of(0, limit)
+                ).stream()
                 .map(PersistenceMapper::toDomain)
                 .toList();
     }

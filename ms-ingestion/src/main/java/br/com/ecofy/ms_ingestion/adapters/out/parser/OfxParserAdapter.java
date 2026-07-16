@@ -1,11 +1,14 @@
 package br.com.ecofy.ms_ingestion.adapters.out.parser;
 
+import br.com.ecofy.ms_ingestion.core.domain.ImportError;
 import br.com.ecofy.ms_ingestion.core.domain.ImportJob;
 import br.com.ecofy.ms_ingestion.core.domain.RawTransaction;
+import br.com.ecofy.ms_ingestion.core.domain.enums.ImportErrorType;
 import br.com.ecofy.ms_ingestion.core.domain.enums.TransactionSourceType;
 import br.com.ecofy.ms_ingestion.core.domain.valueobject.Money;
 import br.com.ecofy.ms_ingestion.core.domain.valueobject.TransactionDate;
 import br.com.ecofy.ms_ingestion.core.port.out.ParseOfxPort;
+import br.com.ecofy.ms_ingestion.core.port.out.ParseResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +34,7 @@ public class OfxParserAdapter implements ParseOfxPort {
 
     // Extrai blocos STMTTRN de um OFX e converte em RawTransaction, aplicando defaults e validações mínimas.
     @Override
-    public List<RawTransaction> parse(ImportJob job, String ofxContent) {
+    public ParseResult parse(ImportJob job, String ofxContent) {
         Objects.requireNonNull(job, "job must not be null");
         Objects.requireNonNull(ofxContent, "ofxContent must not be null");
 
@@ -45,54 +48,57 @@ public class OfxParserAdapter implements ParseOfxPort {
         Matcher matcher = STMTTRN_BLOCK.matcher(normalized);
 
         List<RawTransaction> out = new ArrayList<>();
+        List<ImportError> errors = new ArrayList<>();
         int idx = 0;
 
         while (matcher.find()) {
             idx++;
             String block = matcher.group(1);
 
-            String trnAmtRaw = firstTagValue(block, "TRNAMT");
-            String dtPostedRaw = firstTagValue(block, "DTPOSTED");
-            String fitId = firstTagValue(block, "FITID");
-            String name = firstTagValue(block, "NAME");
-            String memo = firstTagValue(block, "MEMO");
+            try {
+                String trnAmtRaw = firstTagValue(block, "TRNAMT");
+                String dtPostedRaw = firstTagValue(block, "DTPOSTED");
+                String fitId = firstTagValue(block, "FITID");
+                String name = firstTagValue(block, "NAME");
+                String memo = firstTagValue(block, "MEMO");
 
-            if (trnAmtRaw == null || dtPostedRaw == null) {
-                log.warn(
-                        "[OfxParserAdapter] - [parse] -> STMTTRN inválido (sem TRNAMT/DTPOSTED) idx={} jobId={} TRNAMT={} DTPOSTED={}",
-                        idx, job.id(), trnAmtRaw, dtPostedRaw
-                );
-                continue;
+                if (trnAmtRaw == null || dtPostedRaw == null) {
+                    errors.add(ImportError.create(job.id(), idx, block,
+                            ImportErrorType.VALIDATION_ERROR,
+                            "STMTTRN missing TRNAMT/DTPOSTED"));
+                    continue;
+                }
+
+                BigDecimal amountValue = parseAmount(trnAmtRaw);
+                Instant postedAt = parseOfxToInstant(dtPostedRaw);
+
+                String description = resolveDescription(name, memo);
+
+                LocalDate postedDateUtc = postedAt.atZone(ZoneOffset.UTC).toLocalDate();
+                TransactionDate date = TransactionDate.of(postedDateUtc);
+
+                Money amount = (curDef == null)
+                        ? Money.of(amountValue)
+                        : Money.of(amountValue, curDef);
+
+                out.add(RawTransaction.create(
+                        job.id(),
+                        fitId,
+                        description,
+                        date,
+                        amount,
+                        TransactionSourceType.FILE_OFX
+                ));
+            } catch (Exception e) {
+                errors.add(ImportError.create(job.id(), idx, block,
+                        ImportErrorType.PARSE_ERROR,
+                        "Invalid STMTTRN block: " + e.getMessage()));
             }
-
-            BigDecimal amountValue = parseAmount(trnAmtRaw);
-            Instant postedAt = parseOfxToInstant(dtPostedRaw);
-
-            String description = resolveDescription(name, memo);
-
-            TransactionSourceType sourceType = TransactionSourceType.FILE_OFX;
-
-            LocalDate postedDateUtc = postedAt.atZone(ZoneOffset.UTC).toLocalDate();
-            TransactionDate date = TransactionDate.of(postedDateUtc);
-
-            Money amount = (curDef == null)
-                    ? Money.of(amountValue)
-                    : Money.of(amountValue, curDef);
-
-            RawTransaction tx = RawTransaction.create(
-                    job.id(),
-                    fitId,
-                    description,
-                    date,
-                    amount,
-                    sourceType
-            );
-
-            out.add(tx);
         }
 
-        log.info("[OfxParserAdapter] - [parse] -> OFX parseado totalTx={} jobId={}", out.size(), job.id());
-        return out;
+        log.info("[OfxParserAdapter] - [parse] -> OFX parseado jobId={} validTx={} errors={}",
+                job.id(), out.size(), errors.size());
+        return ParseResult.of(out, errors);
     }
 
     // Define a melhor descrição para a transação priorizando NAME e fallback para MEMO/UNKNOWN.

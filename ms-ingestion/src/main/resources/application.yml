@@ -96,11 +96,18 @@ spring:
 ecofy:
   ingestion:
     max-errors-per-job: ${ING_MAX_ERRORS_PER_JOB:100}           # limite por job
-    async-processing-enabled: ${ING_ASYNC_ENABLED:true}         # processamento async
 
-    topics:
-      categorize-transactions: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}
-      ingestion-events: ${ING_TOPIC_EVENTS:eco.ingestion.events}
+    # Segurança da API por ambiente: dev/test/local liberam /api/import/**; prod exige JWT.
+    security:
+      permit-all: ${ING_SECURITY_PERMIT_ALL:true}              # dev default: true
+
+    # Prefixo ÚNICO de tópicos Kafka (bind por KafkaConfig via ecofy.ingestion.kafka.topics).
+    kafka:
+      transaction-event-topic: ${ING_TOPIC_TX_EVENT:eco.tx.raw}   # tópico consumido (ingestão por evento)
+      topics:
+        transaction-imported: ${ING_TOPIC_TX_IMPORTED:eco.ingestion.transaction.imported}
+        import-job-status-changed: ${ING_TOPIC_JOB_STATUS:eco.ingestion.import-job.status-changed}
+        categorization-request: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}   # publicado p/ ms-categorization
 
     storage:
       base-path: ${ING_STORAGE_BASE_PATH:./data/ms-ingestion}       # pasta base
@@ -187,7 +194,8 @@ logging:
 ecofy:
   ingestion:
     max-errors-per-job: 10
-    async-processing-enabled: false
+    security:
+      permit-all: true            # test: facilita testes locais
     storage:
       base-path: ./data/ms-ingestion-test
       tmp-dir: ./data/ms-ingestion-test/tmp
@@ -245,10 +253,16 @@ logging:
 ecofy:
   ingestion:
     max-errors-per-job: ${ING_MAX_ERRORS_PER_JOB:500}
-    async-processing-enabled: ${ING_ASYNC_ENABLED:true}
-    topics:
-      categorize-transactions: ${ING_TOPIC_CATEGORIZE:ecofy.tx.to-categorize}
-      ingestion-events: ${ING_TOPIC_EVENTS:ecofy.ingestion.events}
+    security:
+      permit-all: ${ING_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/import/**
+    kafka:
+      transaction-event-topic: ${ING_TOPIC_TX_EVENT:eco.tx.raw}
+      topics:
+        transaction-imported: ${ING_TOPIC_TX_IMPORTED:eco.ingestion.transaction.imported}
+        import-job-status-changed: ${ING_TOPIC_JOB_STATUS:eco.ingestion.import-job.status-changed}
+        # Tópico real de categorização preservado (o antigo ecofy.tx.to-categorize era config morta,
+        # nunca lida pelo adapter — ver relatório Dia 4).
+        categorization-request: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}
     storage:
       base-path: ${ING_STORAGE_BASE_PATH:/var/lib/ecofy/ms-ingestion/storage}
       tmp-dir: ${ING_STORAGE_TMP_DIR:/var/lib/ecofy/ms-ingestion/tmp}

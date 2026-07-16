@@ -37,20 +37,53 @@ public class LocalStorageFileAdapter implements StoreFilePort {
             Path dir = baseDir.resolve(dateDir);
             Files.createDirectories(dir);
 
-            String safeName = file.id() + "-" + file.originalFileName().replaceAll("\\s+", "_");
-            Path target = dir.resolve(safeName);
+            // Nome técnico: UUID do arquivo + nome sanitizado (impede separadores de path e caracteres perigosos).
+            String safeName = file.id() + "-" + sanitizeFileName(file.originalFileName());
+            Path target = dir.resolve(safeName).normalize();
+
+            // Defesa em profundidade contra path traversal: o alvo deve permanecer sob o diretório do dia.
+            if (!target.startsWith(dir)) {
+                throw new IllegalStateException("Resolved storage path escapes base directory");
+            }
 
             Files.write(target, content, StandardOpenOption.CREATE_NEW);
 
             String storedPath = target.toAbsolutePath().toString();
 
-            log.info("[LocalStorageFileAdapter] - [store] -> Arquivo armazenado path={}", storedPath);
+            // Não logar o caminho local completo (evita vazar layout do filesystem).
+            log.info("[LocalStorageFileAdapter] - [store] -> Arquivo armazenado fileId={} storedName={}", file.id(), safeName);
             return storedPath;
         } catch (IOException e) {
             log.error("[LocalStorageFileAdapter] - [store] -> Erro ao gravar arquivo error={}", e.getMessage(), e);
             throw new IllegalStateException("Error storing file", e);
         }
 
+    }
+
+    /**
+     * Sanitiza o nome original para uso no filesystem: remove diretórios, mantém apenas
+     * o basename e substitui caracteres não seguros. O nome original completo permanece
+     * como metadado (import_file.original_filename).
+     */
+    static String sanitizeFileName(String original) {
+        if (original == null || original.isBlank()) {
+            return "upload";
+        }
+        // Remove qualquer componente de diretório (Windows ou Unix).
+        String base = original.replace("\\", "/");
+        int slash = base.lastIndexOf('/');
+        if (slash >= 0) {
+            base = base.substring(slash + 1);
+        }
+        // Mantém apenas caracteres seguros.
+        base = base.replaceAll("[^A-Za-z0-9._-]", "_");
+        // Evita nomes só com pontos/vazios (ex.: "..", ".").
+        base = base.replaceAll("^\\.+", "");
+        if (base.isBlank()) {
+            return "upload";
+        }
+        // Limita tamanho para evitar nomes gigantes.
+        return base.length() > 120 ? base.substring(0, 120) : base;
     }
 
 }

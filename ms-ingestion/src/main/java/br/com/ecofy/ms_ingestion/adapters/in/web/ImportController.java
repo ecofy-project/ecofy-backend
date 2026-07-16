@@ -40,25 +40,29 @@ public class ImportController {
     private final GetImportJobStatusUseCase getImportJobStatusUseCase;
 
     @Operation(
-            summary = "Upload de arquivo e início de importação",
+            summary = "Upload de arquivo e processamento da importação",
             description = """
-                    Recebe um arquivo CSV/OFX, persiste os metadados, armazena o conteúdo e dispara a criação de um ImportJob.
-                    
+                    Recebe um arquivo CSV/OFX, persiste os metadados, armazena o conteúdo, cria e PROCESSA o ImportJob.
+
                     Comportamento:
                     - Se `type` não for informado, o serviço tenta inferir pelo sufixo do nome do arquivo (.csv / .ofx).
-                    - A resposta é 202 (Accepted) pois o processamento ocorre de forma assíncrona (job-based).
-                    
-                    Use o endpoint de status para acompanhar a execução do job.
+                    - O processamento é SÍNCRONO: a resposta 200 (OK) já traz o job com o STATUS FINAL e os contadores
+                      (totalRecords/processedRecords/successCount/errorCount).
+                    - (Mudança Dia 4) Antes o endpoint retornava 202 Accepted sugerindo processamento assíncrono, mas o
+                      processamento era síncrono. O contrato foi ajustado para 200 OK, refletindo o comportamento real.
+
+                    Use o endpoint de status para consultar novamente o job e seus erros por linha.
                     """
     )
     @ApiResponses({
             @ApiResponse(
-                    responseCode = "202",
-                    description = "Arquivo aceito e job iniciado com sucesso",
+                    responseCode = "200",
+                    description = "Arquivo processado; job com status final e contadores",
                     content = @Content(schema = @Schema(implementation = ImportJobResponse.class))
             ),
             @ApiResponse(responseCode = "400", description = "Arquivo inválido ou tipo não suportado"),
             @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
+            @ApiResponse(responseCode = "413", description = "Arquivo excede o tamanho máximo permitido"),
             @ApiResponse(responseCode = "500", description = "Erro interno ao processar upload/início do job")
     })
     @PostMapping(path = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -84,6 +88,7 @@ public class ImportController {
                 )
         );
 
+        // Processamento SÍNCRONO: ao retornar, o job já está finalizado (status + contadores).
         var job = startImportJobUseCase.start(
                 new StartImportJobUseCase.StartImportJobCommand(importFile.id())
         );
@@ -95,7 +100,7 @@ public class ImportController {
                 .toUri();
 
         return ResponseEntity
-                .accepted()
+                .ok()
                 .location(location)
                 .body(ImportJobResponse.fromDomain(job));
     }
