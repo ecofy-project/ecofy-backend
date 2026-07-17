@@ -55,7 +55,11 @@ spring:
               predicates:
                 - Path=/api/v1/auth/**
               filters:
-                - RewritePath=/api/v1/auth(?<segment>.*), /api/auth$\{segment}
+                # ECO-23: o ms-auth roda com context-path /auth e agora expõe o contrato
+                # versionado /api/v1/auth/**. Logo, o path interno REAL é
+                # /auth/api/v1/auth/** — o rewrite precisa incluir o context-path,
+                # senão o gateway bate em 404.
+                - RewritePath=/api/v1/auth(?<segment>.*), /auth/api/v1/auth$\{segment}
                 - name: CircuitBreaker
                   args:
                     name: cb-auth
@@ -81,7 +85,7 @@ spring:
               predicates:
                 - Path=/api/v1/users/**
               filters:
-                - RewritePath=/api/v1/users(?<segment>.*), /api/users/v1$\{segment}
+                - RewritePath=/api/v1/users(?<segment>.*), /users/api/users/v1$\{segment}
                 - name: CircuitBreaker
                   args:
                     name: cb-users
@@ -107,7 +111,7 @@ spring:
               predicates:
                 - Path=/api/v1/ingestion/**
               filters:
-                - RewritePath=/api/v1/ingestion(?<segment>.*), /api/import$\{segment}
+                - RewritePath=/api/v1/ingestion(?<segment>.*), /ingestion/api/import$\{segment}
                 - name: CircuitBreaker
                   args:
                     name: cb-ingestion
@@ -133,7 +137,7 @@ spring:
               predicates:
                 - Path=/api/v1/categorization/**
               filters:
-                - RewritePath=/api/v1/categorization(?<segment>.*), /api/categorization/v1$\{segment}
+                - RewritePath=/api/v1/categorization(?<segment>.*), /categorization/api/categorization/v1$\{segment}
                 - name: CircuitBreaker
                   args:
                     name: cb-categorization
@@ -159,7 +163,7 @@ spring:
               predicates:
                 - Path=/api/v1/budgeting/**
               filters:
-                - RewritePath=/api/v1/budgeting(?<segment>.*), /api/budgeting/v1$\{segment}
+                - RewritePath=/api/v1/budgeting(?<segment>.*), /budgeting/api/budgeting/v1$\{segment}
                 - name: CircuitBreaker
                   args:
                     name: cb-budgeting
@@ -185,7 +189,7 @@ spring:
               predicates:
                 - Path=/api/v1/insights/**
               filters:
-                - RewritePath=/api/v1/insights(?<segment>.*), /api/insights/v1$\{segment}
+                - RewritePath=/api/v1/insights(?<segment>.*), /insights/api/insights/v1$\{segment}
                 - name: CircuitBreaker
                   args:
                     name: cb-insights
@@ -211,7 +215,7 @@ spring:
               predicates:
                 - Path=/api/v1/notification/**
               filters:
-                - RewritePath=/api/v1/notification(?<segment>.*), /api/notification/v1$\{segment}
+                - RewritePath=/api/v1/notification(?<segment>.*), /notification/api/notification/v1$\{segment}
                 - name: CircuitBreaker
                   args:
                     name: cb-notification

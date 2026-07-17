@@ -9,7 +9,7 @@ import reactor.core.publisher.Hooks;
  * Habilita a propagação automática de contexto do Reactor e registra o accessor
  * que espelha o correlation ID no MDC (ECO-05, §6.5).
  *
- * Com isso, o valor gravado no Reactor Context pelo {@link CorrelationIdGlobalFilter}
+ * Com isso, o valor gravado no Reactor Context pelo {@link CorrelationIdWebFilter}
  * fica disponível para o layout de log via {@code %X{correlationId}} nas threads
  * reativas, de forma compatível com WebFlux.
  */
