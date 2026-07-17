@@ -1,15 +1,30 @@
 # Profile: prod
-# Exposição MÍNIMA do Actuator. Apenas health fica exposto (liveness/readiness
-# e checagem básica de disponibilidade). Endpoints operacionais sensíveis como
-# 'gateway' NÃO são expostos. 'info' pode ser reativado se necessário.
+# Exposição controlada do Actuator: health e info para orquestração/observabilidade
+# básica e prometheus (ECO-16) para coleta de métricas técnicas (inclui circuit
+# breaker). O endpoint 'prometheus' deve ser restrito a rede interna/scraper por
+# firewall/ingress — não expor publicamente. Endpoints operacionais sensíveis como
+# 'gateway' NÃO são expostos.
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,prometheus
   endpoint:
     gateway:
       access: none
+    health:
+      probes:
+        enabled: true
+
+# ECO-19: em produção as origens vêm SEMPRE de variável de ambiente. Nunca wildcard;
+# nunca '*' com credentials. O default abaixo é um placeholder seguro (origem única
+# HTTPS) apenas para permitir o boot; defina ECOFY_CORS_ALLOWED_ORIGIN no ambiente.
+ecofy:
+  gateway:
+    cors:
+      allowed-origins:
+        - ${ECOFY_CORS_ALLOWED_ORIGIN:https://app.ecofy.example}
+      allow-credentials: false
 
 logging:
   level:

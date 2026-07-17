@@ -1,15 +1,24 @@
 # Profile: dev / local
 # Exposição AMPLIADA do Actuator para diagnóstico local.
 # Expõe o endpoint operacional 'gateway' (lista rotas, filtros, predicados),
-# além de health e info. NÃO usar este profile em produção.
+# além de health, info e prometheus. NÃO usar este profile em produção.
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health,info,prometheus,gateway
   endpoint:
     gateway:
       access: unrestricted
+
+# ECO-19: origens locais explícitas para desenvolvimento (frontend em 3000/5173).
+# Continua explícito — sem wildcard genérico.
+ecofy:
+  gateway:
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://localhost:5173
 
 logging:
   level:

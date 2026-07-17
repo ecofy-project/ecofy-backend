@@ -13,18 +13,231 @@ spring:
         webflux:
           enabled: true
 
+          # ECO-16: métricas nativas do gateway (spring.cloud.gateway.requests),
+          # com tags controladas (routeId, method, status, outcome).
+          metrics:
+            enabled: true
+
+          # ECO-21: timeouts de transporte. connect-timeout em ms (int);
+          # response-timeout global (Duration) como default seguro para dev.
+          # Rotas versionadas sobrescrevem o response-timeout via metadata.
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 5s
+
           # Filtros aplicados a TODAS as rotas.
           # - RemoveRequestHeader=Cookie: o gateway não repassa cookies do browser aos MS.
           #   (NÃO afeta o header Authorization, que é preservado e repassado downstream.)
           # - AddRequestHeader=X-Gateway: marca a origem da requisição para diagnóstico.
+          # - DedupeResponseHeader=X-Correlation-Id: garante um único valor no header de
+          #   resposta caso o downstream também ecoe o correlation ID (ECO-05).
+          # Headers hop-by-hop (Connection, Keep-Alive, Transfer-Encoding...) já são
+          # removidos globalmente pelo RemoveHopByHopHeadersFilter do próprio gateway.
           default-filters:
             - RemoveRequestHeader=Cookie
             - AddRequestHeader=X-Gateway, api-gateway
+            - DedupeResponseHeader=X-Correlation-Id, RETAIN_FIRST
 
-          # Estratégia OFICIAL de roteamento: ROTAS ESTÁTICAS declarativas.
-          # Cada MS é acessado por um prefixo público estável (/auth, /users...).
-          # As URIs usam variável de ambiente com fallback local (execução dev).
           routes:
+            # ---------------------------------------------------------------
+            # ROTAS VERSIONADAS (ECO-23): contrato externo único /api/v1/**.
+            # Cada rota reescreve o path externo para o contrato interno REAL
+            # do microsserviço (RewritePath) e aplica resiliência (ECO-21):
+            # CircuitBreaker (externo) + Retry só para GET (interno).
+            # A ordem dos filtros é: RewritePath -> CircuitBreaker -> Retry,
+            # ou seja, CB envolve o Retry, que envolve o roteamento. Assim o
+            # retry ocorre dentro de uma única chamada guardada pelo CB e o CB
+            # registra o resultado agregado (evita multiplicar chamadas e
+            # contabilização incorreta). response-timeout por rota via metadata.
+            # ---------------------------------------------------------------
+            - id: v1-auth
+              uri: ${MS_AUTH_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/auth/**
+              filters:
+                - RewritePath=/api/v1/auth(?<segment>.*), /api/auth$\{segment}
+                - name: CircuitBreaker
+                  args:
+                    name: cb-auth
+                    fallbackUri: forward:/__gateway/fallback
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                    exceptions:
+                      - java.io.IOException
+                    backoff:
+                      firstBackoff: 50ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+              metadata:
+                response-timeout: 4000
+                connect-timeout: 2000
+
+            - id: v1-users
+              uri: ${MS_USERS_URI:http://localhost:8087}
+              predicates:
+                - Path=/api/v1/users/**
+              filters:
+                - RewritePath=/api/v1/users(?<segment>.*), /api/users/v1$\{segment}
+                - name: CircuitBreaker
+                  args:
+                    name: cb-users
+                    fallbackUri: forward:/__gateway/fallback
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                    exceptions:
+                      - java.io.IOException
+                    backoff:
+                      firstBackoff: 50ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+              metadata:
+                response-timeout: 4000
+                connect-timeout: 2000
+
+            - id: v1-ingestion
+              uri: ${MS_INGESTION_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/ingestion/**
+              filters:
+                - RewritePath=/api/v1/ingestion(?<segment>.*), /api/import$\{segment}
+                - name: CircuitBreaker
+                  args:
+                    name: cb-ingestion
+                    fallbackUri: forward:/__gateway/fallback
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                    exceptions:
+                      - java.io.IOException
+                    backoff:
+                      firstBackoff: 50ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+              metadata:
+                response-timeout: 4000
+                connect-timeout: 2000
+
+            - id: v1-categorization
+              uri: ${MS_CATEGORIZATION_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/categorization/**
+              filters:
+                - RewritePath=/api/v1/categorization(?<segment>.*), /api/categorization/v1$\{segment}
+                - name: CircuitBreaker
+                  args:
+                    name: cb-categorization
+                    fallbackUri: forward:/__gateway/fallback
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                    exceptions:
+                      - java.io.IOException
+                    backoff:
+                      firstBackoff: 50ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+              metadata:
+                response-timeout: 4000
+                connect-timeout: 2000
+
+            - id: v1-budgeting
+              uri: ${MS_BUDGETING_URI:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/budgeting/**
+              filters:
+                - RewritePath=/api/v1/budgeting(?<segment>.*), /api/budgeting/v1$\{segment}
+                - name: CircuitBreaker
+                  args:
+                    name: cb-budgeting
+                    fallbackUri: forward:/__gateway/fallback
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                    exceptions:
+                      - java.io.IOException
+                    backoff:
+                      firstBackoff: 50ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+              metadata:
+                response-timeout: 4000
+                connect-timeout: 2000
+
+            - id: v1-insights
+              uri: ${MS_INSIGHTS_URI:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/insights/**
+              filters:
+                - RewritePath=/api/v1/insights(?<segment>.*), /api/insights/v1$\{segment}
+                - name: CircuitBreaker
+                  args:
+                    name: cb-insights
+                    fallbackUri: forward:/__gateway/fallback
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                    exceptions:
+                      - java.io.IOException
+                    backoff:
+                      firstBackoff: 50ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+              metadata:
+                response-timeout: 4000
+                connect-timeout: 2000
+
+            - id: v1-notification
+              uri: ${MS_NOTIFICATION_URI:http://localhost:8086}
+              predicates:
+                - Path=/api/v1/notification/**
+              filters:
+                - RewritePath=/api/v1/notification(?<segment>.*), /api/notification/v1$\{segment}
+                - name: CircuitBreaker
+                  args:
+                    name: cb-notification
+                    fallbackUri: forward:/__gateway/fallback
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                    exceptions:
+                      - java.io.IOException
+                    backoff:
+                      firstBackoff: 50ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+              metadata:
+                response-timeout: 4000
+                connect-timeout: 2000
+
+            # ---------------------------------------------------------------
+            # ROTAS LEGADAS (compatibilidade): prefixos públicos curtos usados
+            # historicamente pelo portfólio, path preservado (sem StripPrefix),
+            # sem resiliência. Mantidas para não quebrar contratos/testes atuais.
+            # O contrato externo oficial passa a ser /api/v1/** (ver acima).
+            # ---------------------------------------------------------------
             - id: ms-auth
               uri: ${MS_AUTH_URI:http://localhost:8081}
               predicates:
@@ -60,18 +273,52 @@ spring:
               predicates:
                 - Path=/users/**
 
+# ECO-04/05/19/21: fundação transversal configurável (typed @ConfigurationProperties).
+ecofy:
+  gateway:
+    # ECO-05: tamanho máximo de um correlation ID aceito do cliente (mitiga abuso
+    # e log injection por valores enormes). Valores inválidos geram um novo ID.
+    correlation:
+      max-length: 128
+    # ECO-19: CORS explícito. Origens sempre externas (property/env). O default
+    # abaixo cobre desenvolvimento local; profiles dev/test/prod ajustam origens.
+    cors:
+      allowed-origins:
+        - ${ECOFY_CORS_ALLOWED_ORIGIN:http://localhost:3000}
+      allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      allowed-headers: [Authorization, Content-Type, X-Correlation-Id]
+      exposed-headers: [X-Correlation-Id]
+      allow-credentials: false
+      max-age: 3600
+    # ECO-21: política padrão de circuit breaker + time limiter aplicada a todas
+    # as instâncias cb-<serviço>. time-limiter-timeout > response-timeout de rota.
+    resilience:
+      circuit-breaker:
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        time-limiter-timeout: 10s
+
 # Actuator — exposição CONSERVADORA no profile default.
-# Apenas health e info ficam expostos. O endpoint operacional 'gateway'
-# (que lista rotas/filtros) NÃO fica exposto no default nem em prod.
-# Para diagnóstico, use o profile 'dev' (SPRING_PROFILES_ACTIVE=dev), que
-# expõe 'gateway'. Em produção use 'prod' (exposição mínima: health).
+# health e info para diagnóstico básico; prometheus (ECO-16) para coleta de
+# métricas técnicas, inclusive as do circuit breaker (Resilience4j). O endpoint
+# operacional 'gateway' NÃO fica exposto no default nem em prod (apenas dev).
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 logging:
+  # Padrão de log com correlation ID (MDC via Reactor Context, ECO-05).
+  pattern:
+    level: "%5p [correlationId=%X{correlationId:-}]"
   level:
     org.springframework.cloud.gateway: INFO
     reactor.netty.http.client: INFO

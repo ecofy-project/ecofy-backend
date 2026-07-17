@@ -1,0 +1,24 @@
+# Profile: test
+# Configuração determinística para testes automatizados.
+# CORS com origem permitida fixa e explícita, para validar origem permitida vs
+# bloqueada e a exposição de X-Correlation-Id sem depender de variável de ambiente.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+
+ecofy:
+  gateway:
+    cors:
+      allowed-origins:
+        - https://app.allowed.test
+      allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      allowed-headers: [Authorization, Content-Type, X-Correlation-Id]
+      exposed-headers: [X-Correlation-Id]
+      allow-credentials: false
+      max-age: 3600
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO

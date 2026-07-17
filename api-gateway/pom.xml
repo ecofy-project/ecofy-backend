@@ -48,6 +48,37 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- ECO-21: circuit breaker / time limiter reativo (Resilience4j) para o filtro CircuitBreaker do gateway. -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+        </dependency>
+
+        <!-- ECO-16: exportação de métricas técnicas para Prometheus via Micrometer. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ECO-16/21: publica as métricas do Resilience4j (circuit breaker) no Micrometer. -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-micrometer</artifactId>
+        </dependency>
+
+        <!-- Configuração tipada com Bean Validation (@ConfigurationProperties validados). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- ECO-05: ponte Reactor Context -> MDC (ThreadLocalAccessor / ContextRegistry). -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+
         <!-- Test (opcional) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
