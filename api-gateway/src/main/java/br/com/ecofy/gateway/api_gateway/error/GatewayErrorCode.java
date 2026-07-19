@@ -2,13 +2,7 @@ package br.com.ecofy.gateway.api_gateway.error;
 
 import org.springframework.http.HttpStatus;
 
-/**
- * Códigos de erro estáveis e legíveis por máquina expostos pelo gateway (ECO-04).
- *
- * Apenas os códigos aplicáveis a esta etapa foram implementados. Cada código
- * carrega o status HTTP associado e uma mensagem segura para o consumidor
- * (sem detalhes internos). Detalhes técnicos ficam somente nos logs.
- */
+// Centraliza os códigos, status e mensagens seguras dos erros do Gateway.
 public enum GatewayErrorCode {
 
     GATEWAY_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT,

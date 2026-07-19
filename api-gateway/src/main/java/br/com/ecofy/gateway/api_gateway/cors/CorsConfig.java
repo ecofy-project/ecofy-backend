@@ -6,19 +6,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
-/**
- * Política de CORS explícita, construída a partir de {@link CorsProperties} (ECO-19).
- *
- * Usa um {@link CorsWebFilter} (WebFilter reativo) em vez de {@code globalcors} do
- * gateway, o que dá controle total e testável por profile e trata o preflight
- * {@code OPTIONS} antes do roteamento. As origens são sempre explícitas — nunca
- * um wildcard genérico. {@code exposedHeaders} inclui X-Correlation-Id para o
- * frontend. O uso de {@code allowedOriginPatterns} vs {@code allowedOrigins} é
- * escolhido conforme a necessidade de credenciais.
- */
+// Configura a política CORS aplicada às requisições do Gateway.
 @Configuration
 public class CorsConfig {
 
+    // Cria o filtro CORS com as regras definidas para o ambiente.
     @Bean
     public CorsWebFilter corsWebFilter(CorsProperties properties) {
         CorsConfiguration config = new CorsConfiguration();
@@ -31,6 +23,7 @@ public class CorsConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
+
         return new CorsWebFilter(source);
     }
 }

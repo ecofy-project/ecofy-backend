@@ -8,23 +8,15 @@ import org.springframework.cloud.client.circuitbreaker.Customizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Configura, a partir de {@link ResilienceProperties}, a política padrão de
- * circuit breaker + time limiter aplicada a todas as instâncias nomeadas usadas
- * pelas rotas versionadas (ECO-21 §8.4).
- *
- * Configuração 100% externa (typed properties); nenhum valor é codificado na
- * classe. Cada rota referencia um circuit breaker próprio por nome
- * ({@code cb-<serviço>}), obtendo estado e métricas isolados por serviço, com a
- * mesma política padrão.
- */
+// Configura as políticas de circuit breaker e timeout das rotas versionadas.
 @Configuration
 public class GatewayResilienceConfig {
 
+    // Cria a configuração padrão aplicada às instâncias de circuit breaker.
     @Bean
     public Customizer<ReactiveResilience4JCircuitBreakerFactory> defaultCircuitBreakerCustomizer(
-            ResilienceProperties properties) {
-
+            ResilienceProperties properties
+    ) {
         ResilienceProperties.CircuitBreaker cb = properties.getCircuitBreaker();
 
         CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
@@ -33,18 +25,20 @@ public class GatewayResilienceConfig {
                 .minimumNumberOfCalls(cb.getMinimumNumberOfCalls())
                 .failureRateThreshold(cb.getFailureRateThreshold())
                 .waitDurationInOpenState(cb.getWaitDurationInOpenState())
-                .permittedNumberOfCallsInHalfOpenState(cb.getPermittedNumberOfCallsInHalfOpenState())
-                // 4xx funcionais chegam como resposta normal (não exceção) e não são
-                // contabilizados; apenas exceções de transporte/timeout contam como falha.
+                .permittedNumberOfCallsInHalfOpenState(
+                        cb.getPermittedNumberOfCallsInHalfOpenState()
+                )
                 .build();
 
         TimeLimiterConfig timeLimiterConfig = TimeLimiterConfig.custom()
                 .timeoutDuration(cb.getTimeLimiterTimeout())
                 .build();
 
-        return factory -> factory.configureDefault(id -> new Resilience4JConfigBuilder(id)
-                .circuitBreakerConfig(circuitBreakerConfig)
-                .timeLimiterConfig(timeLimiterConfig)
-                .build());
+        return factory -> factory.configureDefault(
+                id -> new Resilience4JConfigBuilder(id)
+                        .circuitBreakerConfig(circuitBreakerConfig)
+                        .timeLimiterConfig(timeLimiterConfig)
+                        .build()
+        );
     }
 }

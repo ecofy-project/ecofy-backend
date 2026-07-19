@@ -7,16 +7,7 @@ import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
 
-/**
- * Configuração tipada do circuit breaker e time limiter do gateway (ECO-21),
- * prefixo {@code ecofy.gateway.resilience}.
- *
- * Aplica-se como configuração padrão a todas as instâncias nomeadas de circuit
- * breaker das rotas versionadas (uma por serviço: {@code cb-auth}, {@code cb-users}...).
- * O time limiter é mantido acima do {@code response-timeout} das rotas para que o
- * timeout por rota (Netty) seja o mecanismo efetivo de expiração, evitando dois
- * relógios competindo.
- */
+// Configura as propriedades de resiliência aplicadas às rotas do Gateway.
 @Validated
 @ConfigurationProperties(prefix = "ecofy.gateway.resilience")
 public class ResilienceProperties {
@@ -27,6 +18,7 @@ public class ResilienceProperties {
         return circuitBreaker;
     }
 
+    // Agrupa os parâmetros de circuit breaker e limitação de tempo.
     public static class CircuitBreaker {
 
         @Min(1)
@@ -44,7 +36,6 @@ public class ResilienceProperties {
         @Min(1)
         private int permittedNumberOfCallsInHalfOpenState = 3;
 
-        /** Deve ser maior que o maior {@code response-timeout} de rota. */
         private Duration timeLimiterTimeout = Duration.ofSeconds(10);
 
         public int getSlidingWindowSize() {
@@ -83,8 +74,11 @@ public class ResilienceProperties {
             return permittedNumberOfCallsInHalfOpenState;
         }
 
-        public void setPermittedNumberOfCallsInHalfOpenState(int permittedNumberOfCallsInHalfOpenState) {
-            this.permittedNumberOfCallsInHalfOpenState = permittedNumberOfCallsInHalfOpenState;
+        public void setPermittedNumberOfCallsInHalfOpenState(
+                int permittedNumberOfCallsInHalfOpenState
+        ) {
+            this.permittedNumberOfCallsInHalfOpenState =
+                    permittedNumberOfCallsInHalfOpenState;
         }
 
         public Duration getTimeLimiterTimeout() {

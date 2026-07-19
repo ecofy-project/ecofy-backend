@@ -1,13 +1,12 @@
-# Profile: test
-# Configuração determinística para testes automatizados.
-# CORS com origem permitida fixa e explícita, para validar origem permitida vs
-# bloqueada e a exposição de X-Correlation-Id sem depender de variável de ambiente.
+# Configura o ambiente de testes automatizados.
 management:
+  # Expõe os endpoints necessários para validações de integração.
   endpoints:
     web:
       exposure:
         include: health,info,prometheus,gateway
 
+# Configura uma política CORS determinística para os testes.
 ecofy:
   gateway:
     cors:
@@ -19,6 +18,7 @@ ecofy:
       allow-credentials: false
       max-age: 3600
 
+# Define o nível dos logs do Gateway durante os testes.
 logging:
   level:
     org.springframework.cloud.gateway: INFO

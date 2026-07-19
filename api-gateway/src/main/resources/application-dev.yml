@@ -1,8 +1,6 @@
-# Profile: dev / local
-# Exposição AMPLIADA do Actuator para diagnóstico local.
-# Expõe o endpoint operacional 'gateway' (lista rotas, filtros, predicados),
-# além de health, info e prometheus. NÃO usar este profile em produção.
+# Configura o ambiente local de desenvolvimento.
 management:
+  # Expõe endpoints operacionais para diagnóstico local.
   endpoints:
     web:
       exposure:
@@ -11,8 +9,7 @@ management:
     gateway:
       access: unrestricted
 
-# ECO-19: origens locais explícitas para desenvolvimento (frontend em 3000/5173).
-# Continua explícito — sem wildcard genérico.
+# Configura as origens locais permitidas pelo CORS.
 ecofy:
   gateway:
     cors:
@@ -20,6 +17,7 @@ ecofy:
         - http://localhost:3000
         - http://localhost:5173
 
+# Habilita logs detalhados do Gateway durante o desenvolvimento.
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG

@@ -4,14 +4,7 @@ import br.com.ecofy.gateway.api_gateway.support.GatewayHeaders;
 import io.micrometer.context.ThreadLocalAccessor;
 import org.slf4j.MDC;
 
-/**
- * Ponte entre o Reactor Context e o MDC do SLF4J para o correlation ID (ECO-05).
- *
- * Registrado no {@code ContextRegistry}, permite que a propagação automática de
- * contexto do Reactor restaure o valor no MDC ({@code %X{correlationId}}) na
- * thread que executa cada operador — sem uso manual e incorreto de ThreadLocal
- * em ambiente WebFlux.
- */
+// Propaga o correlation ID entre o Reactor Context e o MDC.
 public class CorrelationIdThreadLocalAccessor implements ThreadLocalAccessor<String> {
 
     @Override

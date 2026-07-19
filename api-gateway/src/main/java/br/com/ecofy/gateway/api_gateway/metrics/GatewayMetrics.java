@@ -4,14 +4,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
 
-/**
- * Métricas técnicas customizadas do gateway (ECO-16), complementares às métricas
- * nativas ({@code spring.cloud.gateway.requests}) e às do Resilience4j.
- *
- * Cardinalidade controlada: nenhuma tag carrega correlation ID, user ID, token,
- * path com identificadores dinâmicos ou mensagens de exceção. A única tag usada
- * ({@code type} em fallbacks) provém de um enum fechado.
- */
+// Centraliza as métricas técnicas customizadas do Gateway.
 @Component
 public class GatewayMetrics {
 
@@ -29,18 +22,17 @@ public class GatewayMetrics {
                 .register(registry);
     }
 
+    // Registra uma requisição recebida sem correlation ID.
     public void correlationIdMissing() {
         correlationIdMissing.increment();
     }
 
+    // Registra a substituição de um correlation ID inválido.
     public void correlationIdInvalidReplaced() {
         correlationIdInvalidReplaced.increment();
     }
 
-    /**
-     * Conta um fallback técnico do gateway. {@code type} é um valor controlado
-     * (nome do {@code GatewayErrorCode}), garantindo baixa cardinalidade.
-     */
+    // Registra o acionamento de um fallback técnico por tipo de erro.
     public void fallback(String type) {
         Counter.builder("ecofy.gateway.fallback")
                 .description("Fallbacks técnicos acionados pelo circuit breaker do gateway")

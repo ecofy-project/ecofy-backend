@@ -7,13 +7,7 @@ import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-/**
- * Observabilidade mínima: registra no log, na inicialização, as rotas estáticas
- * carregadas pelo Spring Cloud Gateway (id -> uri). Ajuda no diagnóstico de
- * "qual rota o gateway conhece" sem precisar chamar o endpoint do Actuator.
- *
- * Não loga headers, tokens, Authorization nem query strings.
- */
+// Registra as rotas carregadas após a inicialização do Gateway.
 @Component
 public class RouteStartupLogger {
 
@@ -25,12 +19,18 @@ public class RouteStartupLogger {
         this.routeLocator = routeLocator;
     }
 
+    // Registra o identificador e a URI de cada rota configurada.
     @EventListener(ApplicationReadyEvent.class)
     public void logRoutes() {
         routeLocator.getRoutes()
-                .doOnNext(route -> log.info("[gateway] rota carregada: id={} uri={}",
-                        route.getId(), route.getUri()))
-                .doOnComplete(() -> log.info("[gateway] inicialização de rotas concluída"))
+                .doOnNext(route -> log.info(
+                        "[gateway] rota carregada: id={} uri={}",
+                        route.getId(),
+                        route.getUri()
+                ))
+                .doOnComplete(() -> log.info(
+                        "[gateway] inicialização de rotas concluída"
+                ))
                 .subscribe();
     }
 }

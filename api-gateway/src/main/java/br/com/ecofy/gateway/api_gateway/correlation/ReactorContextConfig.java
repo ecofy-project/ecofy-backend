@@ -5,21 +5,16 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Hooks;
 
-/**
- * Habilita a propagação automática de contexto do Reactor e registra o accessor
- * que espelha o correlation ID no MDC (ECO-05, §6.5).
- *
- * Com isso, o valor gravado no Reactor Context pelo {@link CorrelationIdWebFilter}
- * fica disponível para o layout de log via {@code %X{correlationId}} nas threads
- * reativas, de forma compatível com WebFlux.
- */
+// Configura a propagação do correlation ID entre o Reactor Context e o MDC.
 @Configuration
 public class ReactorContextConfig {
 
+    // Registra o accessor e habilita a propagação automática do contexto reativo.
     @PostConstruct
     void enableContextPropagation() {
         ContextRegistry.getInstance()
                 .registerThreadLocalAccessor(new CorrelationIdThreadLocalAccessor());
+
         Hooks.enableAutomaticContextPropagation();
     }
 }

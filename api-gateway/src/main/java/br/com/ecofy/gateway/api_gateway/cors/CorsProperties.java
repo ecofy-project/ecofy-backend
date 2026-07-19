@@ -4,20 +4,24 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
 
-/**
- * Configuração tipada de CORS por ambiente (ECO-19), prefixo {@code ecofy.gateway.cors}.
- *
- * Todos os valores vêm de configuração/variáveis de ambiente. Não há wildcard
- * embutido: as origens são explícitas por profile. Em produção {@code allowedOrigins}
- * deve vir de variável de ambiente e {@code allowCredentials} permanece {@code false}
- * salvo decisão explícita — nunca {@code *} combinado com credenciais.
- */
+// Configura as regras de CORS conforme o ambiente da aplicação.
 @ConfigurationProperties(prefix = "ecofy.gateway.cors")
 public class CorsProperties {
 
     private List<String> allowedOrigins = List.of();
-    private List<String> allowedMethods = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
-    private List<String> allowedHeaders = List.of("Authorization", "Content-Type", "X-Correlation-Id");
+    private List<String> allowedMethods = List.of(
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "OPTIONS"
+    );
+    private List<String> allowedHeaders = List.of(
+            "Authorization",
+            "Content-Type",
+            "X-Correlation-Id"
+    );
     private List<String> exposedHeaders = List.of("X-Correlation-Id");
     private boolean allowCredentials = false;
     private long maxAge = 3600;
