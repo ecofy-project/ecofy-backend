@@ -2,6 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -19,10 +20,12 @@
 
     <properties>
         <java.version>25</java.version>
-        <!-- Linha compatível com Boot 4 -->
+
+        <!-- Define a versão do Spring Cloud compatível com o Spring Boot. -->
         <spring-cloud.version>2025.1.1</spring-cloud.version>
     </properties>
 
+    <!-- Centraliza o gerenciamento das versões do Spring Cloud. -->
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -36,55 +39,57 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Gateway Server WebFlux -->
+        <!-- Habilita o roteamento reativo com Spring Cloud Gateway. -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
         </dependency>
 
-        <!-- Actuator (opcional, mas útil) -->
+        <!-- Expõe recursos operacionais de saúde e métricas. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- ECO-21: circuit breaker / time limiter reativo (Resilience4j) para o filtro CircuitBreaker do gateway. -->
+        <!-- Habilita circuit breaker e limitação de tempo reativos. -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
         </dependency>
 
-        <!-- ECO-16: exportação de métricas técnicas para Prometheus via Micrometer. -->
+        <!-- Exporta as métricas técnicas no formato Prometheus. -->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- ECO-16/21: publica as métricas do Resilience4j (circuit breaker) no Micrometer. -->
+        <!-- Integra as métricas do Resilience4j ao Micrometer. -->
         <dependency>
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-micrometer</artifactId>
         </dependency>
 
-        <!-- Configuração tipada com Bean Validation (@ConfigurationProperties validados). -->
+        <!-- Valida as propriedades tipadas da aplicação. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- ECO-05: ponte Reactor Context -> MDC (ThreadLocalAccessor / ContextRegistry). -->
+        <!-- Propaga o contexto reativo para recursos baseados em ThreadLocal. -->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>context-propagation</artifactId>
         </dependency>
 
-        <!-- Test (opcional) -->
+        <!-- Disponibiliza os recursos gerais para testes automatizados. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Disponibiliza recursos para testar fluxos reativos. -->
         <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-test</artifactId>
@@ -94,6 +99,7 @@
 
     <build>
         <plugins>
+            <!-- Configura a versão do Java utilizada na compilação. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -101,10 +107,13 @@
                     <release>${java.version}</release>
                 </configuration>
             </plugin>
+
+            <!-- Empacota a aplicação como executável Spring Boot. -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
+
 </project>
