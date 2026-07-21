@@ -1,0 +1,36 @@
+# Configura o ambiente de testes automatizados.
+spring:
+  # Aponta para o banco dedicado de testes, sem senha padrão embutida.
+  datasource:
+    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_auth_test}
+    username: ${DB_USER_TEST:ecofy_auth_test}
+    password: ${DB_PASS_TEST:}
+
+  jpa:
+    hibernate:
+      # Cria o schema no início e o descarta ao fim da execução.
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+
+  # Desliga as migrations, já que o schema é gerado pelo próprio teste.
+  flyway:
+    enabled: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:9093}
+
+# Reduz o nível dos logs durante os testes.
+logging:
+  level:
+    root: WARN
+    br.com.ecofy.auth: INFO
+
+security:
+  # Usa um emissor próprio de testes, para não colidir com os tokens locais.
+  jwt:
+    issuer: ${JWT_ISSUER_TEST:http://localhost:8081/test}
+
+ecofy:
+  mail:
+    frontend-base-url: ${FRONTEND_BASE_URL_TEST:http://localhost:3000}

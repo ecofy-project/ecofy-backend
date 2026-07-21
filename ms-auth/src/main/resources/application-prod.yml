@@ -1,0 +1,84 @@
+# Configura o ambiente de produção.
+spring:
+  # Exige credenciais externas para a conexão com o banco de produção.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+    hikari:
+      pool-name: MsAuthHikariPool
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    # Mantém a baseline automática desligada por padrão em produção.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+
+  # Exige um broker externo e utiliza transporte seguro por padrão.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+
+  # Exige uma instância autenticada do Redis sem fallback local.
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      timeout: ${REDIS_TIMEOUT:2s}
+      ssl:
+        enabled: ${REDIS_SSL:true}
+
+  # Exige credenciais externas para o provedor SMTP.
+  mail:
+    host: ${MAIL_HOST:smtp.sendgrid.net}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    protocol: smtp
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+# Reduz o nível dos logs em produção.
+logging:
+  level:
+    root: INFO
+    br.com.ecofy.auth: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+    org.springframework.web: WARN
+
+security:
+  # Exige o emissor e as chaves de assinatura por variável de ambiente.
+  jwt:
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE:ecofy-api}
+    key-id: ${JWT_KEY_ID:ecofy-auth-key-1}
+    private-key-location: ${JWT_PRIVATE_KEY_LOCATION}
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION}
+
+ecofy:
+  auth:
+    # Impede a geração de chaves temporárias no ambiente de produção.
+    keys:
+      allow-generated-key: false
+      active-kid: ${ECOFY_AUTH_ACTIVE_KEY_ID}
+      active-private-key: ${ECOFY_AUTH_ACTIVE_PRIVATE_KEY:}
+      active-private-key-location: ${ECOFY_AUTH_ACTIVE_PRIVATE_KEY_LOCATION:}
+
+  mail:
+    from: ${MAIL_FROM:no-reply@ecofy.com}
+    frontend-base-url: ${FRONTEND_BASE_URL}
+    templates-base-path: classpath:/mail-templates
