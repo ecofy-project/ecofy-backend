@@ -1,5 +1,6 @@
 package br.com.ecofy.auth.adapters.in.web;
 
+import br.com.ecofy.auth.adapters.in.web.correlation.CorrelationId;
 import br.com.ecofy.auth.adapters.in.web.dto.response.ApiErrorResponse;
 import br.com.ecofy.auth.core.application.exception.AuthException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,18 +15,17 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
-/**
- * Handler global de erros. Traduz exceções de domínio/aplicação e de validação
- * para respostas HTTP consistentes ({@link ApiErrorResponse}), sem vazar stack
- * traces nem dados sensíveis ao cliente.
- */
+// Centraliza a conversão de exceções em respostas HTTP padronizadas.
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
-    // Exceções de domínio/aplicação: usam o HttpStatus e o code definidos no AuthErrorCode.
+    // Converte exceções de autenticação conforme o código de erro definido.
     @ExceptionHandler(AuthException.class)
-    public ResponseEntity<ApiErrorResponse> handleAuthException(AuthException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiErrorResponse> handleAuthException(
+            AuthException ex,
+            HttpServletRequest request
+    ) {
         HttpStatus status = ex.getErrorCode().getHttpStatus();
 
         log.warn(
@@ -39,26 +39,31 @@ public class GlobalExceptionHandler {
                 status.value(),
                 ex.getErrorCode().getCode(),
                 ex.getMessage(),
-                request.getRequestURI()
+                request.getRequestURI(),
+                traceId(request)
         );
+
         return ResponseEntity.status(status).body(body);
     }
 
-    // Bean Validation em @RequestBody (@Valid): agrega os erros de campo.
+    // Consolida os erros de validação encontrados no corpo da requisição.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(
             MethodArgumentNotValidException ex,
             HttpServletRequest request
     ) {
-        List<ApiErrorResponse.FieldValidationError> fieldErrors = ex.getBindingResult()
+        List<ApiErrorResponse.ErrorDetail> details = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
-                .map(fe -> new ApiErrorResponse.FieldValidationError(fe.getField(), fe.getDefaultMessage()))
+                .map(fe -> new ApiErrorResponse.ErrorDetail(
+                        fe.getField(),
+                        fe.getCode() == null ? "VALIDATION" : fe.getCode(),
+                        fe.getDefaultMessage()))
                 .toList();
 
         log.debug(
                 "[GlobalExceptionHandler] - [handleValidation] -> {} erro(s) de validação path={}",
-                fieldErrors.size(),
+                details.size(),
                 request.getRequestURI()
         );
 
@@ -67,21 +72,26 @@ public class GlobalExceptionHandler {
                 "VALIDATION_ERROR",
                 "Request validation failed",
                 request.getRequestURI(),
-                fieldErrors
+                traceId(request),
+                details
         );
+
         return ResponseEntity.badRequest().body(body);
     }
 
-    // Bean Validation em parâmetros (@Validated) fora do corpo.
+    // Converte violações de parâmetros em uma resposta de validação.
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
             ConstraintViolationException ex,
             HttpServletRequest request
     ) {
-        List<ApiErrorResponse.FieldValidationError> fieldErrors = ex.getConstraintViolations()
+        List<ApiErrorResponse.ErrorDetail> details = ex.getConstraintViolations()
                 .stream()
-                .map(v -> new ApiErrorResponse.FieldValidationError(
-                        v.getPropertyPath() == null ? null : v.getPropertyPath().toString(),
+                .map(v -> new ApiErrorResponse.ErrorDetail(
+                        v.getPropertyPath() == null
+                                ? null
+                                : v.getPropertyPath().toString(),
+                        "VALIDATION",
                         v.getMessage()))
                 .toList();
 
@@ -90,12 +100,14 @@ public class GlobalExceptionHandler {
                 "VALIDATION_ERROR",
                 "Request validation failed",
                 request.getRequestURI(),
-                fieldErrors
+                traceId(request),
+                details
         );
+
         return ResponseEntity.badRequest().body(body);
     }
 
-    // Autorização negada por método/URL (ex.: /api/admin/** sem ROLE_ADMIN).
+    // Converte recusas de autorização em uma resposta de acesso negado.
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(
             AccessDeniedException ex,
@@ -105,12 +117,16 @@ public class GlobalExceptionHandler {
                 HttpStatus.FORBIDDEN.value(),
                 "ACCESS_DENIED",
                 "Access is denied",
-                request.getRequestURI()
+                request.getRequestURI(),
+                traceId(request)
         );
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(body);
     }
 
-    // Rota inexistente.
+    // Converte tentativas de acesso a rotas inexistentes em uma resposta de recurso não encontrado.
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(
             NoHandlerFoundException ex,
@@ -120,14 +136,21 @@ public class GlobalExceptionHandler {
                 HttpStatus.NOT_FOUND.value(),
                 "NOT_FOUND",
                 "Resource not found",
-                request.getRequestURI()
+                request.getRequestURI(),
+                traceId(request)
         );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(body);
     }
 
-    // Fallback: nunca expor stack trace/detalhe interno ao cliente.
+    // Registra falhas inesperadas e retorna uma resposta sem detalhes internos.
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
+    public ResponseEntity<ApiErrorResponse> handleUnexpected(
+            Exception ex,
+            HttpServletRequest request
+    ) {
         log.error(
                 "[GlobalExceptionHandler] - [handleUnexpected] -> Erro não tratado path={} type={} msg={}",
                 request.getRequestURI(),
@@ -140,8 +163,23 @@ public class GlobalExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "INTERNAL_ERROR",
                 "An unexpected error occurred",
-                request.getRequestURI()
+                request.getRequestURI(),
+                traceId(request)
         );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(body);
+    }
+
+    // Resolve o identificador de rastreamento associado à requisição.
+    private static String traceId(HttpServletRequest request) {
+        Object attr = request.getAttribute(CorrelationId.REQUEST_ATTRIBUTE);
+
+        if (attr instanceof String s && !s.isBlank()) {
+            return s;
+        }
+
+        return CorrelationId.current();
     }
 }

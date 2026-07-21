@@ -1,35 +1,62 @@
 package br.com.ecofy.auth.adapters.in.web.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * Payload padronizado de erro retornado por toda a API do ms-auth.
- * Campos nulos/ausentes são omitidos (ex.: fieldErrors só aparece em erros de validação).
- */
-@JsonInclude(JsonInclude.Include.NON_NULL)
+// Padroniza as informações retornadas em respostas de erro da API.
 public record ApiErrorResponse(
         Instant timestamp,
         int status,
-        String error,
+        String errorCode,
         String message,
         String path,
-        List<FieldValidationError> fieldErrors
+        String traceId,
+        List<ErrorDetail> details
 ) {
-    public record FieldValidationError(String field, String message) {}
 
-    public static ApiErrorResponse of(int status, String error, String message, String path) {
-        return new ApiErrorResponse(Instant.now(), status, error, message, path, null);
+    public ApiErrorResponse {
+        details = (details == null) ? List.of() : List.copyOf(details);
     }
 
+    // Representa um detalhe controlado associado ao erro.
+    public record ErrorDetail(String field, String code, String message) {}
+
+    // Cria uma resposta de erro sem detalhes adicionais.
     public static ApiErrorResponse of(
             int status,
-            String error,
+            String errorCode,
             String message,
             String path,
-            List<FieldValidationError> fieldErrors
+            String traceId
     ) {
-        return new ApiErrorResponse(Instant.now(), status, error, message, path, fieldErrors);
+        return new ApiErrorResponse(
+                Instant.now(),
+                status,
+                errorCode,
+                message,
+                path,
+                traceId,
+                List.of()
+        );
+    }
+
+    // Cria uma resposta de erro com detalhes adicionais.
+    public static ApiErrorResponse of(
+            int status,
+            String errorCode,
+            String message,
+            String path,
+            String traceId,
+            List<ErrorDetail> details
+    ) {
+        return new ApiErrorResponse(
+                Instant.now(),
+                status,
+                errorCode,
+                message,
+                path,
+                traceId,
+                details
+        );
     }
 }

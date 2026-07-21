@@ -13,18 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/**
- * Autorização explícita do endpoint interno (/internal/**) usado pelo ms-auth.
- *
- * O ms-auth chama PUT /internal/users/{authUserId} enviando o header X-Internal-Token
- * (ver MsUsersClientAdapter no ms-auth). Este filtro:
- *   - só atua em /internal/**;
- *   - exige o header X-Internal-Token igual a ecofy.users.internal.token;
- *   - ausente/inválido => 401 (não depende do path nem de permit-all);
- *   - válido => autentica como serviço interno com authority ROLE_INTERNAL.
- *
- * Assim o endpoint interno fica protegido inclusive quando ecofy.users.security.permit-all=true (dev).
- */
+// Autentica as rotas internas pelo token de serviço, mantendo-as protegidas mesmo com permit-all ligado.
 @Component
 @Slf4j
 public class InternalTokenAuthenticationFilter extends OncePerRequestFilter {

@@ -5,13 +5,16 @@ import br.com.ecofy.auth.adapters.out.persistence.repository.ClientApplicationRe
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.port.out.LoadClientApplicationByClientIdPort;
 import br.com.ecofy.auth.core.port.out.SaveClientApplicationPort;
+
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+// Centraliza a persistência e a consulta de aplicações cliente.
 @Component
 @Slf4j
 public class ClientApplicationJpaAdapter
@@ -19,16 +22,21 @@ public class ClientApplicationJpaAdapter
 
     private final ClientApplicationRepository repository;
 
-    // Injeta o repositório JPA e garante que ele não seja nulo para operações de persistência/consulta.
     public ClientApplicationJpaAdapter(ClientApplicationRepository repository) {
-        this.repository = Objects.requireNonNull(repository, "repository must not be null");
+        this.repository = Objects.requireNonNull(
+                repository,
+                "repository must not be null"
+        );
     }
 
-    // Salva a aplicação cliente (cria/atualiza), garantindo timestamps e retornando o domínio mapeado.
+    // Persiste a aplicação cliente e atualiza seus dados temporais.
     @Override
     @Transactional
     public ClientApplication save(ClientApplication clientApplication) {
-        Objects.requireNonNull(clientApplication, "clientApplication must not be null");
+        Objects.requireNonNull(
+                clientApplication,
+                "clientApplication must not be null"
+        );
 
         log.debug(
                 "[ClientApplicationJpaAdapter] - [save] -> Salvando clientApplication clientId={} name={}",
@@ -40,16 +48,15 @@ public class ClientApplicationJpaAdapter
 
         var entity = PersistenceMapper.toEntity(clientApplication);
 
-        // Define createdAt apenas na criação do registro.
         if (entity.getCreatedAt() == null) {
             log.debug(
                     "[ClientApplicationJpaAdapter] - [save] -> Criando novo registro clientId={}",
                     entity.getClientId()
             );
+
             entity.setCreatedAt(now);
         }
 
-        // Atualiza updatedAt em toda gravação.
         entity.setUpdatedAt(now);
 
         var saved = repository.save(entity);
@@ -63,7 +70,7 @@ public class ClientApplicationJpaAdapter
         return PersistenceMapper.toDomain(saved);
     }
 
-    // Busca uma aplicação cliente pelo clientId e retorna Optional vazio quando não encontrada.
+    // Carrega a aplicação cliente associada ao identificador informado.
     @Override
     @Transactional(readOnly = true)
     public Optional<ClientApplication> loadByClientId(String clientId) {
@@ -80,6 +87,7 @@ public class ClientApplicationJpaAdapter
                             "[ClientApplicationJpaAdapter] - [loadByClientId] -> Aplicação encontrada clientId={}",
                             entity.getClientId()
                     );
+
                     return PersistenceMapper.toDomain(entity);
                 });
     }

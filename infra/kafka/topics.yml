@@ -1,11 +1,53 @@
 # infra/kafka/topics.yml
 version: 1
 
-# Padrão sugerido:
-# - name: nome do tópico
-# - partitions: quantidade de partições
-# - replicationFactor: 1 (dev/local)
-# - config: configs opcionais do tópico
+# Padrão MÁQUINA (lido por scripts/create-topics.sh):
+# - name / partitions / replicationFactor / config (map k: v)
+# Os metadados ricos (producer, consumers, partition-key, dlt, schema, retry, ordenação)
+# ficam em COMENTÁRIOS acima de cada tópico: o parser awk trataria qualquer "k: v"
+# indentado como config Kafka, então incluí-los como campos quebraria a criação de tópicos.
+# Este bloco de comentário é a documentação canônica (ECO-22).
+#
+# ============================ CATEGORIZAÇÃO (Etapa 5) ============================
+#
+# eco.categorization.request
+#   descrição:     solicitações de categorização geradas pelo ms-ingestion
+#   producer:      ms-ingestion
+#   consumers:     ms-categorization (group: ms-categorization-v2)
+#   partitions:    3         concurrency do consumer: 3 (1 thread/partição)
+#   partition-key: transactionId (agregado do fluxo; ADR-004)
+#   ordenação:     por transactionId (dentro da partição)
+#   dlt:           eco.categorization.request.dlt
+#   retry:         3 tentativas, backoff exp. 1s x2 até 10s; permanente -> DLT direto
+#   schema:        contracts/events/categorization-request/v1 (formato legado flat + headers)
+#   replication:   dev=1, prod=3
+#
+# eco.transaction.categorized
+#   descrição:     transação categorizada com sucesso (via Transactional Outbox)
+#   producer:      ms-categorization
+#   consumers:     ms-budgeting (group: ms-budgeting), ms-insights (group: ms-insights)
+#   partitions:    3
+#   partition-key: transactionId
+#   ordenação:     por transactionId
+#   schema:        contracts/events/transaction-categorized/v1 (envelope uniforme)
+#   replication:   dev=1, prod=3
+#
+# eco.categorization.applied
+#   descrição:     auditoria de aplicação de categoria (AUTO/MANUAL)
+#   producer:      ms-categorization
+#   consumers:     (nenhum registrado)
+#   partitions:    3         partition-key: transactionId
+#   schema:        contracts/events/categorization-applied/v1
+#
+# eco.categorization.request.dlt
+#   descrição:     mensagens não processáveis pelo ms-categorization
+#   producer:      ms-categorization (error handler)
+#   consumers:     (inspeção manual / replay futuro)
+#   partitions:    3 (mesma partição da origem)   partition-key: original
+#   headers:       ecofy-dlt-original-topic/partition/offset, error-code, error-category,
+#                  consumer-group, X-Correlation-Id
+#   retenção:      30 dias (sobrevive à investigação)
+# ================================================================================
 
 topics:
   - name: eco.categorization.request
@@ -15,11 +57,49 @@ topics:
       retention.ms: "604800000"   # 7 dias
       cleanup.policy: "delete"
 
+  # DLT do único tópico consumido pelo ms-categorization (ECO-02).
+  - name: eco.categorization.request.dlt
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "2592000000"  # 30 dias
+      cleanup.policy: "delete"
+
   - name: eco.transaction.categorized
     partitions: 3
     replicationFactor: 1
     config:
       retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  # Auditoria de categorização aplicada — publicada mas ausente do topics.yml até a Etapa 5.
+  - name: eco.categorization.applied
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  # DLTs dos downstream — registradas no padrão agora; cada serviço as ativa na sua etapa.
+  - name: eco.transaction.categorized.dlt
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "2592000000"  # 30 dias
+      cleanup.policy: "delete"
+
+  - name: eco.budget.alert.dlt
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "2592000000"
+      cleanup.policy: "delete"
+
+  - name: eco.insight.created.dlt
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "2592000000"
       cleanup.policy: "delete"
 
   - name: eco.ingestion.events
@@ -29,6 +109,44 @@ topics:
       retention.ms: "604800000"
       cleanup.policy: "delete"
 
+  # ms-ingestion — tópicos que o serviço já usava mas não estavam declarados aqui.
+  - name: eco.ingestion.transaction.imported
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  - name: eco.ingestion.import-job.status-changed
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  # Consumido pelo ms-ingestion (ingestão por evento).
+  - name: eco.tx.raw
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "604800000"
+      cleanup.policy: "delete"
+
+  # DLT de eco.tx.raw (ECO-02). Retenção MAIOR que a do tópico original: mensagem que
+  # falhou precisa sobreviver tempo suficiente para ser investigada e reprocessada.
+  - name: eco.tx.raw.dlt
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "2592000000"  # 30 dias
+      cleanup.policy: "delete"
+
+  # Publicado pelo ms-budgeting (ECO-25/ECO-03). Valor = envelope versionado
+  # { eventId, eventType: "BUDGET_ALERT", eventVersion: 1, occurredAt, producer: "ms-budgeting",
+  #   correlationId, causationId, data: BudgetAlertDataV1 }. Schema: contracts/events/budget-alert/v1/schema.json.
+  # Chave de partição = userId (ordena alertas por usuário e co-particiona com os demais eventos do usuário).
+  # Entregue via Transactional Outbox (at-least-once + idempotência downstream); DLT: eco.budget.alert.dlt.
+  # Consumidores: ms-notification (envelope v1). Headers: X-Correlation-Id, eventId, eventType, eventVersion, causationId.
   - name: eco.budget.alert
     partitions: 3
     replicationFactor: 1
@@ -36,6 +154,13 @@ topics:
       retention.ms: "604800000"
       cleanup.policy: "delete"
 
+  # Publicado pelo ms-insights (ECO-03/§14) via Transactional Outbox (at-least-once + idempotência
+  # downstream). Valor = evento insight.created (contrato flat preservado p/ ms-notification):
+  # { eventId, type:"insight.created", userId, insightId, insightType, score, periodStart, periodEnd,
+  #   createdAt, payload, metadata{eventId,correlationId,occurredAt,source:"ms-insights"} }.
+  # Metadados de envelope (eventType:"INSIGHT_CREATED", eventVersion:1, correlationId, causationId)
+  # também viajam nos HEADERS Kafka e nas colunas da outbox. Schema: contracts/events/insight-created/v1/schema.json.
+  # Chave de partição = userId (§14.4); eventId = insightId, preservado na republicação. Consumidor: ms-notification.
   - name: eco.insight.created
     partitions: 3
     replicationFactor: 1
@@ -50,6 +175,15 @@ topics:
       retention.ms: "604800000"
       cleanup.policy: "delete"
 
+  # Publicado pelo ms-notification (ECO-32). Evento de AUDITORIA de ENTREGA CONFIRMADA (não é
+  # "tentativa"). Valor = envelope versionado { eventId, eventType: "NOTIFICATION_SENT",
+  # eventVersion: 1, occurredAt, producer: "ms-notification", correlationId, causationId,
+  # data: { notificationId, userId, channel, provider, deliveredAt } }.
+  # Schema: contracts/events/notification-sent/v1/schema.json.
+  # Chave de partição = userId. Entregue via Transactional Outbox (Mongo) — at-least-once +
+  # idempotência (índice único por notificationId). Sem consumidor obrigatório hoje: é ponto de
+  # extensão de auditoria/analytics/timeline (ver ADR-005). Headers: X-Correlation-Id, eventId,
+  # eventType, eventVersion, causationId.
   - name: eco.notification.sent
     partitions: 3
     replicationFactor: 1

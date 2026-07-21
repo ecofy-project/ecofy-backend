@@ -12,7 +12,7 @@ import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-// Serviço responsável por confirmar o e-mail do usuário a partir de um token de verificação válido.
+// Confirma o endereço de e-mail associado a um token de verificação válido.
 @Slf4j
 @Service
 public class EmailConfirmationService implements ConfirmEmailUseCase {
@@ -21,26 +21,38 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
     private final SaveAuthUserPort saveAuthUserPort;
     private final PublishAuthEventPort publishAuthEventPort;
 
-    // Inicializa o serviço com as portas de token, persistência de usuário e publicação de eventos.
     public EmailConfirmationService(
             VerificationTokenStorePort verificationTokenStorePort,
             SaveAuthUserPort saveAuthUserPort,
             PublishAuthEventPort publishAuthEventPort
     ) {
-        this.verificationTokenStorePort =
-                Objects.requireNonNull(verificationTokenStorePort, "verificationTokenStorePort must not be null");
-        this.saveAuthUserPort =
-                Objects.requireNonNull(saveAuthUserPort, "saveAuthUserPort must not be null");
-        this.publishAuthEventPort =
-                Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
+        this.verificationTokenStorePort = Objects.requireNonNull(
+                verificationTokenStorePort,
+                "verificationTokenStorePort must not be null"
+        );
+        this.saveAuthUserPort = Objects.requireNonNull(
+                saveAuthUserPort,
+                "saveAuthUserPort must not be null"
+        );
+        this.publishAuthEventPort = Objects.requireNonNull(
+                publishAuthEventPort,
+                "publishAuthEventPort must not be null"
+        );
     }
 
-    // Consome o token de verificação, marca o e-mail como confirmado, persiste o usuário e publica o evento de confirmação.
+    // Consome o token, atualiza o usuário e publica a confirmação do e-mail.
     @Override
     public AuthUser confirm(ConfirmEmailCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
+        Objects.requireNonNull(
+                command,
+                "command must not be null"
+        );
 
-        String token = Objects.requireNonNull(command.verificationToken(), "verificationToken must not be null");
+        String token = Objects.requireNonNull(
+                command.verificationToken(),
+                "verificationToken must not be null"
+        );
+
         String maskedToken = maskToken(token);
 
         log.debug(
@@ -55,6 +67,7 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
                             "[EmailConfirmationService] - [confirm] -> Token inválido ou expirado token={}",
                             maskedToken
                     );
+
                     return new AuthException(
                             AuthErrorCode.EMAIL_CONFIRMATION_TOKEN_INVALID,
                             "Invalid or expired verification token"
@@ -68,6 +81,7 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
         );
 
         user.confirmEmail();
+
         AuthUser persisted = saveAuthUserPort.save(user);
 
         log.debug(
@@ -76,7 +90,9 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
                 persisted.isEmailVerified()
         );
 
-        publishAuthEventPort.publish(new UserEmailConfirmedEvent(persisted));
+        publishAuthEventPort.publish(
+                new UserEmailConfirmedEvent(persisted)
+        );
 
         log.debug(
                 "[EmailConfirmationService] - [confirm] -> Evento UserEmailConfirmedEvent publicado userId={}",
@@ -86,11 +102,13 @@ public class EmailConfirmationService implements ConfirmEmailUseCase {
         return persisted;
     }
 
-    // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";
         }
-        return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
+
+        return token.length() > 10
+                ? token.substring(0, 10) + "..."
+                : "***";
     }
 }

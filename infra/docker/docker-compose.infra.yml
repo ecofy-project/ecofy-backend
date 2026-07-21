@@ -210,15 +210,59 @@ services:
       - "1025:1025"
     networks: [ecofy-net]
 
+  # Redis (ms-auth) — ECO-06: store distribuído para rate limiting + brute force.
+  # Obrigatório ser distribuído (nada de memória local em prod). AOF ligado para
+  # não perder contadores/bloqueios em restart; maxmemory-policy=noeviction para
+  # NUNCA descartar silenciosamente contadores de limite (correção > economia).
+  # Dev sem senha (rede local); em prod exija senha/TLS via secret externo.
+  redis-auth:
+    image: redis:7-alpine
+    container_name: ecofy-redis-auth
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ecofy-auth-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
+  # Redis (ms-insights) — ECO-28 (Etapa 7): cache distribuído do dashboard/metrics.
+  # Distribuído para servir múltiplas instâncias do ms-insights sem cache local divergente.
+  # Cache é descartável (TTL): allkeys-lru é adequado (diferente do redis-auth, noeviction).
+  redis-insights:
+    image: redis:7-alpine
+    container_name: ecofy-redis-insights
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - ecofy-insights-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [ecofy-net]
+
 networks:
+  # Nome fixo: os composes por serviço anexam-se a esta mesma rede como externa.
   ecofy-net:
+    name: ecofy-net
 
 volumes:
   ecofy-kafka-data:
   ecofy-auth-db-data:
+  ecofy-auth-redis-data:
   ecofy-ingestion-db-data:
   ecofy-categorization-db-data:
   ecofy-budgeting-db-data:
   ecofy-insights-db-data:
+  ecofy-insights-redis-data:
   ecofy-users-db-data:
   ecofy-notification-mongo-data:

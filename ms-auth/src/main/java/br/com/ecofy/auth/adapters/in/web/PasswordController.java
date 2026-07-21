@@ -19,8 +19,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+// Centraliza o fluxo de solicitação e confirmação da redefinição de senha.
 @RestController
-@RequestMapping(path = "/api/password", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = {"/api/v1/auth/password", "/api/password"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
 @Tag(name = "Password", description = "Fluxo de recuperação e redefinição de senha")
 @Slf4j
@@ -30,6 +31,7 @@ public class PasswordController {
     private final RequestPasswordResetUseCase requestPasswordResetUseCase;
     private final ResetPasswordUseCase resetPasswordUseCase;
 
+    // Registra uma solicitação de redefinição sem revelar a existência do usuário.
     @Operation(
             summary = "Solicita redefinição de senha",
             description = """
@@ -44,15 +46,18 @@ public class PasswordController {
             @ApiResponse(responseCode = "500", description = "Erro interno ao processar solicitação")
     })
     @PostMapping(path = "/reset-request", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> requestReset(@Valid @RequestBody PasswordResetRequest request) {
-
+    public ResponseEntity<Void> requestReset(
+            @Valid @RequestBody PasswordResetRequest request
+    ) {
         log.debug(
                 "[PasswordController] - [requestReset] -> Solicitando reset de senha email={}",
                 request.email()
         );
 
         requestPasswordResetUseCase.requestReset(
-                new RequestPasswordResetUseCase.RequestPasswordResetCommand(request.email())
+                new RequestPasswordResetUseCase.RequestPasswordResetCommand(
+                        request.email()
+                )
         );
 
         log.debug(
@@ -63,6 +68,7 @@ public class PasswordController {
         return ResponseEntity.accepted().build();
     }
 
+    // Confirma a redefinição da senha utilizando o token recebido.
     @Operation(
             summary = "Confirma redefinição de senha",
             description = """
@@ -77,10 +83,12 @@ public class PasswordController {
             @ApiResponse(responseCode = "500", description = "Erro interno ao redefinir senha")
     })
     @PostMapping(path = "/reset-confirm", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> confirmReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
-
-        // Segurança: não logar o token de reset (nem parcial) no controller.
-        log.debug("[PasswordController] - [confirmReset] -> Confirmando reset de senha");
+    public ResponseEntity<Void> confirmReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request
+    ) {
+        log.debug(
+                "[PasswordController] - [confirmReset] -> Confirmando reset de senha"
+        );
 
         resetPasswordUseCase.resetPassword(
                 new ResetPasswordUseCase.ResetPasswordCommand(
@@ -89,7 +97,9 @@ public class PasswordController {
                 )
         );
 
-        log.debug("[PasswordController] - [confirmReset] -> Reset de senha concluído");
+        log.debug(
+                "[PasswordController] - [confirmReset] -> Reset de senha concluído"
+        );
 
         return ResponseEntity.noContent().build();
     }

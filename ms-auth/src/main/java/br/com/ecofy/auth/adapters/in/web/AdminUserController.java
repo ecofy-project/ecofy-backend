@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+// Centraliza as operações administrativas relacionadas ao cadastro de usuários.
 @RestController
 @RequestMapping(path = "/api/admin/users", produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
@@ -34,6 +35,7 @@ public class AdminUserController {
 
     private final RegisterUserUseCase registerUserUseCase;
 
+    // Registra um usuário administrativo com funções e localidade definidas.
     @Operation(
             summary = "Cria um novo usuário administrador",
             description = """
@@ -64,15 +66,21 @@ public class AdminUserController {
             )
     })
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<UserResponse> createAdmin(@Valid @RequestBody AdminUserCreateRequest request) {
-
-        log.debug("[AdminUserController] - [createAdmin] -> Criando usuário admin email={}", request.email());
+    public ResponseEntity<UserResponse> createAdmin(
+            @Valid @RequestBody AdminUserCreateRequest request
+    ) {
+        log.debug(
+                "[AdminUserController] - [createAdmin] -> Criando usuário admin email={}",
+                request.email()
+        );
 
         List<String> roles = (request.roles() == null || request.roles().isEmpty())
                 ? List.of("ROLE_ADMIN", "ROLE_USER")
                 : request.roles();
 
-        String locale = request.locale() != null ? request.locale() : "pt-BR";
+        String locale = request.locale() != null
+                ? request.locale()
+                : "pt-BR";
 
         var cmd = new RegisterUserUseCase.RegisterUserCommand(
                 request.email(),

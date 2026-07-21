@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+// Disponibiliza as chaves públicas utilizadas na validação dos tokens JWT.
 @RestController
 @RequestMapping(path = "/.well-known", produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
@@ -31,6 +32,7 @@ public class JwksController {
 
     private final GetJwksUseCase getJwksUseCase;
 
+    // Retorna o documento JWKS com os headers de cache configurados.
     @Operation(
             summary = "Retorna o documento JWKS",
             description = """
@@ -54,7 +56,11 @@ public class JwksController {
         Map<String, Object> jwks = getJwksUseCase.getJwks();
 
         int keysCount = extractKeysCount(jwks);
-        log.debug("[JwksController] - [jwks] -> Retornando JWKS keysCount={}", keysCount);
+
+        log.debug(
+                "[JwksController] - [jwks] -> Retornando JWKS keysCount={}",
+                keysCount
+        );
 
         return ResponseEntity
                 .ok()
@@ -64,18 +70,23 @@ public class JwksController {
 
     private int extractKeysCount(Map<String, Object> jwks) {
         Object keys = jwks.get("keys");
+
         if (keys instanceof Collection<?> collection) {
             return collection.size();
         }
+
         return 0;
     }
 
+    // Configura o cache público aplicado às respostas do documento JWKS.
     private HttpHeaders jwksCacheHeaders() {
         HttpHeaders headers = new HttpHeaders();
+
         headers.setCacheControl(
                 CacheControl.maxAge(Duration.ofMinutes(5))
                         .cachePublic()
         );
+
         return headers;
     }
 }

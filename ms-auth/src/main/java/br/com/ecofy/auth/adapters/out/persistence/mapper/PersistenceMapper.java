@@ -21,19 +21,21 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+// Centraliza as conversões entre objetos de domínio e entidades de persistência.
 public final class PersistenceMapper {
 
-    // Impede instanciação, pois esta classe é apenas utilitária para mapeamento.
     private PersistenceMapper() {
-        throw new AssertionError("PersistenceMapper is a utility class and should not be instantiated");
+        throw new AssertionError(
+                "PersistenceMapper is a utility class and should not be instantiated"
+        );
     }
 
-    // Converte AuthUser (domínio) para AuthUserEntity (persistência/JPA).
+    // Converte um usuário do domínio para uma entidade persistível.
     public static AuthUserEntity toEntity(AuthUser user) {
         Objects.requireNonNull(user, "user must not be null");
 
         AuthUserEntity entity = new AuthUserEntity();
-        entity.setId(user.id().value()); // UUID
+        entity.setId(user.id().value());
         entity.setEmail(user.email().value());
         entity.setPasswordHash(user.passwordHash().value());
         entity.setStatus(user.status());
@@ -46,12 +48,10 @@ public final class PersistenceMapper {
         entity.setLastLoginAt(user.lastLoginAt());
         entity.setFailedLoginAttempts(user.failedLoginAttempts());
 
-        // Roles/permissions via relacionamentos JPA (evita duplicidade de fonte de verdade)
-
         return entity;
     }
 
-    // Converte AuthUserEntity (persistência) + roles/perms carregadas para AuthUser (domínio).
+    // Converte uma entidade de usuário e seus relacionamentos para o domínio.
     public static AuthUser toDomain(
             AuthUserEntity e,
             Set<RoleEntity> roleEntities,
@@ -60,10 +60,14 @@ public final class PersistenceMapper {
         Objects.requireNonNull(e, "AuthUserEntity must not be null");
 
         Set<RoleEntity> safeRoleEntities =
-                roleEntities == null ? Collections.emptySet() : roleEntities;
+                roleEntities == null
+                        ? Collections.emptySet()
+                        : roleEntities;
 
         Set<PermissionEntity> safePermEntities =
-                permEntities == null ? Collections.emptySet() : permEntities;
+                permEntities == null
+                        ? Collections.emptySet()
+                        : permEntities;
 
         Set<Role> roles = safeRoleEntities.stream()
                 .filter(Objects::nonNull)
@@ -93,29 +97,46 @@ public final class PersistenceMapper {
         );
     }
 
-    // Converte RoleEntity (persistência) para Role (domínio), incluindo permissões associadas.
+    // Converte uma entidade de função e suas permissões para o domínio.
     public static Role toDomain(RoleEntity e) {
         Objects.requireNonNull(e, "RoleEntity must not be null");
 
         Set<Permission> perms =
-                (e.getPermissions() == null ? Collections.<PermissionEntity>emptySet() : e.getPermissions())
+                (e.getPermissions() == null
+                        ? Collections.<PermissionEntity>emptySet()
+                        : e.getPermissions())
                         .stream()
                         .filter(Objects::nonNull)
                         .map(PersistenceMapper::toDomain)
                         .collect(Collectors.toUnmodifiableSet());
 
-        return new Role(e.getName(), e.getDescription(), perms);
+        return new Role(
+                e.getName(),
+                e.getDescription(),
+                perms
+        );
     }
 
-    // Converte PermissionEntity (persistência) para Permission (domínio).
+    // Converte uma entidade de permissão para o domínio.
     public static Permission toDomain(PermissionEntity e) {
-        Objects.requireNonNull(e, "PermissionEntity must not be null");
-        return new Permission(e.getName(), e.getDescription(), e.getDomain());
+        Objects.requireNonNull(
+                e,
+                "PermissionEntity must not be null"
+        );
+
+        return new Permission(
+                e.getName(),
+                e.getDescription(),
+                e.getDomain()
+        );
     }
 
-    // Converte ClientApplicationEntity (persistência) para ClientApplication (domínio) normalizando sets.
+    // Converte uma entidade de aplicação cliente para o domínio.
     public static ClientApplication toDomain(ClientApplicationEntity e) {
-        Objects.requireNonNull(e, "ClientApplicationEntity must not be null");
+        Objects.requireNonNull(
+                e,
+                "ClientApplicationEntity must not be null"
+        );
 
         Set<GrantType> grantTypes = e.getGrantTypes() == null
                 ? Collections.emptySet()
@@ -155,9 +176,12 @@ public final class PersistenceMapper {
         );
     }
 
-    // Converte ClientApplication (domínio) para ClientApplicationEntity (persistência/JPA).
+    // Converte uma aplicação cliente do domínio para uma entidade persistível.
     public static ClientApplicationEntity toEntity(ClientApplication c) {
-        Objects.requireNonNull(c, "clientApplication must not be null");
+        Objects.requireNonNull(
+                c,
+                "clientApplication must not be null"
+        );
 
         return ClientApplicationEntity.builder()
                 .id(c.id())
@@ -175,9 +199,12 @@ public final class PersistenceMapper {
                 .build();
     }
 
-    // Converte RefreshTokenEntity (persistência) para RefreshToken (domínio).
+    // Converte uma entidade de refresh token para o domínio.
     public static RefreshToken toDomain(RefreshTokenEntity e) {
-        Objects.requireNonNull(e, "RefreshTokenEntity must not be null");
+        Objects.requireNonNull(
+                e,
+                "RefreshTokenEntity must not be null"
+        );
 
         return new RefreshToken(
                 e.getId(),
@@ -191,9 +218,12 @@ public final class PersistenceMapper {
         );
     }
 
-    // Converte RefreshToken (domínio) para RefreshTokenEntity (persistência/JPA).
+    // Converte um refresh token do domínio para uma entidade persistível.
     public static RefreshTokenEntity toEntity(RefreshToken t) {
-        Objects.requireNonNull(t, "refreshToken must not be null");
+        Objects.requireNonNull(
+                t,
+                "refreshToken must not be null"
+        );
 
         return RefreshTokenEntity.builder()
                 .id(t.id())
@@ -207,9 +237,12 @@ public final class PersistenceMapper {
                 .build();
     }
 
-    // Converte JwkKeyEntity (persistência) para JwkKey (domínio) para leitura/uso de chaves públicas.
+    // Converte uma entidade de chave pública para o domínio.
     public static JwkKey toDomain(JwkKeyEntity e) {
-        Objects.requireNonNull(e, "JwkKeyEntity must not be null");
+        Objects.requireNonNull(
+                e,
+                "JwkKeyEntity must not be null"
+        );
 
         return new JwkKey(
                 e.getKeyId(),

@@ -20,10 +20,11 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-// Serviço responsável pelo fluxo de recuperação de senha: solicitar reset (gerar token e enviar e-mail) e efetivar reset (validar token e atualizar senha).
+// Centraliza a solicitação e a execução da redefinição de senha.
 @Slf4j
 @Service
-public class PasswordResetService implements RequestPasswordResetUseCase, ResetPasswordUseCase {
+public class PasswordResetService
+        implements RequestPasswordResetUseCase, ResetPasswordUseCase {
 
     private final LoadAuthUserByEmailPort loadAuthUserByEmailPort;
     private final PasswordResetTokenStorePort passwordResetTokenStorePort;
@@ -32,7 +33,6 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
     private final PasswordHashingPort passwordHashingPort;
     private final PublishAuthEventPort publishAuthEventPort;
 
-    // Inicializa o serviço com as portas necessárias para buscar usuário, armazenar token, enviar e-mail, salvar usuário e publicar eventos.
     public PasswordResetService(
             LoadAuthUserByEmailPort loadAuthUserByEmailPort,
             PasswordResetTokenStorePort passwordResetTokenStorePort,
@@ -41,42 +41,62 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
             PasswordHashingPort passwordHashingPort,
             PublishAuthEventPort publishAuthEventPort
     ) {
-        this.loadAuthUserByEmailPort =
-                Objects.requireNonNull(loadAuthUserByEmailPort, "loadAuthUserByEmailPort must not be null");
-        this.passwordResetTokenStorePort =
-                Objects.requireNonNull(passwordResetTokenStorePort, "passwordResetTokenStorePort must not be null");
-        this.sendResetPasswordEmailPort =
-                Objects.requireNonNull(sendResetPasswordEmailPort, "sendResetPasswordEmailPort must not be null");
-        this.saveAuthUserPort =
-                Objects.requireNonNull(saveAuthUserPort, "saveAuthUserPort must not be null");
-        this.passwordHashingPort =
-                Objects.requireNonNull(passwordHashingPort, "passwordHashingPort must not be null");
-        this.publishAuthEventPort =
-                Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
+        this.loadAuthUserByEmailPort = Objects.requireNonNull(
+                loadAuthUserByEmailPort,
+                "loadAuthUserByEmailPort must not be null"
+        );
+        this.passwordResetTokenStorePort = Objects.requireNonNull(
+                passwordResetTokenStorePort,
+                "passwordResetTokenStorePort must not be null"
+        );
+        this.sendResetPasswordEmailPort = Objects.requireNonNull(
+                sendResetPasswordEmailPort,
+                "sendResetPasswordEmailPort must not be null"
+        );
+        this.saveAuthUserPort = Objects.requireNonNull(
+                saveAuthUserPort,
+                "saveAuthUserPort must not be null"
+        );
+        this.passwordHashingPort = Objects.requireNonNull(
+                passwordHashingPort,
+                "passwordHashingPort must not be null"
+        );
+        this.publishAuthEventPort = Objects.requireNonNull(
+                publishAuthEventPort,
+                "publishAuthEventPort must not be null"
+        );
     }
 
-    // Gera e armazena um token de reset para o e-mail informado, envia o link por e-mail e publica o evento de solicitação de reset.
+    // Processa a solicitação sem revelar se o endereço informado está cadastrado.
     @Override
-    public void requestReset(RequestPasswordResetCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        EmailAddress email = new EmailAddress(command.email());
+    public void requestReset(
+            RequestPasswordResetCommand command
+    ) {
+        Objects.requireNonNull(
+                command,
+                "command must not be null"
+        );
+
+        EmailAddress email =
+                new EmailAddress(command.email());
 
         log.debug(
                 "[PasswordResetService] - [requestReset] -> Solicitando reset para email={}",
                 email.value()
         );
 
-        // Anti-enumeração: NÃO revela se o e-mail existe. Se não existir, encerra
-        // silenciosamente (o controller retorna 202 igualmente) — resposta indistinguível.
-        Optional<AuthUser> maybeUser = loadAuthUserByEmailPort.loadByEmail(email);
+        Optional<AuthUser> maybeUser =
+                loadAuthUserByEmailPort.loadByEmail(email);
+
         if (maybeUser.isEmpty()) {
             log.info(
                     "[PasswordResetService] - [requestReset] -> Solicitação de reset para e-mail não cadastrado (no-op, sem enumeração)"
             );
+
             return;
         }
-        AuthUser user = maybeUser.get();
 
+        AuthUser user = maybeUser.get();
         String resetToken = UUID.randomUUID().toString();
         String masked = maskToken(resetToken);
 
@@ -86,8 +106,15 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
                 masked
         );
 
-        passwordResetTokenStorePort.store(user, resetToken);
-        sendResetPasswordEmailPort.sendReset(user, resetToken);
+        passwordResetTokenStorePort.store(
+                user,
+                resetToken
+        );
+
+        sendResetPasswordEmailPort.sendReset(
+                user,
+                resetToken
+        );
 
         log.debug(
                 "[PasswordResetService] - [requestReset] -> E-mail de reset enviado userId={} email={}",
@@ -95,7 +122,12 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
                 user.email().value()
         );
 
-        publishAuthEventPort.publish(new PasswordResetRequestedEvent(user, resetToken));
+        publishAuthEventPort.publish(
+                new PasswordResetRequestedEvent(
+                        user,
+                        resetToken
+                )
+        );
 
         log.debug(
                 "[PasswordResetService] - [requestReset] -> Evento PasswordResetRequestedEvent publicado userId={}",
@@ -103,12 +135,18 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
         );
     }
 
-    // Consome o token de reset, gera o hash da nova senha, atualiza o usuário e persiste a alteração.
+    // Valida o token e persiste o novo hash da senha.
     @Override
-    public void resetPassword(ResetPasswordCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
+    public void resetPassword(
+            ResetPasswordCommand command
+    ) {
+        Objects.requireNonNull(
+                command,
+                "command must not be null"
+        );
 
-        String maskedToken = maskToken(command.resetToken());
+        String maskedToken =
+                maskToken(command.resetToken());
 
         log.debug(
                 "[PasswordResetService] - [resetPassword] -> Validando token para redefinição token={}",
@@ -122,6 +160,7 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
                             "[PasswordResetService] - [resetPassword] -> Token inválido ou expirado token={}",
                             maskedToken
                     );
+
                     return new AuthException(
                             AuthErrorCode.PASSWORD_RESET_TOKEN_INVALID,
                             "Invalid or expired reset token"
@@ -133,7 +172,8 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
                 user.id().value()
         );
 
-        PasswordHash newHash = passwordHashingPort.hash(command.newPassword());
+        PasswordHash newHash =
+                passwordHashingPort.hash(command.newPassword());
 
         user.changePassword(newHash);
         saveAuthUserPort.save(user);
@@ -144,11 +184,13 @@ public class PasswordResetService implements RequestPasswordResetUseCase, ResetP
         );
     }
 
-    // Mascara tokens para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";
         }
-        return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
+
+        return token.length() > 10
+                ? token.substring(0, 10) + "..."
+                : "***";
     }
 }

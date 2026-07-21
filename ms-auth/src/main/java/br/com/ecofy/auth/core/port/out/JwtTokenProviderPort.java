@@ -14,15 +14,7 @@ public interface JwtTokenProviderPort {
 
     Map<String, Object> parseClaims(String token);
 
-    /**
-     * Verifica a ASSINATURA (RSA/JWKS), a expiração e (quando configurado) o issuer
-     * do token, retornando as claims apenas se o token for realmente confiável.
-     * Diferente de {@link #isValid(String)}/{@link #parseClaims(String)}, que apenas
-     * fazem parsing/checagem de expiração sem validar a assinatura.
-     *
-     * @throws IllegalArgumentException se a assinatura for inválida, o token estiver
-     *                                  expirado ou for malformado.
-     */
+    // Valida assinatura, expiração e issuer do token, retornando as claims apenas se confiável.
     Map<String, Object> verifyAndParseClaims(String token);
 
 }

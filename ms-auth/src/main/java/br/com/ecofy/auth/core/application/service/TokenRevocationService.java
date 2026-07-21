@@ -8,23 +8,30 @@ import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-// Serviço responsável por revogar tokens (atualmente apenas refresh tokens) emitidos pelo MS Auth.
+// Centraliza a revogação dos tokens de sessão suportados pelo serviço.
 @Slf4j
 @Service
 public class TokenRevocationService implements RevokeTokenUseCase {
 
     private final RefreshTokenStorePort refreshTokenStorePort;
 
-    // Injeta a store de refresh tokens e garante que ela não seja nula para permitir revogação persistida.
-    public TokenRevocationService(RefreshTokenStorePort refreshTokenStorePort) {
-        this.refreshTokenStorePort =
-                Objects.requireNonNull(refreshTokenStorePort, "refreshTokenStorePort must not be null");
+    public TokenRevocationService(
+            RefreshTokenStorePort refreshTokenStorePort
+    ) {
+        this.refreshTokenStorePort = Objects.requireNonNull(
+                refreshTokenStorePort,
+                "refreshTokenStorePort must not be null"
+        );
     }
 
-    // Valida o tipo do token informado e revoga o refresh token na store, lançando erro se o tipo não for suportado.
+    // Valida o tipo recebido e revoga o refresh token correspondente.
     @Override
     public void revoke(RevokeTokenCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
+        Objects.requireNonNull(
+                command,
+                "command must not be null"
+        );
+
         String masked = maskToken(command.token());
 
         log.debug(
@@ -38,6 +45,7 @@ public class TokenRevocationService implements RevokeTokenUseCase {
                     "[TokenRevocationService] - [revoke] -> Tipo de token não suportado para revogação tokenMask={}",
                     masked
             );
+
             throw new AuthException(
                     AuthErrorCode.TOKEN_TYPE_NOT_SUPPORTED_FOR_REVOCATION,
                     "Only refresh tokens can be revoked"
@@ -57,11 +65,13 @@ public class TokenRevocationService implements RevokeTokenUseCase {
         );
     }
 
-    // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";
         }
-        return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
+
+        return token.length() > 10
+                ? token.substring(0, 10) + "..."
+                : "***";
     }
 }

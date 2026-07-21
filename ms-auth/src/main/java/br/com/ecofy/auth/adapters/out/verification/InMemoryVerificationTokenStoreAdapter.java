@@ -9,21 +9,29 @@ import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+// Armazena temporariamente os tokens de verificação de e-mail em memória.
 @Slf4j
 @Component
-public class InMemoryVerificationTokenStoreAdapter implements VerificationTokenStorePort {
+public class InMemoryVerificationTokenStoreAdapter
+        implements VerificationTokenStorePort {
 
     private final Map<String, Entry> tokens = new ConcurrentHashMap<>();
 
-    // Armazena o token de verificação associado ao usuário em memória (para DEV/testes), registrando o token mascarado.
+    // Associa o token de verificação ao usuário informado.
     @Override
     public void store(AuthUser user, String token) {
         if (user == null || token == null || token.isBlank()) {
-            log.warn("[InMemoryVerificationTokenStoreAdapter] - [store] -> user ou token nulos/blank");
+            log.warn(
+                    "[InMemoryVerificationTokenStoreAdapter] - [store] -> user ou token nulos/blank"
+            );
+
             return;
         }
 
-        tokens.put(token, new Entry(user, Instant.now()));
+        tokens.put(
+                token,
+                new Entry(user, Instant.now())
+        );
 
         log.debug(
                 "[InMemoryVerificationTokenStoreAdapter] - [store] -> Token de verificação armazenado userId={} tokenMask={}",
@@ -32,7 +40,7 @@ public class InMemoryVerificationTokenStoreAdapter implements VerificationTokenS
         );
     }
 
-    // Consome (remove) o token de verificação e retorna o usuário associado, ou Optional vazio se inválido/inexistente.
+    // Consome o token e recupera o usuário associado.
     @Override
     public Optional<AuthUser> consume(String token) {
         if (token == null || token.isBlank()) {
@@ -40,11 +48,13 @@ public class InMemoryVerificationTokenStoreAdapter implements VerificationTokenS
         }
 
         Entry entry = tokens.remove(token);
+
         if (entry == null) {
             log.debug(
                     "[InMemoryVerificationTokenStoreAdapter] - [consume] -> Token não encontrado tokenMask={}",
                     maskToken(token)
             );
+
             return Optional.empty();
         }
 
@@ -57,14 +67,19 @@ public class InMemoryVerificationTokenStoreAdapter implements VerificationTokenS
         return Optional.of(entry.user);
     }
 
-    // Representa um registro de token em memória contendo o usuário e o instante de criação.
-    private record Entry(AuthUser user, Instant createdAt) {}
+    // Representa os dados associados ao token armazenado.
+    private record Entry(
+            AuthUser user,
+            Instant createdAt
+    ) {}
 
-    // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";
         }
-        return token.length() > 10 ? token.substring(0, 10) + "..." : "***";
+
+        return token.length() > 10
+                ? token.substring(0, 10) + "..."
+                : "***";
     }
 }

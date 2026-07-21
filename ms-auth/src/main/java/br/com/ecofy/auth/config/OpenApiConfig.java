@@ -10,22 +10,29 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-
+// Configura a documentação OpenAPI e os grupos de endpoints do serviço.
 @Configuration
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_BEARER = "BearerAuth";
 
+    // Registra a documentação principal e o esquema de autenticação JWT.
     @Bean
     public OpenAPI ecofyAuthOpenAPI() {
         return new OpenAPI()
                 .info(apiInfo())
                 .externalDocs(externalDocs())
-                .components(new Components()
-                        .addSecuritySchemes(SECURITY_SCHEME_BEARER, bearerSecurityScheme())
+                .components(
+                        new Components().addSecuritySchemes(
+                                SECURITY_SCHEME_BEARER,
+                                bearerSecurityScheme()
+                        )
                 )
-                .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_BEARER));
-
+                .addSecurityItem(
+                        new SecurityRequirement().addList(
+                                SECURITY_SCHEME_BEARER
+                        )
+                );
     }
 
     private Info apiInfo() {
@@ -37,13 +44,17 @@ public class OpenApiConfig {
                         confirmação de e-mail e provisionamento de client applications.
                         """)
                 .version("v1.0.0")
-                .contact(new Contact()
-                        .name("EcoFy Platform")
-                        .email("dev@ecofy.com")
-                        .url("https://ecofy.com"))
-                .license(new License()
-                        .name("Proprietary / EcoFy")
-                        .url("https://ecofy.com/license"))
+                .contact(
+                        new Contact()
+                                .name("EcoFy Platform")
+                                .email("dev@ecofy.com")
+                                .url("https://ecofy.com")
+                )
+                .license(
+                        new License()
+                                .name("Proprietary / EcoFy")
+                                .url("https://ecofy.com/license")
+                )
                 .termsOfService("https://ecofy.com/terms");
     }
 
@@ -65,7 +76,7 @@ public class OpenApiConfig {
                         """);
     }
 
-    // group principal para endpoints REST da API (exclui actuator).
+    // Agrupa os endpoints públicos da API e exclui os recursos operacionais.
     @Bean
     public GroupedOpenApi authApiGroup() {
         return GroupedOpenApi.builder()
@@ -75,7 +86,7 @@ public class OpenApiConfig {
                 .build();
     }
 
-    // group separado para actuator, se quiser visualizar health/metrics via Swagger.
+    // Agrupa separadamente os endpoints operacionais do Actuator.
     @Bean
     public GroupedOpenApi actuatorGroup() {
         return GroupedOpenApi.builder()
@@ -83,5 +94,4 @@ public class OpenApiConfig {
                 .pathsToMatch("/actuator/**")
                 .build();
     }
-
 }

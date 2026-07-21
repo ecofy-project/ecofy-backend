@@ -1,82 +1,43 @@
+# =============================================================================
+# EcoFy — ms-auth isolado (teste um a um)
+#
+# Pré-requisito: a infraestrutura precisa estar no ar, pois este arquivo anexa
+# o serviço à rede externa ecofy-net em vez de recriar bancos e broker.
+#
+#   docker compose -f infra/docker/docker-compose.infra.yml up -d
+#   docker compose -f infra/docker/ms-auth/docker-compose.yml up -d --build
+#
+# Dependências de infraestrutura: postgres-auth, redis-auth, kafka, maildev
+# =============================================================================
+
 services:
 
-  # Postgres (ms-auth)
-  postgres-auth:
-    image: postgres:16-alpine
-    container_name: ecofy-postgres-auth
+  ms-auth:
+    build:
+      context: ../../../ms-auth
+    image: ecofy/ms-auth:local
+    container_name: ecofy-ms-auth
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ecofy_auth
-      POSTGRES_USER: ecofy_auth
-      POSTGRES_PASSWORD: ecofy_auth
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      DB_URL: jdbc:postgresql://postgres-auth:5432/ecofy_auth
+      DB_USER: ecofy_auth
+      DB_PASS: ecofy_auth
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_HOST: redis-auth
+      REDIS_PORT: 6379
+      MAIL_HOST: maildev
+      MAIL_PORT: 1025
+      JWT_ISSUER: http://localhost:8081/auth
+      USERS_MS_BASE_URL: http://ms-users:8087/users
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-local-internal-token}
       TZ: UTC
     ports:
-      - "5432:5432"
-    volumes:
-      - ecofy-auth-db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ecofy_auth -d ecofy_auth"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      - "8081:8081"
     networks: [ ecofy-net ]
-
-  # Maildev (ms-auth)
-  mail-auth:
-    image: maildev/maildev
-    container_name: ecofy-mail-auth
-    restart: unless-stopped
-    ports:
-      - "1080:1080"  # UI Web
-      - "1025:1025"  # SMTP
-    healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks: [ ecofy-net ]
-
-  # Kafka (único)
-  kafka:
-    image: apache/kafka:4.1.1
-    container_name: ecofy-kafka
-    restart: unless-stopped
-    ports:
-      - "9092:9092"      # interno/compat (opcional manter)
-      - "19092:19092"    # externo (host)
-      - "9093:9093"      # controller
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-
-      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:19092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
-
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_RETENTION_HOURS: 168
-    volumes:
-      - ecofy-kafka-data:/var/lib/kafka/data
-    healthcheck:
-      test: [ "CMD-SHELL", "bash -lc 'unset JMX_PORT; /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1'" ]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-    networks: [ ecofy-net ]
-
-
-volumes:
-  ecofy-auth-db-data:
-  ecofy-kafka-data:
 
 networks:
+  # Criada pelo docker-compose.infra.yml; aqui é apenas referenciada.
   ecofy-net:
+    external: true
     name: ecofy-net

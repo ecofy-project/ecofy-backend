@@ -8,22 +8,20 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+// Centraliza a conversão de usuários para contratos de resposta.
 public final class UserMapper {
 
     private UserMapper() {
-        // utility class
     }
 
-    // Converte um AuthUser (domínio) para UserResponse (DTO de saída).
+    // Converte um usuário do domínio para o contrato de resposta.
     public static UserResponse toResponse(AuthUser user) {
         Objects.requireNonNull(user, "user must not be null");
 
-        // Extrai os nomes das roles do usuário e retorna um Set imutável.
         Set<String> roles = user.roles().stream()
                 .map(br.com.ecofy.auth.core.domain.Role::name)
                 .collect(Collectors.toUnmodifiableSet());
 
-        // Extrai os nomes das permissões diretas do usuário e retorna um Set imutável.
         Set<String> permissions = user.directPermissions().stream()
                 .map(br.com.ecofy.auth.core.domain.Permission::name)
                 .collect(Collectors.toUnmodifiableSet());
@@ -42,7 +40,7 @@ public final class UserMapper {
         );
     }
 
-    // Converte uma lista de AuthUser (domínio) para uma lista imutável de responses.
+    // Converte usuários para uma lista imutável de respostas.
     public static List<UserResponse> toResponseList(List<AuthUser> users) {
         if (users == null || users.isEmpty()) {
             return List.of();

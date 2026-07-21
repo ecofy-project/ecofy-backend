@@ -10,20 +10,20 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+// Centraliza a conversão de aplicações cliente para contratos de resposta.
 public final class ClientApplicationMapper {
 
     private ClientApplicationMapper() {
-        // utility class
     }
 
-    // Converte um ClientApplication (domínio) para ClientApplicationResponse (DTO de saída).
+    // Converte uma aplicação cliente do domínio para o contrato de resposta.
     public static ClientApplicationResponse toResponse(ClientApplication client) {
         Objects.requireNonNull(client, "client must not be null");
 
-        // Garante um id sempre preenchido (usa o id do domínio ou gera um novo).
-        String id = client.id() != null ? client.id().toString() : UUID.randomUUID().toString();
+        String id = client.id() != null
+                ? client.id().toString()
+                : UUID.randomUUID().toString();
 
-        // Normaliza coleções para nunca retornar null (apenas sets imutáveis).
         Set<GrantType> grants = safeGrants(client.grantTypes());
         Set<String> redirectUris = safeStrings(client.redirectUris());
         Set<String> scopes = safeStrings(client.scopes());
@@ -43,8 +43,10 @@ public final class ClientApplicationMapper {
         );
     }
 
-    // Converte uma lista de ClientApplication (domínio) para uma lista imutável de responses.
-    public static List<ClientApplicationResponse> toResponseList(List<ClientApplication> clients) {
+    // Converte aplicações cliente para uma lista imutável de respostas.
+    public static List<ClientApplicationResponse> toResponseList(
+            List<ClientApplication> clients
+    ) {
         if (clients == null || clients.isEmpty()) {
             return List.of();
         }
@@ -57,7 +59,7 @@ public final class ClientApplicationMapper {
         );
     }
 
-    // Retorna um Set<String> imutável sem nulls (ou Set vazio se a entrada for null/vazia).
+    // Normaliza valores textuais como um conjunto imutável sem elementos nulos.
     private static Set<String> safeStrings(Set<String> values) {
         if (values == null || values.isEmpty()) {
             return Set.of();
@@ -68,7 +70,7 @@ public final class ClientApplicationMapper {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    // Retorna um Set<GrantType> imutável sem nulls (ou Set vazio se a entrada for null/vazia).
+    // Normaliza permissões de concessão como um conjunto imutável sem elementos nulos.
     private static Set<GrantType> safeGrants(Set<GrantType> values) {
         if (values == null || values.isEmpty()) {
             return Set.of();

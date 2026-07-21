@@ -24,18 +24,20 @@ import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
 import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
 import br.com.ecofy.auth.core.port.out.RefreshTokenStorePort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
-import java.util.List;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-// Serviço responsável pelos fluxos de autenticação (Password Grant) e renovação de sessão (Refresh Token Grant) no ms-auth.
+// Centraliza os fluxos de autenticação e renovação de tokens.
 @Slf4j
 @Service
 public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase {
+
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
 
     private final LoadAuthUserByEmailPort loadAuthUserByEmailPort;
     private final LoadClientApplicationByClientIdPort loadClientApplicationByClientIdPort;
@@ -44,14 +46,9 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
     private final RefreshTokenStorePort refreshTokenStorePort;
     private final PublishAuthEventPort publishAuthEventPort;
     private final SaveAuthUserPort saveAuthUserPort;
-
-    // Máximo de tentativas de senha antes de o domínio bloquear (LOCKED) o usuário.
-    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
-
     private final long accessTokenTtlSeconds;
     private final long refreshTokenTtlSeconds;
 
-    // Inicializa o serviço de autenticação com as portas necessárias e lê os TTLs de access/refresh a partir das propriedades JWT.
     public AuthService(
             LoadAuthUserByEmailPort loadAuthUserByEmailPort,
             LoadClientApplicationByClientIdPort loadClientApplicationByClientIdPort,
@@ -62,26 +59,39 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
             SaveAuthUserPort saveAuthUserPort,
             JwtProperties jwtProperties
     ) {
+        this.loadAuthUserByEmailPort = Objects.requireNonNull(
+                loadAuthUserByEmailPort,
+                "loadAuthUserByEmailPort must not be null"
+        );
+        this.loadClientApplicationByClientIdPort = Objects.requireNonNull(
+                loadClientApplicationByClientIdPort,
+                "loadClientApplicationByClientIdPort must not be null"
+        );
+        this.passwordHashingPort = Objects.requireNonNull(
+                passwordHashingPort,
+                "passwordHashingPort must not be null"
+        );
+        this.jwtTokenProviderPort = Objects.requireNonNull(
+                jwtTokenProviderPort,
+                "jwtTokenProviderPort must not be null"
+        );
+        this.refreshTokenStorePort = Objects.requireNonNull(
+                refreshTokenStorePort,
+                "refreshTokenStorePort must not be null"
+        );
+        this.publishAuthEventPort = Objects.requireNonNull(
+                publishAuthEventPort,
+                "publishAuthEventPort must not be null"
+        );
+        this.saveAuthUserPort = Objects.requireNonNull(
+                saveAuthUserPort,
+                "saveAuthUserPort must not be null"
+        );
 
-        this.loadAuthUserByEmailPort =
-                Objects.requireNonNull(loadAuthUserByEmailPort, "loadAuthUserByEmailPort must not be null");
-        this.loadClientApplicationByClientIdPort =
-                Objects.requireNonNull(
-                        loadClientApplicationByClientIdPort,
-                        "loadClientApplicationByClientIdPort must not be null"
-                );
-        this.passwordHashingPort =
-                Objects.requireNonNull(passwordHashingPort, "passwordHashingPort must not be null");
-        this.jwtTokenProviderPort =
-                Objects.requireNonNull(jwtTokenProviderPort, "jwtTokenProviderPort must not be null");
-        this.refreshTokenStorePort =
-                Objects.requireNonNull(refreshTokenStorePort, "refreshTokenStorePort must not be null");
-        this.publishAuthEventPort =
-                Objects.requireNonNull(publishAuthEventPort, "publishAuthEventPort must not be null");
-        this.saveAuthUserPort =
-                Objects.requireNonNull(saveAuthUserPort, "saveAuthUserPort must not be null");
-
-        JwtProperties props = Objects.requireNonNull(jwtProperties, "jwtProperties must not be null");
+        JwtProperties props = Objects.requireNonNull(
+                jwtProperties,
+                "jwtProperties must not be null"
+        );
 
         this.accessTokenTtlSeconds = props.getAccessTokenTtlSeconds();
         this.refreshTokenTtlSeconds = props.getRefreshTokenTtlSeconds();
@@ -93,7 +103,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         );
     }
 
-    // Autentica o usuário via Password Grant, emite access/refresh tokens, persiste o refresh token e publica evento de autenticação.
+    // Autentica o usuário, emite os tokens e registra a sessão iniciada.
     @Override
     public AuthenticationResult authenticate(AuthenticationCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -112,7 +122,11 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                             "[AuthService] - [authenticate] -> client_id inválido clientId={}",
                             command.clientId()
                     );
-                    return new AuthException(AuthErrorCode.CLIENT_NOT_FOUND, "Invalid client_id");
+
+                    return new AuthException(
+                            AuthErrorCode.CLIENT_NOT_FOUND,
+                            "Invalid client_id"
+                    );
                 });
 
         validateClientForPasswordGrant(client);
@@ -124,35 +138,58 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                             "[AuthService] - [authenticate] -> Credenciais inválidas (usuário não encontrado) username={}",
                             command.username()
                     );
-                    return new AuthException(AuthErrorCode.INVALID_CREDENTIALS, "Invalid credentials");
+
+                    return new AuthException(
+                            AuthErrorCode.INVALID_CREDENTIALS,
+                            "Invalid credentials"
+                    );
                 });
 
-        if (!passwordHashingPort.matches(command.password(), user.passwordHash())) {
-            user.registerFailedLogin(MAX_FAILED_LOGIN_ATTEMPTS); // política de lock no domínio
-            // Persiste o incremento de tentativas (e eventual LOCKED) para que o bloqueio seja efetivo.
+        if (!passwordHashingPort.matches(
+                command.password(),
+                user.passwordHash()
+        )) {
+            user.registerFailedLogin(MAX_FAILED_LOGIN_ATTEMPTS);
             saveAuthUserPort.save(user);
+
             log.warn(
                     "[AuthService] - [authenticate] -> Senha inválida username={} failedAttempts={}",
                     command.username(),
                     user.failedLoginAttempts()
             );
-            throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS, "Invalid credentials");
+
+            throw new AuthException(
+                    AuthErrorCode.INVALID_CREDENTIALS,
+                    "Invalid credentials"
+            );
         }
 
-        // Senha correta: só emite token se a conta estiver realmente apta (status + e-mail confirmado).
         ensureUserCanAuthenticate(user);
 
         user.registerSuccessfulLogin();
-        // Persiste lastLoginAt e o reset de tentativas de login.
         saveAuthUserPort.save(user);
 
-        Map<String, Object> accessClaims = buildAccessTokenClaims(user, client, command.scope());
-        JwtToken accessToken = jwtTokenProviderPort
-                .generateAccessToken(user.id().value().toString(), accessClaims, accessTokenTtlSeconds);
+        Map<String, Object> accessClaims =
+                buildAccessTokenClaims(
+                        user,
+                        client,
+                        command.scope()
+                );
 
-        Map<String, Object> refreshClaims = buildRefreshTokenClaims(user, client);
-        JwtToken refreshJwt = jwtTokenProviderPort
-                .generateRefreshToken(user.id().value().toString(), refreshClaims, refreshTokenTtlSeconds);
+        JwtToken accessToken = jwtTokenProviderPort.generateAccessToken(
+                user.id().value().toString(),
+                accessClaims,
+                accessTokenTtlSeconds
+        );
+
+        Map<String, Object> refreshClaims =
+                buildRefreshTokenClaims(user, client);
+
+        JwtToken refreshJwt = jwtTokenProviderPort.generateRefreshToken(
+                user.id().value().toString(),
+                refreshClaims,
+                refreshTokenTtlSeconds
+        );
 
         RefreshToken refreshToken = RefreshToken.create(
                 user.id(),
@@ -160,10 +197,15 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                 refreshJwt.value(),
                 refreshTokenTtlSeconds
         );
+
         refreshTokenStorePort.save(refreshToken);
 
         publishAuthEventPort.publish(
-                new UserAuthenticatedEvent(user, client, command.ipAddress())
+                new UserAuthenticatedEvent(
+                        user,
+                        client,
+                        command.ipAddress()
+                )
         );
 
         log.debug(
@@ -180,12 +222,13 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         );
     }
 
-    // Renova a sessão via Refresh Token Grant validando token e client, emitindo novos tokens, persistindo o novo refresh e revogando o antigo.
+    // Valida a sessão atual e substitui os tokens utilizados na renovação.
     @Override
     public RefreshTokenResult refresh(RefreshTokenCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
         String maskedToken = maskToken(command.refreshToken());
+
         log.debug(
                 "[AuthService] - [refresh] -> Iniciando fluxo de refresh clientId={} tokenMask={}",
                 command.clientId(),
@@ -199,7 +242,11 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                             "[AuthService] - [refresh] -> Refresh token não encontrado tokenMask={}",
                             maskedToken
                     );
-                    return new AuthException(AuthErrorCode.TOKEN_NOT_FOUND, "Invalid refresh token");
+
+                    return new AuthException(
+                            AuthErrorCode.TOKEN_NOT_FOUND,
+                            "Invalid refresh token"
+                    );
                 });
 
         if (!stored.isActive()) {
@@ -207,18 +254,26 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                     "[AuthService] - [refresh] -> Refresh token expirado ou revogado tokenMask={}",
                     maskedToken
             );
-            throw new AuthException(AuthErrorCode.TOKEN_EXPIRED, "Refresh token expired or revoked");
+
+            throw new AuthException(
+                    AuthErrorCode.TOKEN_EXPIRED,
+                    "Refresh token expired or revoked"
+            );
         }
 
-        Map<String, Object> claims = jwtTokenProviderPort.parseClaims(stored.tokenValue());
+        Map<String, Object> claims =
+                jwtTokenProviderPort.parseClaims(stored.tokenValue());
 
         Object rawType = claims.get("typ");
-        if (rawType == null || !TokenType.REFRESH.name().equals(rawType.toString())) {
+
+        if (rawType == null
+                || !TokenType.REFRESH.name().equals(rawType.toString())) {
             log.warn(
                     "[AuthService] - [refresh] -> Token de tipo inválido para fluxo de refresh typ={} tokenMask={}",
                     rawType,
                     maskedToken
             );
+
             throw new AuthException(
                     AuthErrorCode.TOKEN_TYPE_NOT_SUPPORTED_FOR_REVOCATION,
                     "Invalid token type for refresh flow"
@@ -233,10 +288,15 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                     "[AuthService] - [refresh] -> Claims de refresh token malformadas tokenMask={}",
                     maskedToken
             );
-            throw new AuthException(AuthErrorCode.INVALID_TOKEN_SIGNATURE, "Malformed refresh token claims");
+
+            throw new AuthException(
+                    AuthErrorCode.INVALID_TOKEN_SIGNATURE,
+                    "Malformed refresh token claims"
+            );
         }
 
-        if (!stored.clientId().equals(command.clientId()) || !clientIdFromClaims.equals(command.clientId())) {
+        if (!stored.clientId().equals(command.clientId())
+                || !clientIdFromClaims.equals(command.clientId())) {
             log.warn(
                     "[AuthService] - [refresh] -> Refresh token não pertence ao client armazenadoClientId={} claimsClientId={} commandClientId={} tokenMask={}",
                     stored.clientId(),
@@ -244,7 +304,11 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                     command.clientId(),
                     maskedToken
             );
-            throw new AuthException(AuthErrorCode.TOKEN_OWNER_MISMATCH, "Refresh token does not belong to client");
+
+            throw new AuthException(
+                    AuthErrorCode.TOKEN_OWNER_MISMATCH,
+                    "Refresh token does not belong to client"
+            );
         }
 
         ClientApplication client = loadClientApplicationByClientIdPort
@@ -254,17 +318,29 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                             "[AuthService] - [refresh] -> Client não encontrado para fluxo de refresh clientId={}",
                             command.clientId()
                     );
-                    return new AuthException(AuthErrorCode.CLIENT_NOT_FOUND, "Client not found for refresh flow");
+
+                    return new AuthException(
+                            AuthErrorCode.CLIENT_NOT_FOUND,
+                            "Client not found for refresh flow"
+                    );
                 });
 
         validateClientForRefreshGrant(client);
 
-        JwtToken newAccess = jwtTokenProviderPort
-                .generateAccessToken(userId, claims, accessTokenTtlSeconds);
+        JwtToken newAccess = jwtTokenProviderPort.generateAccessToken(
+                userId,
+                claims,
+                accessTokenTtlSeconds
+        );
 
-        Map<String, Object> refreshClaims = Map.of("client_id", clientIdFromClaims);
-        JwtToken newRefresh = jwtTokenProviderPort
-                .generateRefreshToken(userId, refreshClaims, refreshTokenTtlSeconds);
+        Map<String, Object> refreshClaims =
+                Map.of("client_id", clientIdFromClaims);
+
+        JwtToken newRefresh = jwtTokenProviderPort.generateRefreshToken(
+                userId,
+                refreshClaims,
+                refreshTokenTtlSeconds
+        );
 
         RefreshToken newStored = RefreshToken.create(
                 stored.userId(),
@@ -289,7 +365,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         );
     }
 
-    // Garante que o usuário está apto a autenticar (status válido e e-mail confirmado) antes de emitir tokens.
+    // Valida o status e a confirmação de e-mail antes da autenticação.
     private void ensureUserCanAuthenticate(AuthUser user) {
         AuthUserStatus status = user.status();
 
@@ -300,24 +376,35 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                         user.id().value(),
                         status
                 );
-                throw new AuthException(AuthErrorCode.USER_BLOCKED, "User is not allowed to authenticate");
+
+                throw new AuthException(
+                        AuthErrorCode.USER_BLOCKED,
+                        "User is not allowed to authenticate"
+                );
             }
             case LOCKED -> {
                 log.warn(
                         "[AuthService] - [ensureUserCanAuthenticate] -> Usuário bloqueado por tentativas userId={}",
                         user.id().value()
                 );
-                throw new AuthException(AuthErrorCode.USER_LOCKED, "User account is locked");
+
+                throw new AuthException(
+                        AuthErrorCode.USER_LOCKED,
+                        "User account is locked"
+                );
             }
             case PENDING_EMAIL_CONFIRMATION -> {
                 log.warn(
                         "[AuthService] - [ensureUserCanAuthenticate] -> Usuário pendente de confirmação userId={}",
                         user.id().value()
                 );
-                throw new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED, "Email is not verified");
+
+                throw new AuthException(
+                        AuthErrorCode.EMAIL_NOT_VERIFIED,
+                        "Email is not verified"
+                );
             }
             case ACTIVE -> {
-                // segue para checagem de e-mail confirmado
             }
         }
 
@@ -326,13 +413,18 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                     "[AuthService] - [ensureUserCanAuthenticate] -> E-mail não confirmado userId={}",
                     user.id().value()
             );
-            throw new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED, "Email is not verified");
+
+            throw new AuthException(
+                    AuthErrorCode.EMAIL_NOT_VERIFIED,
+                    "Email is not verified"
+            );
         }
     }
 
-    // Valida se o client é ativo e permitido para o fluxo PASSWORD (grant + tipo de client).
-    private void validateClientForPasswordGrant(ClientApplication client) {
-
+    // Valida se a aplicação cliente pode utilizar o fluxo de senha.
+    private void validateClientForPasswordGrant(
+            ClientApplication client
+    ) {
         log.debug(
                 "[AuthService] - [validateClientForPasswordGrant] -> clientId={} type={} grantTypes={}",
                 client.clientId(),
@@ -345,7 +437,11 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                     "[AuthService] - [validateClientForPasswordGrant] -> Client inativo clientId={}",
                     client.clientId()
             );
-            throw new AuthException(AuthErrorCode.CLIENT_INACTIVE, "Client is inactive");
+
+            throw new AuthException(
+                    AuthErrorCode.CLIENT_INACTIVE,
+                    "Client is inactive"
+            );
         }
 
         if (!client.supportsGrant(GrantType.PASSWORD)) {
@@ -353,6 +449,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                     "[AuthService] - [validateClientForPasswordGrant] -> Client não suporta PASSWORD grant clientId={}",
                     client.clientId()
             );
+
             throw new AuthException(
                     AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
                     "Client does not support PASSWORD grant"
@@ -360,12 +457,15 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         }
 
         ClientType type = client.clientType();
-        if (type != ClientType.CONFIDENTIAL && type != ClientType.SPA) {
+
+        if (type != ClientType.CONFIDENTIAL
+                && type != ClientType.SPA) {
             log.warn(
                     "[AuthService] - [validateClientForPasswordGrant] -> Tipo de client não permitido para PASSWORD grant clientId={} type={}",
                     client.clientId(),
                     type
             );
+
             throw new AuthException(
                     AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
                     "Client type not allowed for PASSWORD grant"
@@ -373,14 +473,20 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         }
     }
 
-    // Valida se o client é ativo e permitido para o fluxo REFRESH_TOKEN (grant type suportado).
-    private void validateClientForRefreshGrant(ClientApplication client) {
+    // Valida se a aplicação cliente pode utilizar o fluxo de renovação.
+    private void validateClientForRefreshGrant(
+            ClientApplication client
+    ) {
         if (!client.isActive()) {
             log.warn(
                     "[AuthService] - [validateClientForRefreshGrant] -> Client inativo clientId={}",
                     client.clientId()
             );
-            throw new AuthException(AuthErrorCode.CLIENT_INACTIVE, "Client is inactive");
+
+            throw new AuthException(
+                    AuthErrorCode.CLIENT_INACTIVE,
+                    "Client is inactive"
+            );
         }
 
         if (!client.supportsGrant(GrantType.REFRESH_TOKEN)) {
@@ -388,6 +494,7 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
                     "[AuthService] - [validateClientForRefreshGrant] -> Client não suporta REFRESH_TOKEN grant clientId={}",
                     client.clientId()
             );
+
             throw new AuthException(
                     AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
                     "Client does not support REFRESH_TOKEN grant"
@@ -395,14 +502,14 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
         }
     }
 
-    // Monta os claims do access token com dados do usuário, client e (opcionalmente) escopo solicitado.
+    // Constrói as claims de identidade e autorização do access token.
     private Map<String, Object> buildAccessTokenClaims(
             AuthUser user,
             ClientApplication client,
             String scope
     ) {
-
         Map<String, Object> claims = new HashMap<>();
+
         claims.put("sub", user.id().value().toString());
         claims.put("email", user.email().value());
         claims.put("name", user.fullName());
@@ -412,44 +519,61 @@ public class AuthService implements AuthenticateUserUseCase, RefreshTokenUseCase
             claims.put("scope", scope);
         }
 
-        // Roles (ex.: ["ROLE_ADMIN","ROLE_USER"]) — consumidas pelo Resource Server para autorização.
         List<String> roleNames = user.roles().stream()
                 .map(Role::name)
                 .filter(Objects::nonNull)
                 .sorted()
                 .toList();
+
         if (!roleNames.isEmpty()) {
             claims.put("roles", roleNames);
         }
 
-        // Permissions efetivas: união das permissões das roles + permissões diretas do usuário.
         TreeSet<String> permissionNames = new TreeSet<>();
+
         user.roles().forEach(role ->
-                role.permissions().forEach(p -> permissionNames.add(p.name())));
-        user.directPermissions().stream().map(Permission::name).forEach(permissionNames::add);
+                role.permissions().forEach(
+                        permission -> permissionNames.add(
+                                permission.name()
+                        )
+                )
+        );
+
+        user.directPermissions()
+                .stream()
+                .map(Permission::name)
+                .forEach(permissionNames::add);
+
         if (!permissionNames.isEmpty()) {
-            claims.put("permissions", List.copyOf(permissionNames));
+            claims.put(
+                    "permissions",
+                    List.copyOf(permissionNames)
+            );
         }
 
         return claims;
     }
 
-    // Monta os claims mínimos do refresh token para vincular usuário e client.
+    // Constrói as claims mínimas utilizadas pelo refresh token.
     private Map<String, Object> buildRefreshTokenClaims(
             AuthUser user,
             ClientApplication client
     ) {
         Map<String, Object> claims = new HashMap<>();
+
         claims.put("sub", user.id().value().toString());
         claims.put("client_id", client.clientId());
+
         return claims;
     }
 
-    // Mascara o token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";
         }
-        return token.length() > 12 ? token.substring(0, 12) + "..." : "***";
+
+        return token.length() > 12
+                ? token.substring(0, 12) + "..."
+                : "***";
     }
 }

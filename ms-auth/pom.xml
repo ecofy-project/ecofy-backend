@@ -87,6 +87,13 @@
             <artifactId>spring-boot-starter-kafka</artifactId>
         </dependency>
 
+        <!-- ECO-06: Redis (Lettuce) — store DISTRIBUÍDO para rate limiting e brute force.
+             Obrigatório: contadores/bloqueios não podem viver em memória local (multi-instância). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- Mail -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -139,6 +146,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-flyway-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Banco em memória apenas para o teste de contexto (valida wiring sem Docker). -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

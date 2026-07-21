@@ -6,52 +6,58 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-/**
- * Guarda de segurança para o profile prod.
- *
- * Em dev/test a geração de chave RSA em memória é aceitável (documentada) — os
- * tokens não precisam sobreviver a restart. Em produção, porém, chaves geradas
- * em memória são inaceitáveis (tokens deixam de ser verificáveis após restart e
- * não há rotação/controle da chave privada).
- *
- * Este guard FALHA O STARTUP em prod caso as localizações das chaves não estejam
- * configuradas por fonte externa (variável de ambiente / secret / caminho de
- * arquivo). Assim, o serviço nunca sobe em produção dependendo apenas da chave
- * gerada em memória.
- *
- * Limitação conhecida (próximo passo): o carregamento efetivo do PEM externo e a
- * integração com secret manager ainda não estão implementados — ver README/relatório.
- */
+// Valida a segurança da configuração de chaves no ambiente de produção.
 @Configuration
 @Profile("prod")
 @RequiredArgsConstructor
 @Slf4j
 public class JwtProdKeyGuard {
 
-    private final JwtProperties jwtProperties;
+    private final KeysProperties keysProperties;
 
+    // Interrompe a inicialização quando a configuração de chaves é insegura.
     @PostConstruct
     void verifyProductionKeysAreConfigured() {
-        String privateLocation = jwtProperties.getPrivateKeyLocation();
-        String publicLocation = jwtProperties.getPublicKeyLocation();
-
-        if (isBlank(privateLocation) || isBlank(publicLocation)) {
+        if (keysProperties.isAllowGeneratedKey()) {
             throw new IllegalStateException(
-                    "Profile 'prod' requer chaves JWT configuradas por fonte externa "
-                            + "(security.jwt.private-key-location e security.jwt.public-key-location). "
-                            + "Geração de chave em memória não é permitida em produção."
+                    "Profile 'prod' não permite geração de chave em memória. "
+                            + "Defina ecofy.auth.keys.allow-generated-key=false e forneça a chave por secret externo."
             );
         }
 
-        if (isClasspath(privateLocation)) {
+        if (isBlank(keysProperties.getActiveKid())) {
             throw new IllegalStateException(
-                    "Profile 'prod' não pode usar chave privada empacotada no classpath ("
-                            + privateLocation + "). Use file:/ ou um secret externo."
+                    "Profile 'prod' requer ecofy.auth.keys.active-kid (o kid vai no header do JWT e no JWKS)."
+            );
+        }
+
+        boolean hasInline = !isBlank(
+                keysProperties.getActivePrivateKey()
+        );
+        boolean hasLocation = !isBlank(
+                keysProperties.getActivePrivateKeyLocation()
+        );
+
+        if (!hasInline && !hasLocation) {
+            throw new IllegalStateException(
+                    "Profile 'prod' requer a chave de assinatura por fonte externa "
+                            + "(ecofy.auth.keys.active-private-key ou active-private-key-location)."
+            );
+        }
+
+        if (hasLocation
+                && isClasspath(
+                keysProperties.getActivePrivateKeyLocation()
+        )) {
+            throw new IllegalStateException(
+                    "Profile 'prod' não pode usar chave privada empacotada no classpath. "
+                            + "Use file:/ (secret montado) ou injete o PEM por variável de ambiente."
             );
         }
 
         log.info(
-                "[JwtProdKeyGuard] -> Localizações de chave JWT configuradas para prod (privada e pública externas)."
+                "[JwtProdKeyGuard] -> Configuração de chaves validada para prod activeKid={}",
+                keysProperties.getActiveKid()
         );
     }
 
@@ -60,6 +66,8 @@ public class JwtProdKeyGuard {
     }
 
     private static boolean isClasspath(String value) {
-        return value != null && value.trim().toLowerCase().startsWith("classpath:");
+        return value.trim()
+                .toLowerCase()
+                .startsWith("classpath:");
     }
 }

@@ -2,20 +2,26 @@ package br.com.ecofy.auth.core.domain.event;
 
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.ClientApplication;
-
 import java.time.Instant;
 
+// Representa uma autenticação concluída para um usuário e uma aplicação cliente.
 public record UserAuthenticatedEvent(
-
         AuthUser user,
         ClientApplication client,
         String ipAddress,
         Instant occurredAt
-
 ) {
 
-    public UserAuthenticatedEvent(AuthUser user, ClientApplication client, String ipAddress) {
-        this(user, client, ipAddress, Instant.now());
+    public UserAuthenticatedEvent(
+            AuthUser user,
+            ClientApplication client,
+            String ipAddress
+    ) {
+        this(
+                user,
+                client,
+                ipAddress,
+                Instant.now()
+        );
     }
-
 }

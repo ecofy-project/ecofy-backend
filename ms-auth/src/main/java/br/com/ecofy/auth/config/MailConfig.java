@@ -4,31 +4,27 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+// Configura as propriedades utilizadas no envio de e-mails.
 @Configuration
 @EnableConfigurationProperties(MailConfig.EcofyMailProperties.class)
 public class MailConfig {
 
-    // apenas expoe as propriedades como bean
-    // o MailProviderAdapter pode receber EcofyMailProperties no construtor.
+    // Representa falhas relacionadas à configuração de e-mail.
     public static class MailConfigException extends RuntimeException {
+
         public MailConfigException(String message) {
             super(message);
         }
     }
 
+    // Agrupa as propriedades de remetente, frontend e templates de e-mail.
     @ConfigurationProperties(prefix = "ecofy.mail")
     public static class EcofyMailProperties {
 
-        // endereco padrão de remetente
-        // ex: no-reply@ecofy.com
         private String from = "no-reply@ecofy.com";
 
-
-        // url base do frontend para montar links de confirmação / reset.
-        // ex.: https://app.ecofy.com
         private String frontendBaseUrl = "https://app.ecofy.com";
 
-        // caminho base de templates de e-mail (se você quiser usar FreeMarker, Thymeleaf, etc.).
         private String templatesBasePath = "classpath:/mail-templates";
 
         public String getFrom() {
@@ -54,7 +50,5 @@ public class MailConfig {
         public void setTemplatesBasePath(String templatesBasePath) {
             this.templatesBasePath = templatesBasePath;
         }
-
     }
-
 }

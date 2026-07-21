@@ -11,18 +11,21 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+// Centraliza a persistência, a consulta e a revogação de refresh tokens.
 @Component
 @Slf4j
 public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
 
     private final RefreshTokenRepository repository;
 
-    // Injeta o repositório JPA e garante que ele não seja nulo para operações de refresh token.
     public RefreshTokenJpaAdapter(RefreshTokenRepository repository) {
-        this.repository = Objects.requireNonNull(repository, "repository must not be null");
+        this.repository = Objects.requireNonNull(
+                repository,
+                "repository must not be null"
+        );
     }
 
-    // Persiste o refresh token (create/update) no banco e retorna o objeto de domínio mapeado da entidade salva.
+    // Persiste o refresh token e retorna o domínio atualizado.
     @Override
     @Transactional
     public RefreshToken save(RefreshToken token) {
@@ -47,11 +50,14 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
         return PersistenceMapper.toDomain(saved);
     }
 
-    // Busca um refresh token pelo tokenValue e retorna Optional vazio quando não encontrado.
+    // Carrega o refresh token associado ao valor informado.
     @Override
     @Transactional(readOnly = true)
     public Optional<RefreshToken> findByTokenValue(String tokenValue) {
-        Objects.requireNonNull(tokenValue, "tokenValue must not be null");
+        Objects.requireNonNull(
+                tokenValue,
+                "tokenValue must not be null"
+        );
 
         log.debug(
                 "[RefreshTokenJpaAdapter] - [findByTokenValue] -> Buscando refreshToken tokenMask={}",
@@ -65,15 +71,19 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
                             entity.getId(),
                             entity.isRevoked()
                     );
+
                     return PersistenceMapper.toDomain(entity);
                 });
     }
 
-    // Revoga (marca como revoked=true) o refresh token identificado por tokenValue, se existir e ainda não estiver revogado.
+    // Revoga o refresh token quando ele existe e permanece ativo.
     @Override
     @Transactional
     public void revoke(String tokenValue) {
-        Objects.requireNonNull(tokenValue, "tokenValue must not be null");
+        Objects.requireNonNull(
+                tokenValue,
+                "tokenValue must not be null"
+        );
 
         log.debug(
                 "[RefreshTokenJpaAdapter] - [revoke] -> Revogando refreshToken tokenMask={}",
@@ -101,11 +111,13 @@ public class RefreshTokenJpaAdapter implements RefreshTokenStorePort {
         ));
     }
 
-    // Mascara o refresh token para logging, evitando expor o valor completo em logs.
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "***";
         }
-        return token.length() > 12 ? token.substring(0, 12) + "..." : "***";
+
+        return token.length() > 12
+                ? token.substring(0, 12) + "..."
+                : "***";
     }
 }

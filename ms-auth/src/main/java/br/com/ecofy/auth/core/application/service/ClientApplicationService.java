@@ -15,16 +15,16 @@ import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-// Serviço responsável por registrar Client Applications (client_id/secret) e validar grants/redirect URIs no ms-auth.
+// Centraliza a criação e a validação das aplicações cliente.
 @Slf4j
 @Service
-public class ClientApplicationService implements RegisterClientApplicationUseCase {
+public class ClientApplicationService
+        implements RegisterClientApplicationUseCase {
 
     private final SaveClientApplicationPort saveClientApplicationPort;
     private final PasswordHashingPort passwordHashingPort;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    // Inicializa o serviço com as portas de persistência e hashing necessárias para criação de clients.
     public ClientApplicationService(
             SaveClientApplicationPort saveClientApplicationPort,
             PasswordHashingPort passwordHashingPort
@@ -39,10 +39,15 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
         );
     }
 
-    // Registra um novo client, gera client_id/secret (quando aplicável), valida grants/redirectUris e persiste no repositório.
+    // Registra uma aplicação cliente com identificadores e permissões compatíveis.
     @Override
-    public ClientApplication register(RegisterClientCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
+    public ClientApplication register(
+            RegisterClientCommand command
+    ) {
+        Objects.requireNonNull(
+                command,
+                "command must not be null"
+        );
 
         log.debug(
                 "[ClientApplicationService] - [register] -> Registrando novo client name={} type={} firstParty={}",
@@ -52,6 +57,7 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
         );
 
         String clientId = generateClientId(command.name());
+
         String rawSecret = requiresSecret(command.clientType())
                 ? generateSecret()
                 : null;
@@ -70,7 +76,6 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
             );
         }
 
-        // Gera o hash do client secret (quando existir) para armazenar somente o valor derivado no banco.
         String secretHash = rawSecret != null
                 ? passwordHashingPort.hash(rawSecret).value()
                 : null;
@@ -86,8 +91,15 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                 effectiveGrants
         );
 
-        validateGrants(command.clientType(), effectiveGrants);
-        validateRedirectUrisIfNeeded(effectiveGrants, command.redirectUris());
+        validateGrants(
+                command.clientType(),
+                effectiveGrants
+        );
+
+        validateRedirectUrisIfNeeded(
+                effectiveGrants,
+                command.redirectUris()
+        );
 
         ClientApplication client = ClientApplication.create(
                 command.name(),
@@ -100,7 +112,8 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                 secretHash
         );
 
-        ClientApplication saved = saveClientApplicationPort.save(client);
+        ClientApplication saved =
+                saveClientApplicationPort.save(client);
 
         log.debug(
                 "[ClientApplicationService] - [register] -> Client registrado com sucesso clientId={} type={} active={}",
@@ -112,14 +125,16 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
         return saved;
     }
 
-    // Indica se o tipo de client exige client secret (ex.: CONFIDENTIAL e MACHINE_TO_MACHINE).
     private boolean requiresSecret(ClientType clientType) {
         return clientType == ClientType.CONFIDENTIAL
                 || clientType == ClientType.MACHINE_TO_MACHINE;
     }
 
-    // Resolve os grants efetivos do client usando os solicitados (se existirem) ou defaults conforme o tipo.
-    private Set<GrantType> resolveEffectiveGrants(ClientType clientType, Set<GrantType> requested) {
+    // Resolve os grants informados ou aplica os padrões do tipo de cliente.
+    private Set<GrantType> resolveEffectiveGrants(
+            ClientType clientType,
+            Set<GrantType> requested
+    ) {
         if (requested != null && !requested.isEmpty()) {
             return requested;
         }
@@ -140,40 +155,54 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
         };
     }
 
-    // Valida se o conjunto de grants é compatível com o tipo do client (ex.: M2M exige CLIENT_CREDENTIALS).
-    private void validateGrants(ClientType clientType, Set<GrantType> grants) {
+    // Valida a compatibilidade entre o tipo do cliente e os grants concedidos.
+    private void validateGrants(
+            ClientType clientType,
+            Set<GrantType> grants
+    ) {
         switch (clientType) {
             case MACHINE_TO_MACHINE -> {
-                if (!grants.contains(GrantType.CLIENT_CREDENTIALS)) {
+                if (!grants.contains(
+                        GrantType.CLIENT_CREDENTIALS
+                )) {
                     log.warn(
                             "[ClientApplicationService] - [validateGrants] -> M2M sem CLIENT_CREDENTIALS grants={}",
                             grants
                     );
+
                     throw new AuthException(
                             AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
                             "M2M client must support CLIENT_CREDENTIALS grant"
                     );
                 }
-                for (GrantType g : grants) {
-                    if (g == GrantType.AUTHORIZATION_CODE || g == GrantType.PASSWORD) {
+
+                for (GrantType grant : grants) {
+                    if (grant == GrantType.AUTHORIZATION_CODE
+                            || grant == GrantType.PASSWORD) {
                         log.warn(
                                 "[ClientApplicationService] - [validateGrants] -> Grant inválido para M2M grant={} grants={}",
-                                g,
+                                grant,
                                 grants
                         );
+
                         throw new AuthException(
                                 AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
-                                "M2M client cannot use " + g + " grant"
+                                "M2M client cannot use "
+                                        + grant
+                                        + " grant"
                         );
                     }
                 }
             }
             case PUBLIC, SPA -> {
-                if (grants.contains(GrantType.CLIENT_CREDENTIALS)) {
+                if (grants.contains(
+                        GrantType.CLIENT_CREDENTIALS
+                )) {
                     log.warn(
                             "[ClientApplicationService] - [validateGrants] -> PUBLIC/SPA com CLIENT_CREDENTIALS grants={}",
                             grants
                     );
+
                     throw new AuthException(
                             AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
                             "PUBLIC/SPA clients cannot use CLIENT_CREDENTIALS grant"
@@ -181,32 +210,34 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                 }
             }
             case CONFIDENTIAL -> {
-                // CONFIDENTIAL permite os grants definidos, desde que consistentes com a configuração.
             }
         }
     }
 
-    // Valida a obrigatoriedade de redirectUris quando o grant AUTHORIZATION_CODE estiver habilitado.
-    private void validateRedirectUrisIfNeeded(Set<GrantType> grants, Set<String> redirectUris) {
-        if (grants.contains(GrantType.AUTHORIZATION_CODE)) {
-            if (redirectUris == null || redirectUris.isEmpty()) {
-                log.warn(
-                        "[ClientApplicationService] - [validateRedirectUrisIfNeeded] -> AUTHORIZATION_CODE sem redirectUris"
-                );
-                throw new AuthException(
-                        AuthErrorCode.INVALID_REDIRECT_URI,
-                        "AUTHORIZATION_CODE grant requires at least one redirectUri configured"
-                );
-            }
+    // Valida a presença de redirecionamento para o fluxo de autorização.
+    private void validateRedirectUrisIfNeeded(
+            Set<GrantType> grants,
+            Set<String> redirectUris
+    ) {
+        if (grants.contains(GrantType.AUTHORIZATION_CODE)
+                && (redirectUris == null || redirectUris.isEmpty())) {
+            log.warn(
+                    "[ClientApplicationService] - [validateRedirectUrisIfNeeded] -> AUTHORIZATION_CODE sem redirectUris"
+            );
+
+            throw new AuthException(
+                    AuthErrorCode.INVALID_REDIRECT_URI,
+                    "AUTHORIZATION_CODE grant requires at least one redirectUri configured"
+            );
         }
     }
 
-    // Gera um client_id com prefixo "eco_" usando bytes aleatórios codificados em Base64 URL-safe.
     private String generateClientId(String name) {
         byte[] bytes = new byte[12];
         secureRandom.nextBytes(bytes);
 
-        String clientId = "eco_" + Base64.getUrlEncoder()
+        String clientId = "eco_"
+                + Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(bytes);
 
@@ -219,7 +250,6 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
         return clientId;
     }
 
-    // Gera um client secret aleatório em Base64 URL-safe (o valor nunca deve ser impresso integralmente em logs).
     private String generateSecret() {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
@@ -228,7 +258,9 @@ public class ClientApplicationService implements RegisterClientApplicationUseCas
                 .withoutPadding()
                 .encodeToString(bytes);
 
-        log.debug("[ClientApplicationService] - [generateSecret] -> clientSecret gerado (valor não será logado)");
+        log.debug(
+                "[ClientApplicationService] - [generateSecret] -> clientSecret gerado (valor não será logado)"
+        );
 
         return secret;
     }

@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+// Centraliza o cadastro administrativo de aplicações cliente.
 @RestController
 @RequestMapping(path = "/api/admin/clients", produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
@@ -34,6 +35,7 @@ public class ClientApplicationController {
 
     private final RegisterClientApplicationUseCase registerClientApplicationUseCase;
 
+    // Registra uma aplicação cliente e retorna o recurso criado.
     @Operation(
             summary = "Registra um novo client application",
             description = """
@@ -66,7 +68,6 @@ public class ClientApplicationController {
     public ResponseEntity<ClientApplicationResponse> register(
             @Valid @RequestBody ClientApplicationRequest request
     ) {
-
         log.debug(
                 "[ClientApplicationController] - [register] -> Registrando client name={} type={} firstParty={}",
                 request.name(),

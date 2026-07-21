@@ -31,8 +31,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+// Centraliza as operações de emissão, renovação, revogação e validação de tokens.
 @RestController
-@RequestMapping(path = "/api/auth", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = {"/api/v1/auth", "/api/auth"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
 @Tag(name = "Authentication", description = "Endpoints de autenticação e renovação de tokens JWT/OIDC")
 @Slf4j
@@ -44,6 +45,7 @@ public class AuthController {
     private final RevokeTokenUseCase revokeTokenUseCase;
     private final ValidateTokenUseCase validateTokenUseCase;
 
+    // Autentica o usuário e retorna os tokens emitidos para o cliente.
     @Operation(
             summary = "Emite access token e refresh token",
             description = """
@@ -67,7 +69,6 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest
     ) {
-
         String clientIp = resolveClientIp(httpRequest);
 
         log.debug(
@@ -107,6 +108,7 @@ public class AuthController {
                 .body(response);
     }
 
+    // Renova os tokens a partir de um refresh token válido.
     @Operation(
             summary = "Renova access token usando refresh token",
             description = """
@@ -125,9 +127,13 @@ public class AuthController {
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
     })
     @PostMapping(path = "/refresh", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
-
-        log.debug("[AuthController] - [refresh] -> Renovando token clientId={}", request.clientId());
+    public ResponseEntity<TokenResponse> refresh(
+            @Valid @RequestBody RefreshTokenRequest request
+    ) {
+        log.debug(
+                "[AuthController] - [refresh] -> Renovando token clientId={}",
+                request.clientId()
+        );
 
         var result = refreshTokenUseCase.refresh(
                 new RefreshTokenUseCase.RefreshTokenCommand(
@@ -155,6 +161,7 @@ public class AuthController {
                 .body(response);
     }
 
+    // Revoga o token informado para encerrar a sessão correspondente.
     @Operation(
             summary = "Revoga um token (logout)",
             description = """
@@ -170,11 +177,16 @@ public class AuthController {
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
     })
     @PostMapping(path = "/revoke", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> revoke(@Valid @RequestBody RevokeTokenRequest request) {
+    public ResponseEntity<Void> revoke(
+            @Valid @RequestBody RevokeTokenRequest request
+    ) {
+        boolean isRefresh = request.refreshToken() == null
+                || request.refreshToken();
 
-        boolean isRefresh = request.refreshToken() == null || request.refreshToken();
-
-        log.debug("[AuthController] - [revoke] -> Revogando token (refreshToken={})", isRefresh);
+        log.debug(
+                "[AuthController] - [revoke] -> Revogando token (refreshToken={})",
+                isRefresh
+        );
 
         revokeTokenUseCase.revoke(
                 new RevokeTokenUseCase.RevokeTokenCommand(
@@ -183,7 +195,9 @@ public class AuthController {
                 )
         );
 
-        log.debug("[AuthController] - [revoke] -> Token revogado com sucesso");
+        log.debug(
+                "[AuthController] - [revoke] -> Token revogado com sucesso"
+        );
 
         return ResponseEntity
                 .noContent()
@@ -191,6 +205,7 @@ public class AuthController {
                 .build();
     }
 
+    // Valida o token recebido e retorna os seus principais claims.
     @Operation(
             summary = "Valida um access token JWT",
             description = """
@@ -209,8 +224,9 @@ public class AuthController {
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
     })
     @PostMapping(path = "/validate", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ValidateTokenResponse> validate(@Valid @RequestBody ValidateTokenRequest request) {
-
+    public ResponseEntity<ValidateTokenResponse> validate(
+            @Valid @RequestBody ValidateTokenRequest request
+    ) {
         log.debug("[AuthController] - [validate] -> Validando token");
 
         var claims = validateTokenUseCase.validate(request.token());
@@ -223,13 +239,16 @@ public class AuthController {
                 .body(response);
     }
 
+    // Resolve o endereço do cliente a partir dos headers disponíveis.
     private String resolveClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
+
         if (forwarded != null && !forwarded.isBlank()) {
             return forwarded.split(",")[0].trim();
         }
 
         String realIp = request.getHeader("X-Real-IP");
+
         if (realIp != null && !realIp.isBlank()) {
             return realIp;
         }
@@ -237,6 +256,7 @@ public class AuthController {
         return request.getRemoteAddr();
     }
 
+    // Configura headers que impedem o armazenamento das respostas de autenticação.
     private HttpHeaders oauthNoStoreHeaders() {
         HttpHeaders headers = new HttpHeaders();
 

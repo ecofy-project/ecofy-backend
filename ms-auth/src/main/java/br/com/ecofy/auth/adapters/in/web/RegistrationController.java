@@ -26,8 +26,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+// Centraliza o registro de usuários e a confirmação de endereços de e-mail.
 @RestController
-@RequestMapping(path = "/api/register", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = {"/api/v1/auth/register", "/api/register"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
 @Tag(name = "Registration", description = "Registro de novos usuários e confirmação de e-mail")
 @Slf4j
@@ -37,6 +38,7 @@ public class RegistrationController {
     private final RegisterUserUseCase registerUserUseCase;
     private final ConfirmEmailUseCase confirmEmailUseCase;
 
+    // Registra um usuário com as configurações padrão de acesso.
     @Operation(
             summary = "Registra um novo usuário",
             description = """
@@ -54,9 +56,13 @@ public class RegistrationController {
             @ApiResponse(responseCode = "500", description = "Erro interno ao registrar usuário")
     })
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
-
-        log.debug("[RegistrationController] - [register] -> Registrando usuário email={}", request.email());
+    public ResponseEntity<UserResponse> register(
+            @Valid @RequestBody RegisterUserRequest request
+    ) {
+        log.debug(
+                "[RegistrationController] - [register] -> Registrando usuário email={}",
+                request.email()
+        );
 
         var cmd = new RegisterUserUseCase.RegisterUserCommand(
                 request.email(),
@@ -89,6 +95,7 @@ public class RegistrationController {
                 .body(body);
     }
 
+    // Confirma o endereço de e-mail associado ao token recebido.
     @Operation(
             summary = "Confirma o e-mail de um usuário",
             description = """
@@ -106,10 +113,12 @@ public class RegistrationController {
             @ApiResponse(responseCode = "500", description = "Erro interno ao confirmar e-mail")
     })
     @PostMapping(path = "/confirm-email", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<UserResponse> confirmEmail(@Valid @RequestBody ConfirmEmailRequest request) {
-
-        // Segurança: não logar o token de confirmação de e-mail.
-        log.debug("[RegistrationController] - [confirmEmail] -> Confirmando e-mail");
+    public ResponseEntity<UserResponse> confirmEmail(
+            @Valid @RequestBody ConfirmEmailRequest request
+    ) {
+        log.debug(
+                "[RegistrationController] - [confirmEmail] -> Confirmando e-mail"
+        );
 
         var cmd = new ConfirmEmailUseCase.ConfirmEmailCommand(request.token());
         var user = confirmEmailUseCase.confirm(cmd);

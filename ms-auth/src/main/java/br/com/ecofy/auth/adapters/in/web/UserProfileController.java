@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+// Disponibiliza os dados do perfil associado ao usuário autenticado.
 @RestController
 @RequestMapping(path = "/api/user", produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
@@ -28,6 +29,7 @@ public class UserProfileController {
 
     private final GetCurrentUserProfileUseCase getCurrentUserProfileUseCase;
 
+    // Recupera e converte o perfil do usuário autenticado.
     @Operation(
             summary = "Retorna o perfil do usuário autenticado",
             description = """
@@ -46,7 +48,9 @@ public class UserProfileController {
     })
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me() {
-        log.debug("[UserProfileController] - [me] -> Buscando perfil do usuário atual");
+        log.debug(
+                "[UserProfileController] - [me] -> Buscando perfil do usuário atual"
+        );
 
         var user = getCurrentUserProfileUseCase.getCurrentUser();
 

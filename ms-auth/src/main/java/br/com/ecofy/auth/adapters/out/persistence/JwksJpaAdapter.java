@@ -11,27 +11,35 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+// Centraliza a consulta das chaves públicas armazenadas no banco.
 @Component
 @Slf4j
 public class JwksJpaAdapter implements JwksRepositoryPort {
 
     private final JwkKeyRepository repository;
 
-    // Injeta o repositório JPA responsável por consultar as chaves JWK no banco.
     public JwksJpaAdapter(JwkKeyRepository repository) {
-        this.repository = Objects.requireNonNull(repository, "repository must not be null");
+        this.repository = Objects.requireNonNull(
+                repository,
+                "repository must not be null"
+        );
     }
 
-    // Busca no banco as chaves JWK ativas, mapeia para o domínio e retorna uma lista imutável.
+    // Carrega e converte as chaves de assinatura atualmente ativas.
     @Override
     @Transactional(readOnly = true)
     public List<JwkKey> findActiveSigningKeys() {
-        log.debug("[JwksJpaAdapter] - [findActiveSigningKeys] -> Buscando JWKS ativos");
+        log.debug(
+                "[JwksJpaAdapter] - [findActiveSigningKeys] -> Buscando JWKS ativos"
+        );
 
         var entities = repository.findByActiveTrue();
 
         if (entities == null || entities.isEmpty()) {
-            log.debug("[JwksJpaAdapter] - [findActiveSigningKeys] -> Nenhuma JWK ativa encontrada");
+            log.debug(
+                    "[JwksJpaAdapter] - [findActiveSigningKeys] -> Nenhuma JWK ativa encontrada"
+            );
+
             return Collections.emptyList();
         }
 

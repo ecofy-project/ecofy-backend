@@ -9,26 +9,33 @@ import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-// Serviço responsável por obter e retornar o perfil do usuário atualmente autenticado.
+// Resolve o perfil associado ao usuário autenticado.
 @Slf4j
 @Service
-public class CurrentUserProfileService implements GetCurrentUserProfileUseCase {
+public class CurrentUserProfileService
+        implements GetCurrentUserProfileUseCase {
 
     private final CurrentUserProviderPort currentUserProviderPort;
 
-    // Injeta a porta que resolve o usuário atual no contexto de segurança e garante que ela não seja nula.
-    public CurrentUserProfileService(CurrentUserProviderPort currentUserProviderPort) {
-        this.currentUserProviderPort =
-                Objects.requireNonNull(currentUserProviderPort, "currentUserProviderPort must not be null");
+    public CurrentUserProfileService(
+            CurrentUserProviderPort currentUserProviderPort
+    ) {
+        this.currentUserProviderPort = Objects.requireNonNull(
+                currentUserProviderPort,
+                "currentUserProviderPort must not be null"
+        );
     }
 
-    // Retorna o usuário autenticado atual, convertendo falhas de resolução em AuthException padronizada.
+    // Converte falhas de resolução em um erro padronizado de autenticação.
     @Override
     public AuthUser getCurrentUser() {
-        log.debug("[CurrentUserProfileService] - [getCurrentUser] -> Buscando usuário autenticado…");
+        log.debug(
+                "[CurrentUserProfileService] - [getCurrentUser] -> Buscando usuário autenticado…"
+        );
 
         try {
-            AuthUser user = currentUserProviderPort.getCurrentUserOrThrow();
+            AuthUser user =
+                    currentUserProviderPort.getCurrentUserOrThrow();
 
             log.debug(
                     "[CurrentUserProfileService] - [getCurrentUser] -> Usuário autenticado id={} email={} status={}",

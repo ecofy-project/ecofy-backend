@@ -12,15 +12,18 @@ import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.port.out.LoadAuthUserByEmailPort;
 import br.com.ecofy.auth.core.port.out.LoadAuthUserByIdPort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
+
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+// Centraliza a persistência e a consulta de usuários autenticáveis.
 @Component
 @Slf4j
 public class AuthUserJpaAdapter
@@ -29,8 +32,10 @@ public class AuthUserJpaAdapter
     private final AuthUserRepository authUserRepository;
     private final RoleRepository roleRepository;
 
-    // Injeta os repositórios JPA e garante que não sejam nulos para operações de persistência/consulta.
-    public AuthUserJpaAdapter(AuthUserRepository authUserRepository, RoleRepository roleRepository) {
+    public AuthUserJpaAdapter(
+            AuthUserRepository authUserRepository,
+            RoleRepository roleRepository
+    ) {
         this.authUserRepository = Objects.requireNonNull(
                 authUserRepository,
                 "authUserRepository must not be null"
@@ -41,7 +46,7 @@ public class AuthUserJpaAdapter
         );
     }
 
-    // Persiste o usuário (cria ou atualiza), aplicando timestamps e retornando o domínio mapeado da entidade salva.
+    // Persiste o usuário e atualiza seus dados temporais e relacionamentos.
     @Override
     @Transactional
     public AuthUser save(AuthUser user) {
@@ -58,14 +63,23 @@ public class AuthUserJpaAdapter
 
         AuthUserEntity entity = authUserRepository.findById(user.id().value())
                 .map(existing -> {
-                    log.debug("[AuthUserJpaAdapter] - [save] -> Atualizando usuário existente id={}", userId);
+                    log.debug(
+                            "[AuthUserJpaAdapter] - [save] -> Atualizando usuário existente id={}",
+                            userId
+                    );
+
                     return existing;
                 })
                 .orElseGet(() -> {
-                    log.debug("[AuthUserJpaAdapter] - [save] -> Criando novo usuário id={}", userId);
+                    log.debug(
+                            "[AuthUserJpaAdapter] - [save] -> Criando novo usuário id={}",
+                            userId
+                    );
+
                     AuthUserEntity e = new AuthUserEntity();
                     e.setId(user.id().value());
                     e.setCreatedAt(now);
+
                     return e;
                 });
 
@@ -79,10 +93,14 @@ public class AuthUserJpaAdapter
                 saved.getEmail()
         );
 
-        return PersistenceMapper.toDomain(saved, saved.getRoles(), saved.getPermissions());
+        return PersistenceMapper.toDomain(
+                saved,
+                saved.getRoles(),
+                saved.getPermissions()
+        );
     }
 
-    // Carrega um usuário por e-mail (case-insensitive) retornando Optional vazio quando não encontrado.
+    // Carrega o usuário associado ao endereço de e-mail informado.
     @Override
     @Transactional(readOnly = true)
     public Optional<AuthUser> loadByEmail(EmailAddress email) {
@@ -100,17 +118,25 @@ public class AuthUserJpaAdapter
                             entity.getId(),
                             entity.getEmail()
                     );
-                    return PersistenceMapper.toDomain(entity, entity.getRoles(), entity.getPermissions());
+
+                    return PersistenceMapper.toDomain(
+                            entity,
+                            entity.getRoles(),
+                            entity.getPermissions()
+                    );
                 });
     }
 
-    // Carrega um usuário por id retornando Optional vazio quando não encontrado.
+    // Carrega o usuário associado ao identificador informado.
     @Override
     @Transactional(readOnly = true)
     public Optional<AuthUser> loadById(AuthUserId id) {
         Objects.requireNonNull(id, "id must not be null");
 
-        log.debug("[AuthUserJpaAdapter] - [loadById] -> Buscando usuário por id={}", id.value());
+        log.debug(
+                "[AuthUserJpaAdapter] - [loadById] -> Buscando usuário por id={}",
+                id.value()
+        );
 
         return authUserRepository.findById(id.value())
                 .map(entity -> {
@@ -119,12 +145,21 @@ public class AuthUserJpaAdapter
                             entity.getId(),
                             entity.getEmail()
                     );
-                    return PersistenceMapper.toDomain(entity, entity.getRoles(), entity.getPermissions());
+
+                    return PersistenceMapper.toDomain(
+                            entity,
+                            entity.getRoles(),
+                            entity.getPermissions()
+                    );
                 });
     }
 
-    // Copia campos do domínio para a entidade e garante createdAt/updatedAt consistentes.
-    private void mapDomainToEntity(AuthUser user, AuthUserEntity entity, Instant now) {
+    // Converte os dados mutáveis do usuário para a entidade persistida.
+    private void mapDomainToEntity(
+            AuthUser user,
+            AuthUserEntity entity,
+            Instant now
+    ) {
         entity.setEmail(user.email().value());
         entity.setPasswordHash(user.passwordHash().value());
         entity.setStatus(user.status());
@@ -133,26 +168,25 @@ public class AuthUserJpaAdapter
         entity.setLastName(user.lastName());
         entity.setLocale(user.locale());
         entity.setLastLoginAt(user.lastLoginAt());
-        // Regra crítica de segurança: persistir o contador de tentativas para que o lock funcione.
         entity.setFailedLoginAttempts(user.failedLoginAttempts());
-
-        // Persiste as roles associando entidades JÁ EXISTENTES (evita FK inválida e duplicação).
         entity.setRoles(resolveRoleEntities(user));
 
-        // garante createdAt preenchido mesmo se alguém criar entidade "na mão"
         if (entity.getCreatedAt() == null) {
             entity.setCreatedAt(now);
         }
+
         entity.setUpdatedAt(now);
     }
 
-    // Resolve as roles do domínio para entidades gerenciadas, ignorando (com log) nomes inexistentes no banco.
+    // Resolve as funções do domínio para entidades existentes no banco.
     private Set<RoleEntity> resolveRoleEntities(AuthUser user) {
         Set<RoleEntity> roleEntities = new HashSet<>();
+
         for (Role role : user.roles()) {
             if (role == null || role.name() == null) {
                 continue;
             }
+
             roleRepository.findById(role.name()).ifPresentOrElse(
                     roleEntities::add,
                     () -> log.warn(
@@ -161,6 +195,7 @@ public class AuthUserJpaAdapter
                     )
             );
         }
+
         return roleEntities;
     }
 }
