@@ -65,8 +65,6 @@ public class BudgetEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    // Optimistic locking (ECO-11). @Version também altera o isNew do Spring Data: version null
-    // = novo (insert); version preenchida = existente (merge com checagem de conflito).
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
