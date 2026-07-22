@@ -4,7 +4,6 @@ import br.com.ecofy.auth.core.application.exception.AuthErrorCode;
 import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.event.PasswordResetRequestedEvent;
-import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import br.com.ecofy.auth.core.port.in.RequestPasswordResetUseCase;
@@ -15,23 +14,39 @@ import br.com.ecofy.auth.core.port.out.PasswordResetTokenStorePort;
 import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
 import br.com.ecofy.auth.core.port.out.SendResetPasswordEmailPort;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do serviço de redefinição de senha")
 class PasswordResetServiceTest {
+
+    private static final String USER_EMAIL = "user@ecofy.com";
+    private static final String NEW_PASSWORD = "NewPassword@123";
 
     @Mock
     private LoadAuthUserByEmailPort loadAuthUserByEmailPort;
@@ -51,8 +66,86 @@ class PasswordResetServiceTest {
     @Mock
     private PublishAuthEventPort publishAuthEventPort;
 
-    private PasswordResetService service() {
-        return new PasswordResetService(
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    private AuthUser user;
+
+    @Mock
+    private PasswordHash newPasswordHash;
+
+    @Test
+    @DisplayName("Deve rejeitar dependências nulas recebidas pelo construtor")
+    void constructor_dependenciasNulas_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        assertAll(
+                () -> assertNullDependency(
+                        "loadAuthUserByEmailPort must not be null",
+                        () -> new PasswordResetService(
+                                null,
+                                passwordResetTokenStorePort,
+                                sendResetPasswordEmailPort,
+                                saveAuthUserPort,
+                                passwordHashingPort,
+                                publishAuthEventPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "passwordResetTokenStorePort must not be null",
+                        () -> new PasswordResetService(
+                                loadAuthUserByEmailPort,
+                                null,
+                                sendResetPasswordEmailPort,
+                                saveAuthUserPort,
+                                passwordHashingPort,
+                                publishAuthEventPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "sendResetPasswordEmailPort must not be null",
+                        () -> new PasswordResetService(
+                                loadAuthUserByEmailPort,
+                                passwordResetTokenStorePort,
+                                null,
+                                saveAuthUserPort,
+                                passwordHashingPort,
+                                publishAuthEventPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "saveAuthUserPort must not be null",
+                        () -> new PasswordResetService(
+                                loadAuthUserByEmailPort,
+                                passwordResetTokenStorePort,
+                                sendResetPasswordEmailPort,
+                                null,
+                                passwordHashingPort,
+                                publishAuthEventPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "passwordHashingPort must not be null",
+                        () -> new PasswordResetService(
+                                loadAuthUserByEmailPort,
+                                passwordResetTokenStorePort,
+                                sendResetPasswordEmailPort,
+                                saveAuthUserPort,
+                                null,
+                                publishAuthEventPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "publishAuthEventPort must not be null",
+                        () -> new PasswordResetService(
+                                loadAuthUserByEmailPort,
+                                passwordResetTokenStorePort,
+                                sendResetPasswordEmailPort,
+                                saveAuthUserPort,
+                                passwordHashingPort,
+                                null
+                        )
+                )
+        );
+
+        verifyNoInteractions(
                 loadAuthUserByEmailPort,
                 passwordResetTokenStorePort,
                 sendResetPasswordEmailPort,
@@ -63,208 +156,491 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void constructor_shouldRejectNullPorts() {
-        assertEquals(
-                "loadAuthUserByEmailPort must not be null",
-                assertThrows(NullPointerException.class, () -> new PasswordResetService(
-                        null,
-                        passwordResetTokenStorePort,
-                        sendResetPasswordEmailPort,
-                        saveAuthUserPort,
-                        passwordHashingPort,
-                        publishAuthEventPort
-                )).getMessage()
+    @DisplayName("Deve rejeitar a solicitação de redefinição nula")
+    void requestReset_comandoNulo_deveLancarNullPointerException() {
+        // Arrange
+        PasswordResetService service = createService();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> service.requestReset(null)
         );
 
+        // Assert
         assertEquals(
-                "passwordResetTokenStorePort must not be null",
-                assertThrows(NullPointerException.class, () -> new PasswordResetService(
-                        loadAuthUserByEmailPort,
-                        null,
-                        sendResetPasswordEmailPort,
-                        saveAuthUserPort,
-                        passwordHashingPort,
-                        publishAuthEventPort
-                )).getMessage()
+                "command must not be null",
+                exception.getMessage()
         );
 
-        assertEquals(
-                "sendResetPasswordEmailPort must not be null",
-                assertThrows(NullPointerException.class, () -> new PasswordResetService(
-                        loadAuthUserByEmailPort,
-                        passwordResetTokenStorePort,
-                        null,
-                        saveAuthUserPort,
-                        passwordHashingPort,
-                        publishAuthEventPort
-                )).getMessage()
-        );
-
-        assertEquals(
-                "saveAuthUserPort must not be null",
-                assertThrows(NullPointerException.class, () -> new PasswordResetService(
-                        loadAuthUserByEmailPort,
-                        passwordResetTokenStorePort,
-                        sendResetPasswordEmailPort,
-                        null,
-                        passwordHashingPort,
-                        publishAuthEventPort
-                )).getMessage()
-        );
-
-        assertEquals(
-                "passwordHashingPort must not be null",
-                assertThrows(NullPointerException.class, () -> new PasswordResetService(
-                        loadAuthUserByEmailPort,
-                        passwordResetTokenStorePort,
-                        sendResetPasswordEmailPort,
-                        saveAuthUserPort,
-                        null,
-                        publishAuthEventPort
-                )).getMessage()
-        );
-
-        assertEquals(
-                "publishAuthEventPort must not be null",
-                assertThrows(NullPointerException.class, () -> new PasswordResetService(
-                        loadAuthUserByEmailPort,
-                        passwordResetTokenStorePort,
-                        sendResetPasswordEmailPort,
-                        saveAuthUserPort,
-                        passwordHashingPort,
-                        null
-                )).getMessage()
+        verifyNoInteractions(
+                loadAuthUserByEmailPort,
+                passwordResetTokenStorePort,
+                sendResetPasswordEmailPort,
+                saveAuthUserPort,
+                passwordHashingPort,
+                publishAuthEventPort
         );
     }
 
     @Test
-    void requestReset_shouldRejectNullCommand() {
-        PasswordResetService s = service();
-        assertEquals("command must not be null", assertThrows(NullPointerException.class, () -> s.requestReset(null)).getMessage());
-        verifyNoInteractions(loadAuthUserByEmailPort, passwordResetTokenStorePort, sendResetPasswordEmailPort, saveAuthUserPort, passwordHashingPort, publishAuthEventPort);
+    @DisplayName("Deve finalizar sem gerar token quando o e-mail não estiver cadastrado")
+    void requestReset_emailNaoCadastrado_deveFinalizarSemExporUsuario() {
+        // Arrange
+        PasswordResetService service = createService();
+
+        RequestPasswordResetUseCase.RequestPasswordResetCommand command =
+                createRequestCommand(USER_EMAIL);
+
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.empty());
+
+        ArgumentCaptor<EmailAddress> emailCaptor =
+                ArgumentCaptor.forClass(EmailAddress.class);
+
+        // Act
+        service.requestReset(command);
+
+        // Assert
+        verify(loadAuthUserByEmailPort)
+                .loadByEmail(emailCaptor.capture());
+
+        assertEquals(
+                USER_EMAIL,
+                emailCaptor.getValue().value()
+        );
+
+        verifyNoInteractions(
+                passwordResetTokenStorePort,
+                sendResetPasswordEmailPort,
+                saveAuthUserPort,
+                passwordHashingPort,
+                publishAuthEventPort
+        );
     }
 
     @Test
-    void requestReset_shouldBeNoOp_whenUserMissing_toPreventEnumeration() {
-        PasswordResetService s = service();
+    @DisplayName("Deve gerar o token, armazená-lo, enviar o e-mail e publicar o evento para usuário cadastrado")
+    void requestReset_emailCadastrado_deveArmazenarEnviarEPublicarEvento() {
+        // Arrange
+        PasswordResetService service = createService();
 
-        RequestPasswordResetUseCase.RequestPasswordResetCommand cmd = mock(RequestPasswordResetUseCase.RequestPasswordResetCommand.class);
-        when(cmd.email()).thenReturn("missing@ecofy.com");
+        RequestPasswordResetUseCase.RequestPasswordResetCommand command =
+                createRequestCommand(USER_EMAIL);
 
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.empty());
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.of(user));
 
-        // Anti-enumeração: e-mail inexistente NÃO gera exceção nem revela ausência do usuário.
-        assertDoesNotThrow(() -> s.requestReset(cmd));
+        ArgumentCaptor<String> storedTokenCaptor =
+                ArgumentCaptor.forClass(String.class);
 
-        verify(loadAuthUserByEmailPort).loadByEmail(any(EmailAddress.class));
-        verifyNoMoreInteractions(loadAuthUserByEmailPort);
-        // Nenhum token é gerado/armazenado, nenhum e-mail enviado, nenhum evento publicado.
-        verifyNoInteractions(passwordResetTokenStorePort, sendResetPasswordEmailPort, saveAuthUserPort, passwordHashingPort, publishAuthEventPort);
+        ArgumentCaptor<String> emailedTokenCaptor =
+                ArgumentCaptor.forClass(String.class);
+
+        ArgumentCaptor<PasswordResetRequestedEvent> eventCaptor =
+                ArgumentCaptor.forClass(
+                        PasswordResetRequestedEvent.class
+                );
+
+        // Act
+        service.requestReset(command);
+
+        // Assert
+        InOrder inOrder = inOrder(
+                loadAuthUserByEmailPort,
+                passwordResetTokenStorePort,
+                sendResetPasswordEmailPort,
+                publishAuthEventPort
+        );
+
+        inOrder.verify(loadAuthUserByEmailPort)
+                .loadByEmail(any(EmailAddress.class));
+
+        inOrder.verify(passwordResetTokenStorePort)
+                .store(
+                        same(user),
+                        storedTokenCaptor.capture()
+                );
+
+        inOrder.verify(sendResetPasswordEmailPort)
+                .sendReset(
+                        same(user),
+                        emailedTokenCaptor.capture()
+                );
+
+        inOrder.verify(publishAuthEventPort)
+                .publish(eventCaptor.capture());
+
+        String generatedToken = storedTokenCaptor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        generatedToken,
+                        emailedTokenCaptor.getValue()
+                ),
+                () -> assertDoesNotThrow(
+                        () -> UUID.fromString(generatedToken)
+                )
+        );
+
+        verifyNoInteractions(
+                saveAuthUserPort,
+                passwordHashingPort
+        );
     }
 
     @Test
-    void requestReset_shouldStoreSendAndPublish_whenUserExists() {
-        PasswordResetService s = service();
+    @DisplayName("Deve propagar falha ao armazenar o token sem enviar e-mail ou publicar evento")
+    void requestReset_armazenamentoFalha_devePropagarExcecaoSemContinuarProcessamento() {
+        // Arrange
+        PasswordResetService service = createService();
 
-        RequestPasswordResetUseCase.RequestPasswordResetCommand cmd = mock(RequestPasswordResetUseCase.RequestPasswordResetCommand.class);
-        when(cmd.email()).thenReturn("u@ecofy.com");
+        RequestPasswordResetUseCase.RequestPasswordResetCommand command =
+                createRequestCommand(USER_EMAIL);
 
-        UUID uid = UUID.fromString("11111111-2222-3333-4444-555555555555");
-        AuthUserId idVo = mock(AuthUserId.class);
-        when(idVo.value()).thenReturn(uid);
+        IllegalStateException expectedException =
+                new IllegalStateException("Token store unavailable");
 
-        EmailAddress emailVo = mock(EmailAddress.class);
-        when(emailVo.value()).thenReturn("u@ecofy.com");
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.of(user));
 
-        AuthUser user = mock(AuthUser.class, Answers.RETURNS_DEEP_STUBS);
-        when(user.id()).thenReturn(idVo);
-        when(user.email()).thenReturn(emailVo);
+        org.mockito.Mockito.doThrow(expectedException)
+                .when(passwordResetTokenStorePort)
+                .store(
+                        any(AuthUser.class),
+                        any(String.class)
+                );
 
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
+        // Act
+        IllegalStateException actualException = assertThrows(
+                IllegalStateException.class,
+                () -> service.requestReset(command)
+        );
 
-        s.requestReset(cmd);
+        // Assert
+        assertSame(
+                expectedException,
+                actualException
+        );
 
-        ArgumentCaptor<String> tokenCaptor1 = ArgumentCaptor.forClass(String.class);
-        verify(passwordResetTokenStorePort).store(same(user), tokenCaptor1.capture());
-        String resetToken = tokenCaptor1.getValue();
-        assertNotNull(resetToken);
-        assertFalse(resetToken.isBlank());
+        verify(sendResetPasswordEmailPort, never())
+                .sendReset(
+                        any(AuthUser.class),
+                        any(String.class)
+                );
 
-        ArgumentCaptor<String> tokenCaptor2 = ArgumentCaptor.forClass(String.class);
-        verify(sendResetPasswordEmailPort).sendReset(same(user), tokenCaptor2.capture());
-        assertEquals(resetToken, tokenCaptor2.getValue());
-
-        ArgumentCaptor<PasswordResetRequestedEvent> ev = ArgumentCaptor.forClass(PasswordResetRequestedEvent.class);
-        verify(publishAuthEventPort).publish(ev.capture());
-        assertSame(user, ev.getValue().user());
-        assertEquals(resetToken, ev.getValue().resetToken());
+        verify(publishAuthEventPort, never())
+                .publish(any(PasswordResetRequestedEvent.class));
     }
 
     @Test
-    void resetPassword_shouldRejectNullCommand() {
-        PasswordResetService s = service();
-        assertEquals("command must not be null", assertThrows(NullPointerException.class, () -> s.resetPassword(null)).getMessage());
-        verifyNoInteractions(loadAuthUserByEmailPort, passwordResetTokenStorePort, sendResetPasswordEmailPort, saveAuthUserPort, passwordHashingPort, publishAuthEventPort);
+    @DisplayName("Deve rejeitar o comando de execução da redefinição nulo")
+    void resetPassword_comandoNulo_deveLancarNullPointerException() {
+        // Arrange
+        PasswordResetService service = createService();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> service.resetPassword(null)
+        );
+
+        // Assert
+        assertEquals(
+                "command must not be null",
+                exception.getMessage()
+        );
+
+        verifyNoInteractions(
+                loadAuthUserByEmailPort,
+                passwordResetTokenStorePort,
+                sendResetPasswordEmailPort,
+                saveAuthUserPort,
+                passwordHashingPort,
+                publishAuthEventPort
+        );
     }
 
     @Test
-    void resetPassword_shouldThrowInvalidToken_whenConsumeReturnsEmpty() {
-        PasswordResetService s = service();
+    @DisplayName("Deve rejeitar token nulo quando ele não identificar um usuário")
+    void resetPassword_tokenNulo_deveLancarAuthException() {
+        // Arrange
+        PasswordResetService service = createService();
 
-        ResetPasswordUseCase.ResetPasswordCommand cmd = mock(ResetPasswordUseCase.ResetPasswordCommand.class);
-        when(cmd.resetToken()).thenReturn("bad-token");
+        ResetPasswordUseCase.ResetPasswordCommand command =
+                createResetCommand(null);
 
-        when(passwordResetTokenStorePort.consume("bad-token")).thenReturn(Optional.empty());
+        when(passwordResetTokenStorePort.consume(null))
+                .thenReturn(Optional.empty());
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.resetPassword(cmd));
-        assertEquals(AuthErrorCode.PASSWORD_RESET_TOKEN_INVALID, ex.getErrorCode());
-        assertEquals("Invalid or expired reset token", ex.getMessage());
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.resetPassword(command)
+        );
 
-        verify(passwordResetTokenStorePort).consume("bad-token");
-        verifyNoMoreInteractions(passwordResetTokenStorePort);
-        verifyNoInteractions(saveAuthUserPort, passwordHashingPort);
+        // Assert
+        assertInvalidResetTokenException(exception);
+
+        verify(passwordResetTokenStorePort)
+                .consume(null);
+
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveAuthUserPort
+        );
     }
 
     @Test
-    void resetPassword_shouldHashChangeAndSave_whenTokenValid() {
-        PasswordResetService s = service();
+    @DisplayName("Deve rejeitar token em branco quando ele não identificar um usuário")
+    void resetPassword_tokenEmBranco_deveLancarAuthException() {
+        // Arrange
+        PasswordResetService service = createService();
+        String token = "   ";
 
-        ResetPasswordUseCase.ResetPasswordCommand cmd = mock(ResetPasswordUseCase.ResetPasswordCommand.class);
-        when(cmd.resetToken()).thenReturn("good-token");
-        when(cmd.newPassword()).thenReturn("new-pass");
+        ResetPasswordUseCase.ResetPasswordCommand command =
+                createResetCommand(token);
 
-        UUID uid = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
-        AuthUserId idVo = mock(AuthUserId.class);
-        when(idVo.value()).thenReturn(uid);
+        when(passwordResetTokenStorePort.consume(token))
+                .thenReturn(Optional.empty());
 
-        AuthUser user = mock(AuthUser.class, Answers.RETURNS_DEEP_STUBS);
-        when(user.id()).thenReturn(idVo);
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.resetPassword(command)
+        );
 
-        when(passwordResetTokenStorePort.consume("good-token")).thenReturn(Optional.of(user));
+        // Assert
+        assertInvalidResetTokenException(exception);
 
-        PasswordHash newHash = mock(PasswordHash.class);
-        when(passwordHashingPort.hash("new-pass")).thenReturn(newHash);
+        verify(passwordResetTokenStorePort)
+                .consume(token);
 
-        when(saveAuthUserPort.save(user)).thenReturn(user);
-
-        s.resetPassword(cmd);
-
-        verify(passwordResetTokenStorePort).consume("good-token");
-        verify(passwordHashingPort).hash("new-pass");
-        verify(user).changePassword(newHash);
-        verify(saveAuthUserPort).save(user);
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveAuthUserPort
+        );
     }
 
     @Test
-    void maskToken_shouldCoverAllBranches_inOneTest() throws Exception {
-        PasswordResetService s = service();
+    @DisplayName("Deve rejeitar token inválido com o limite de dez caracteres")
+    void resetPassword_tokenComDezCaracteres_deveLancarAuthException() {
+        // Arrange
+        PasswordResetService service = createService();
+        String token = "1234567890";
 
-        Method m = PasswordResetService.class.getDeclaredMethod("maskToken", String.class);
-        m.setAccessible(true);
+        ResetPasswordUseCase.ResetPasswordCommand command =
+                createResetCommand(token);
 
-        assertEquals("***", (String) m.invoke(s, (String) null));
-        assertEquals("***", (String) m.invoke(s, "   "));
-        assertEquals("***", (String) m.invoke(s, "1234567890"));
-        assertEquals("1234567890...", (String) m.invoke(s, "12345678901"));
+        when(passwordResetTokenStorePort.consume(token))
+                .thenReturn(Optional.empty());
+
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.resetPassword(command)
+        );
+
+        // Assert
+        assertInvalidResetTokenException(exception);
+
+        verify(passwordResetTokenStorePort)
+                .consume(token);
+
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveAuthUserPort
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar token inválido com mais de dez caracteres")
+    void resetPassword_tokenComMaisDezCaracteres_deveLancarAuthException() {
+        // Arrange
+        PasswordResetService service = createService();
+        String token = "12345678901";
+
+        ResetPasswordUseCase.ResetPasswordCommand command =
+                createResetCommand(token);
+
+        when(passwordResetTokenStorePort.consume(token))
+                .thenReturn(Optional.empty());
+
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.resetPassword(command)
+        );
+
+        // Assert
+        assertInvalidResetTokenException(exception);
+
+        verify(passwordResetTokenStorePort)
+                .consume(token);
+
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveAuthUserPort
+        );
+    }
+
+    @Test
+    @DisplayName("Deve alterar e persistir a nova senha quando o token for válido")
+    void resetPassword_tokenValido_deveAlterarEPersistirNovaSenha() {
+        // Arrange
+        PasswordResetService service = createService();
+        String token = "valid-reset-token";
+
+        ResetPasswordUseCase.ResetPasswordCommand command =
+                createResetCommand(token);
+
+        when(command.newPassword())
+                .thenReturn(NEW_PASSWORD);
+
+        when(passwordResetTokenStorePort.consume(token))
+                .thenReturn(Optional.of(user));
+
+        when(passwordHashingPort.hash(NEW_PASSWORD))
+                .thenReturn(newPasswordHash);
+
+        // Act
+        service.resetPassword(command);
+
+        // Assert
+        InOrder inOrder = inOrder(
+                passwordResetTokenStorePort,
+                passwordHashingPort,
+                user,
+                saveAuthUserPort
+        );
+
+        inOrder.verify(passwordResetTokenStorePort)
+                .consume(token);
+
+        inOrder.verify(passwordHashingPort)
+                .hash(NEW_PASSWORD);
+
+        inOrder.verify(user)
+                .changePassword(newPasswordHash);
+
+        inOrder.verify(saveAuthUserPort)
+                .save(user);
+
+        verifyNoInteractions(
+                loadAuthUserByEmailPort,
+                sendResetPasswordEmailPort,
+                publishAuthEventPort
+        );
+    }
+
+    @Test
+    @DisplayName("Deve propagar falha na geração do hash sem alterar ou persistir o usuário")
+    void resetPassword_geracaoDoHashFalha_devePropagarExcecaoSemPersistirUsuario() {
+        // Arrange
+        PasswordResetService service = createService();
+        String token = "valid-reset-token";
+
+        ResetPasswordUseCase.ResetPasswordCommand command =
+                createResetCommand(token);
+
+        IllegalStateException expectedException =
+                new IllegalStateException("Hashing unavailable");
+
+        when(command.newPassword())
+                .thenReturn(NEW_PASSWORD);
+
+        when(passwordResetTokenStorePort.consume(token))
+                .thenReturn(Optional.of(user));
+
+        when(passwordHashingPort.hash(NEW_PASSWORD))
+                .thenThrow(expectedException);
+
+        // Act
+        IllegalStateException actualException = assertThrows(
+                IllegalStateException.class,
+                () -> service.resetPassword(command)
+        );
+
+        // Assert
+        assertSame(
+                expectedException,
+                actualException
+        );
+
+        verify(user, never())
+                .changePassword(any(PasswordHash.class));
+
+        verify(saveAuthUserPort, never())
+                .save(any(AuthUser.class));
+    }
+
+    private PasswordResetService createService() {
+        return new PasswordResetService(
+                loadAuthUserByEmailPort,
+                passwordResetTokenStorePort,
+                sendResetPasswordEmailPort,
+                saveAuthUserPort,
+                passwordHashingPort,
+                publishAuthEventPort
+        );
+    }
+
+    private RequestPasswordResetUseCase.RequestPasswordResetCommand createRequestCommand(
+            String email
+    ) {
+        RequestPasswordResetUseCase.RequestPasswordResetCommand command =
+                mock(
+                        RequestPasswordResetUseCase.RequestPasswordResetCommand.class
+                );
+
+        when(command.email())
+                .thenReturn(email);
+
+        return command;
+    }
+
+    private ResetPasswordUseCase.ResetPasswordCommand createResetCommand(
+            String token
+    ) {
+        ResetPasswordUseCase.ResetPasswordCommand command =
+                mock(ResetPasswordUseCase.ResetPasswordCommand.class);
+
+        when(command.resetToken())
+                .thenReturn(token);
+
+        return command;
+    }
+
+    private void assertInvalidResetTokenException(
+            AuthException exception
+    ) {
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "Invalid or expired reset token",
+                        exception.getMessage()
+                )
+        );
+    }
+
+    private void assertNullDependency(
+            String expectedMessage,
+            Executable executable
+    ) {
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                executable
+        );
+
+        assertEquals(
+                expectedMessage,
+                exception.getMessage()
+        );
     }
 }

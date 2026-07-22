@@ -2,44 +2,65 @@ package br.com.ecofy.auth.core.domain;
 
 import br.com.ecofy.auth.core.domain.enums.ClientType;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Testes unitários da aplicação cliente OAuth2")
 class ClientApplicationTest {
 
-    private static final Instant CREATED_AT = Instant.parse("2026-01-01T10:00:00Z");
-    private static final Instant UPDATED_AT = Instant.parse("2026-01-02T10:00:00Z");
+    private static final Instant CREATED_AT =
+            Instant.parse("2026-07-22T10:00:00Z");
+
+    private static final Instant UPDATED_AT =
+            Instant.parse("2026-07-22T11:00:00Z");
 
     @Test
-    void shouldCreateClientApplicationWithAllFields() {
-        GrantType grantType = anyGrantType();
+    @DisplayName("Deve reconstruir uma aplicação cliente preservando e normalizando os dados")
+    void constructor_dadosValidos_deveReconstruirAplicacaoCliente() {
+        // Arrange
+        Set<GrantType> grantTypes = Set.of(
+                GrantType.PASSWORD,
+                GrantType.REFRESH_TOKEN
+        );
 
         Set<String> redirectUris = new HashSet<>(Arrays.asList(
-                " https://app.ecofy.com/callback ",
-                null,
-                "   "
+                " https://ecofy.com/callback ",
+                "https://ecofy.com/callback",
+                "   ",
+                null
         ));
 
         Set<String> scopes = new HashSet<>(Arrays.asList(
                 " openid ",
-                "profile",
-                null,
-                "   "
+                "openid",
+                " profile ",
+                "",
+                null
         ));
 
-        ClientApplication client = new ClientApplication(
+        // Act
+        ClientApplication application = new ClientApplication(
                 "internal-id",
-                "client-id",
+                "ecofy-client",
                 "secret-hash",
-                "EcoFy Web",
+                "EcoFy",
                 ClientType.CONFIDENTIAL,
-                Set.of(grantType),
+                grantTypes,
                 redirectUris,
                 scopes,
                 true,
@@ -48,86 +69,80 @@ class ClientApplicationTest {
                 UPDATED_AT
         );
 
-        assertEquals("internal-id", client.id());
-        assertEquals("client-id", client.clientId());
-        assertEquals("secret-hash", client.clientSecretHash());
-        assertEquals("EcoFy Web", client.name());
-        assertEquals(ClientType.CONFIDENTIAL, client.clientType());
-
-        assertTrue(client.grantTypes().contains(grantType));
-
-        assertTrue(client.redirectUris().contains("https://app.ecofy.com/callback"));
-        assertFalse(client.redirectUris().contains(" https://app.ecofy.com/callback "));
-        assertFalse(client.redirectUris().contains("   "));
-        assertFalse(client.redirectUris().contains(null));
-
-        assertEquals(Set.of("openid", "profile"), client.scopes());
-        assertFalse(client.scopes().contains(" openid "));
-        assertFalse(client.scopes().contains("   "));
-        assertFalse(client.scopes().contains(null));
-
-        assertTrue(client.isFirstParty());
-        assertTrue(client.isActive());
-        assertEquals(CREATED_AT, client.createdAt());
-        assertEquals(UPDATED_AT, client.updatedAt());
-    }
-
-    @Test
-    void shouldCreateClientApplicationUsingFactory() {
-        GrantType grantType = anyGrantType();
-
-        ClientApplication client = ClientApplication.create(
-                "EcoFy Mobile",
-                ClientType.CONFIDENTIAL,
-                Set.of(grantType),
-                Set.of("https://mobile.ecofy.com/callback"),
-                Set.of("openid"),
-                false,
-                "generated-client-id",
-                "generated-secret-hash"
-        );
-
-        assertNotNull(client.id());
-        assertEquals("generated-client-id", client.clientId());
-        assertEquals("generated-secret-hash", client.clientSecretHash());
-        assertEquals("EcoFy Mobile", client.name());
-        assertEquals(ClientType.CONFIDENTIAL, client.clientType());
-        assertTrue(client.grantTypes().contains(grantType));
-        assertEquals(Set.of("https://mobile.ecofy.com/callback"), client.redirectUris());
-        assertEquals(Set.of("openid"), client.scopes());
-        assertFalse(client.isFirstParty());
-        assertTrue(client.isActive());
-        assertNotNull(client.createdAt());
-        assertNotNull(client.updatedAt());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenGeneratedClientIdIsNullInFactory() {
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> ClientApplication.create(
-                        "EcoFy",
+        // Assert
+        assertAll(
+                () -> assertEquals("internal-id", application.id()),
+                () -> assertEquals(
+                        "ecofy-client",
+                        application.clientId()
+                ),
+                () -> assertEquals(
+                        "secret-hash",
+                        application.clientSecretHash()
+                ),
+                () -> assertEquals("EcoFy", application.name()),
+                () -> assertEquals(
                         ClientType.CONFIDENTIAL,
-                        Set.of(anyGrantType()),
-                        Set.of("https://app.ecofy.com/callback"),
-                        Set.of("openid"),
-                        true,
-                        null,
-                        "secret-hash"
+                        application.clientType()
+                ),
+                () -> assertEquals(
+                        grantTypes,
+                        application.grantTypes()
+                ),
+                () -> assertEquals(
+                        Set.of("https://ecofy.com/callback"),
+                        application.redirectUris()
+                ),
+                () -> assertEquals(
+                        Set.of("openid", "profile"),
+                        application.scopes()
+                ),
+                () -> assertTrue(application.isFirstParty()),
+                () -> assertTrue(application.isActive()),
+                () -> assertEquals(
+                        CREATED_AT,
+                        application.createdAt()
+                ),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
                 )
         );
-
-        assertEquals("generatedClientId must not be null", exception.getMessage());
     }
 
     @Test
-    void shouldInitializeEmptyCollectionsWhenSetsAreNull() {
-        ClientApplication client = new ClientApplication(
+    @DisplayName("Deve aceitar segredo nulo para uma aplicação cliente não confidencial")
+    void constructor_clienteNaoConfidencialComSegredoNulo_deveCriarAplicacao() {
+        // Arrange e Act
+        ClientApplication application = new ClientApplication(
                 "internal-id",
-                "client-id",
+                "ecofy-spa",
                 null,
-                "EcoFy Public",
-                nonConfidentialClientType(),
+                "EcoFy SPA",
+                ClientType.SPA,
+                Set.of(GrantType.PASSWORD),
+                Set.of(),
+                Set.of(),
+                false,
+                true,
+                CREATED_AT,
+                UPDATED_AT
+        );
+
+        // Assert
+        assertNull(application.clientSecretHash());
+    }
+
+    @Test
+    @DisplayName("Deve criar coleções vazias quando elas forem nulas")
+    void constructor_colecoesNulas_deveCriarColecoesVazias() {
+        // Arrange e Act
+        ClientApplication application = new ClientApplication(
+                "internal-id",
+                "ecofy-spa",
+                null,
+                "EcoFy SPA",
+                ClientType.SPA,
                 null,
                 null,
                 null,
@@ -137,19 +152,24 @@ class ClientApplicationTest {
                 UPDATED_AT
         );
 
-        assertTrue(client.grantTypes().isEmpty());
-        assertTrue(client.redirectUris().isEmpty());
-        assertTrue(client.scopes().isEmpty());
+        // Assert
+        assertAll(
+                () -> assertTrue(application.grantTypes().isEmpty()),
+                () -> assertTrue(application.redirectUris().isEmpty()),
+                () -> assertTrue(application.scopes().isEmpty())
+        );
     }
 
     @Test
-    void shouldInitializeEmptyCollectionsWhenUriAndScopeSetsAreEmpty() {
-        ClientApplication client = new ClientApplication(
+    @DisplayName("Deve preservar coleções vazias recebidas na construção")
+    void constructor_colecoesVazias_deveManterColecoesVazias() {
+        // Arrange e Act
+        ClientApplication application = new ClientApplication(
                 "internal-id",
-                "client-id",
+                "ecofy-spa",
                 null,
-                "EcoFy Public",
-                nonConfidentialClientType(),
+                "EcoFy SPA",
+                ClientType.SPA,
                 Set.of(),
                 Set.of(),
                 Set.of(),
@@ -159,30 +179,32 @@ class ClientApplicationTest {
                 UPDATED_AT
         );
 
-        assertTrue(client.grantTypes().isEmpty());
-        assertTrue(client.redirectUris().isEmpty());
-        assertTrue(client.scopes().isEmpty());
+        // Assert
+        assertAll(
+                () -> assertTrue(application.grantTypes().isEmpty()),
+                () -> assertTrue(application.redirectUris().isEmpty()),
+                () -> assertTrue(application.scopes().isEmpty())
+        );
     }
 
     @Test
-    void shouldProtectInternalCollectionsFromExternalMutation() {
-        GrantType grantType = anyGrantType();
+    @DisplayName("Deve copiar as coleções recebidas e proteger o estado interno")
+    void constructor_colecoesMutaveis_deveRealizarCopiasDefensivas() {
+        // Arrange
+        Set<GrantType> grantTypes = new HashSet<>(
+                Set.of(GrantType.PASSWORD)
+        );
+        Set<String> redirectUris = new HashSet<>(
+                Set.of("https://ecofy.com/callback")
+        );
+        Set<String> scopes = new HashSet<>(Set.of("openid"));
 
-        Set<GrantType> grantTypes = new HashSet<>();
-        grantTypes.add(grantType);
-
-        Set<String> redirectUris = new HashSet<>();
-        redirectUris.add("https://app.ecofy.com/callback");
-
-        Set<String> scopes = new HashSet<>();
-        scopes.add("openid");
-
-        ClientApplication client = new ClientApplication(
+        ClientApplication application = new ClientApplication(
                 "internal-id",
-                "client-id",
+                "ecofy-spa",
                 null,
-                "EcoFy Public",
-                nonConfidentialClientType(),
+                "EcoFy SPA",
+                ClientType.SPA,
                 grantTypes,
                 redirectUris,
                 scopes,
@@ -192,42 +214,85 @@ class ClientApplicationTest {
                 UPDATED_AT
         );
 
-        grantTypes.clear();
-        redirectUris.clear();
-        scopes.clear();
+        // Act
+        grantTypes.add(GrantType.REFRESH_TOKEN);
+        redirectUris.add("https://ecofy.com/other");
+        scopes.add("profile");
 
-        assertTrue(client.grantTypes().contains(grantType));
-        assertTrue(client.redirectUris().contains("https://app.ecofy.com/callback"));
-        assertTrue(client.scopes().contains("openid"));
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        Set.of(GrantType.PASSWORD),
+                        application.grantTypes()
+                ),
+                () -> assertEquals(
+                        Set.of("https://ecofy.com/callback"),
+                        application.redirectUris()
+                ),
+                () -> assertEquals(
+                        Set.of("openid"),
+                        application.scopes()
+                ),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> application.grantTypes()
+                                .add(GrantType.REFRESH_TOKEN)
+                ),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> application.redirectUris()
+                                .add("https://ecofy.com/other")
+                ),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> application.scopes().add("profile")
+                )
+        );
     }
 
     @Test
-    void shouldReturnUnmodifiableCollections() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve rejeitar um identificador interno nulo")
+    void constructor_idNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new ClientApplication(
+                        null,
+                        "ecofy-client",
+                        null,
+                        "EcoFy",
+                        ClientType.SPA,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
+                        false,
+                        true,
+                        CREATED_AT,
+                        UPDATED_AT
+                )
         );
 
-        assertThrows(UnsupportedOperationException.class, () -> client.grantTypes().add(anyGrantType()));
-        assertThrows(UnsupportedOperationException.class, () -> client.redirectUris().add("https://evil.com/callback"));
-        assertThrows(UnsupportedOperationException.class, () -> client.scopes().add("admin"));
+        assertEquals(
+                "id must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenRequiredConstructorArgumentsAreNull() {
-        assertThrows(
+    @DisplayName("Deve rejeitar um identificador público nulo")
+    void constructor_clientIdNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new ClientApplication(
+                        "internal-id",
                         null,
-                        "client-id",
                         null,
                         "EcoFy",
-                        nonConfidentialClientType(),
-                        null,
-                        null,
-                        null,
+                        ClientType.SPA,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
                         false,
                         true,
                         CREATED_AT,
@@ -235,17 +300,27 @@ class ClientApplicationTest {
                 )
         );
 
-        assertThrows(
+        assertEquals(
+                "clientId must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar um nome nulo")
+    void constructor_nomeNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new ClientApplication(
                         "internal-id",
+                        "ecofy-client",
                         null,
                         null,
-                        "EcoFy",
-                        nonConfidentialClientType(),
-                        null,
-                        null,
-                        null,
+                        ClientType.SPA,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
                         false,
                         true,
                         CREATED_AT,
@@ -253,17 +328,27 @@ class ClientApplicationTest {
                 )
         );
 
-        assertThrows(
+        assertEquals(
+                "name must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar um tipo de cliente nulo")
+    void constructor_clientTypeNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new ClientApplication(
                         "internal-id",
-                        "client-id",
+                        "ecofy-client",
                         null,
+                        "EcoFy",
                         null,
-                        nonConfidentialClientType(),
-                        null,
-                        null,
-                        null,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
                         false,
                         true,
                         CREATED_AT,
@@ -271,35 +356,27 @@ class ClientApplicationTest {
                 )
         );
 
-        assertThrows(
-                NullPointerException.class,
-                () -> new ClientApplication(
-                        "internal-id",
-                        "client-id",
-                        null,
-                        "EcoFy",
-                        null,
-                        null,
-                        null,
-                        null,
-                        false,
-                        true,
-                        CREATED_AT,
-                        UPDATED_AT
-                )
+        assertEquals(
+                "clientType must not be null",
+                exception.getMessage()
         );
+    }
 
-        assertThrows(
+    @Test
+    @DisplayName("Deve rejeitar uma data de criação nula")
+    void constructor_createdAtNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new ClientApplication(
                         "internal-id",
-                        "client-id",
+                        "ecofy-client",
                         null,
                         "EcoFy",
-                        nonConfidentialClientType(),
-                        null,
-                        null,
-                        null,
+                        ClientType.SPA,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
                         false,
                         true,
                         null,
@@ -307,38 +384,55 @@ class ClientApplicationTest {
                 )
         );
 
-        assertThrows(
+        assertEquals(
+                "createdAt must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar uma data de atualização nula")
+    void constructor_updatedAtNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new ClientApplication(
                         "internal-id",
-                        "client-id",
+                        "ecofy-client",
                         null,
                         "EcoFy",
-                        nonConfidentialClientType(),
-                        null,
-                        null,
-                        null,
+                        ClientType.SPA,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
                         false,
                         true,
                         CREATED_AT,
                         null
                 )
         );
+
+        assertEquals(
+                "updatedAt must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldRequireClientSecretHashForConfidentialClientWhenNullOrBlank() {
-        IllegalArgumentException nullSecretException = assertThrows(
+    @DisplayName("Deve rejeitar segredo nulo para uma aplicação cliente confidencial")
+    void constructor_clienteConfidencialComSegredoNulo_deveLancarIllegalArgumentException() {
+        // Arrange, Act e Assert
+        IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> new ClientApplication(
                         "internal-id",
-                        "client-id",
+                        "ecofy-client",
                         null,
-                        "EcoFy Confidential",
+                        "EcoFy",
                         ClientType.CONFIDENTIAL,
-                        Set.of(anyGrantType()),
-                        Set.of("https://app.ecofy.com/callback"),
-                        Set.of("openid"),
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
                         true,
                         true,
                         CREATED_AT,
@@ -346,17 +440,27 @@ class ClientApplicationTest {
                 )
         );
 
-        IllegalArgumentException blankSecretException = assertThrows(
+        assertEquals(
+                "clientSecretHash must be provided for CONFIDENTIAL clients",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar segredo em branco para uma aplicação cliente confidencial")
+    void constructor_clienteConfidencialComSegredoEmBranco_deveLancarIllegalArgumentException() {
+        // Arrange, Act e Assert
+        IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> new ClientApplication(
                         "internal-id",
-                        "client-id",
+                        "ecofy-client",
                         "   ",
-                        "EcoFy Confidential",
+                        "EcoFy",
                         ClientType.CONFIDENTIAL,
-                        Set.of(anyGrantType()),
-                        Set.of("https://app.ecofy.com/callback"),
-                        Set.of("openid"),
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
                         true,
                         true,
                         CREATED_AT,
@@ -366,353 +470,670 @@ class ClientApplicationTest {
 
         assertEquals(
                 "clientSecretHash must be provided for CONFIDENTIAL clients",
-                nullSecretException.getMessage()
+                exception.getMessage()
         );
+    }
+
+    @Test
+    @DisplayName("Deve criar uma aplicação cliente ativa com identificadores e datas gerados")
+    void create_dadosValidos_deveCriarAplicacaoAtiva() {
+        // Arrange
+        Instant beforeCreation = Instant.now();
+
+        // Act
+        ClientApplication application = ClientApplication.create(
+                "EcoFy SPA",
+                ClientType.SPA,
+                Set.of(GrantType.PASSWORD),
+                Set.of("https://ecofy.com/callback"),
+                Set.of("openid"),
+                true,
+                "generated-client-id",
+                null
+        );
+
+        Instant afterCreation = Instant.now();
+
+        // Assert
+        assertAll(
+                () -> assertNotNull(application.id()),
+                () -> assertFalse(application.id().isBlank()),
+                () -> assertNotNull(
+                        UUID.fromString(application.id())
+                ),
+                () -> assertEquals(
+                        "generated-client-id",
+                        application.clientId()
+                ),
+                () -> assertEquals("EcoFy SPA", application.name()),
+                () -> assertEquals(
+                        ClientType.SPA,
+                        application.clientType()
+                ),
+                () -> assertNull(application.clientSecretHash()),
+                () -> assertEquals(
+                        Set.of(GrantType.PASSWORD),
+                        application.grantTypes()
+                ),
+                () -> assertEquals(
+                        Set.of("https://ecofy.com/callback"),
+                        application.redirectUris()
+                ),
+                () -> assertEquals(
+                        Set.of("openid"),
+                        application.scopes()
+                ),
+                () -> assertTrue(application.isFirstParty()),
+                () -> assertTrue(application.isActive()),
+                () -> assertEquals(
+                        application.createdAt(),
+                        application.updatedAt()
+                ),
+                () -> assertFalse(
+                        application.createdAt()
+                                .isBefore(beforeCreation)
+                ),
+                () -> assertFalse(
+                        application.createdAt()
+                                .isAfter(afterCreation)
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar a criação quando o identificador público gerado for nulo")
+    void create_generatedClientIdNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> ClientApplication.create(
+                        "EcoFy SPA",
+                        ClientType.SPA,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
+                        false,
+                        null,
+                        null
+                )
+        );
+
         assertEquals(
-                "clientSecretHash must be provided for CONFIDENTIAL clients",
-                blankSecretException.getMessage()
+                "generatedClientId must not be null",
+                exception.getMessage()
         );
     }
 
     @Test
-    void shouldSupportGrantWhenGrantTypeExists() {
-        GrantType grantType = anyGrantType();
-
-        ClientApplication client = basePublicClient(
-                Set.of(grantType),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve indicar suporte quando o grant type estiver configurado")
+    void supportsGrant_grantTypeConfigurado_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(GrantType.PASSWORD),
+                Set.of(),
+                Set.of()
         );
 
-        assertTrue(client.supportsGrant(grantType));
+        // Act
+        boolean result = application.supportsGrant(
+                GrantType.PASSWORD
+        );
+
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    void shouldNotSupportGrantWhenGrantTypeDoesNotExist() {
-        GrantType[] grantTypes = GrantType.values();
-
-        if (grantTypes.length < 2) {
-            return;
-        }
-
-        ClientApplication client = basePublicClient(
-                Set.of(grantTypes[0]),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve negar suporte quando o grant type não estiver configurado")
+    void supportsGrant_grantTypeNaoConfigurado_deveRetornarFalse() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(GrantType.PASSWORD),
+                Set.of(),
+                Set.of()
         );
 
-        assertFalse(client.supportsGrant(grantTypes[1]));
+        // Act
+        boolean result = application.supportsGrant(
+                GrantType.REFRESH_TOKEN
+        );
+
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    void shouldThrowExceptionWhenGrantTypeIsNull() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve rejeitar a consulta de um grant type nulo")
+    void supportsGrant_grantTypeNulo_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
         );
 
+        // Act
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> client.supportsGrant(null)
+                () -> application.supportsGrant(null)
         );
 
-        assertEquals("grantType must not be null", exception.getMessage());
+        // Assert
+        assertEquals(
+                "grantType must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldSupportRedirectUriWhenUriExistsAfterTrim() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of(" https://app.ecofy.com/callback "),
-                Set.of("openid"),
-                true
-        );
-
-        assertTrue(client.supportsRedirectUri("   https://app.ecofy.com/callback   "));
-    }
-
-    @Test
-    void shouldNotSupportRedirectUriWhenUrisAreEmptyOrUriDoesNotExist() {
-        ClientApplication clientWithEmptyUris = basePublicClient(
-                Set.of(anyGrantType()),
+    @DisplayName("Deve reconhecer uma URI de redirecionamento autorizada após remover espaços")
+    void supportsRedirectUri_uriAutorizadaComEspacos_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
                 Set.of(),
-                Set.of("openid"),
-                true
+                Set.of("https://ecofy.com/callback"),
+                Set.of()
         );
 
-        ClientApplication clientWithUris = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+        // Act
+        boolean result = application.supportsRedirectUri(
+                "  https://ecofy.com/callback  "
         );
 
-        assertFalse(clientWithEmptyUris.supportsRedirectUri("https://app.ecofy.com/callback"));
-        assertFalse(clientWithUris.supportsRedirectUri("https://unknown.ecofy.com/callback"));
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    void shouldThrowExceptionWhenRedirectUriIsNull() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve negar uma URI de redirecionamento não autorizada")
+    void supportsRedirectUri_uriNaoAutorizada_deveRetornarFalse() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of("https://ecofy.com/callback"),
+                Set.of()
         );
 
+        // Act
+        boolean result = application.supportsRedirectUri(
+                "https://ecofy.com/other"
+        );
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Deve negar a URI quando nenhuma URI de redirecionamento estiver configurada")
+    void supportsRedirectUri_semUrisConfiguradas_deveRetornarFalse() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
+        );
+
+        // Act
+        boolean result = application.supportsRedirectUri(
+                "https://ecofy.com/callback"
+        );
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar uma URI de redirecionamento nula")
+    void supportsRedirectUri_uriNula_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
+        );
+
+        // Act
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> client.supportsRedirectUri(null)
+                () -> application.supportsRedirectUri(null)
         );
 
-        assertEquals("redirectUri must not be null", exception.getMessage());
+        // Assert
+        assertEquals(
+                "redirectUri must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldSupportScopeWhenScopeExistsAfterTrim() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of(" openid "),
-                true
-        );
-
-        assertTrue(client.supportsScope("   openid   "));
-    }
-
-    @Test
-    void shouldNotSupportScopeWhenScopesAreEmptyOrScopeDoesNotExist() {
-        ClientApplication clientWithEmptyScopes = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
+    @DisplayName("Deve reconhecer uma scope autorizada após remover espaços")
+    void supportsScope_scopeAutorizadaComEspacos_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
                 Set.of(),
-                true
+                Set.of(),
+                Set.of("openid")
         );
 
-        ClientApplication clientWithScopes = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
-        );
+        // Act
+        boolean result = application.supportsScope("  openid  ");
 
-        assertFalse(clientWithEmptyScopes.supportsScope("openid"));
-        assertFalse(clientWithScopes.supportsScope("admin"));
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    void shouldThrowExceptionWhenRequestedScopeIsNull() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve negar uma scope não autorizada")
+    void supportsScope_scopeNaoAutorizada_deveRetornarFalse() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of("openid")
         );
 
+        // Act
+        boolean result = application.supportsScope("profile");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Deve negar a scope quando nenhuma scope estiver configurada")
+    void supportsScope_semScopesConfiguradas_deveRetornarFalse() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
+        );
+
+        // Act
+        boolean result = application.supportsScope("openid");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar uma scope nula")
+    void supportsScope_scopeNula_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
+        );
+
+        // Act
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> client.supportsScope(null)
+                () -> application.supportsScope(null)
         );
 
-        assertEquals("requestedScope must not be null", exception.getMessage());
+        // Assert
+        assertEquals(
+                "requestedScope must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldSupportAllScopesWhenRequestedScopesAreNullOrEmpty() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
-        );
-
-        assertTrue(client.supportsAllScopes(null));
-        assertTrue(client.supportsAllScopes(Set.of()));
-    }
-
-    @Test
-    void shouldNotSupportAllScopesWhenAllowedScopesAreEmpty() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
+    @DisplayName("Deve aceitar a ausência de scopes solicitadas")
+    void supportsAllScopes_scopesSolicitadasNulas_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
                 Set.of(),
-                true
+                Set.of(),
+                Set.of()
         );
 
-        assertFalse(client.supportsAllScopes(Set.of("openid")));
+        // Act
+        boolean result = application.supportsAllScopes(null);
+
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    void shouldSupportAllScopesWhenEveryRequestedScopeIsAllowedAfterTrimAndNullFiltering() {
+    @DisplayName("Deve aceitar um conjunto vazio de scopes solicitadas")
+    void supportsAllScopes_scopesSolicitadasVazias_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
+        );
+
+        // Act
+        boolean result = application.supportsAllScopes(Set.of());
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    @DisplayName("Deve negar scopes solicitadas quando nenhuma scope estiver configurada")
+    void supportsAllScopes_semScopesConfiguradas_deveRetornarFalse() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
+        );
+
+        // Act
+        boolean result = application.supportsAllScopes(
+                Set.of("openid")
+        );
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Deve aceitar todas as scopes autorizadas após normalizar os valores")
+    void supportsAllScopes_todasScopesAutorizadas_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of("openid", "profile")
+        );
+
+        // Act
+        boolean result = application.supportsAllScopes(
+                Set.of(" openid ", " profile ")
+        );
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    @DisplayName("Deve ignorar valores nulos ao validar todas as scopes solicitadas")
+    void supportsAllScopes_scopeNulaEAutorizada_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of("openid")
+        );
+
+        Set<String> requestedScopes = new HashSet<>(
+                Arrays.asList(null, " openid ")
+        );
+
+        // Act
+        boolean result = application.supportsAllScopes(
+                requestedScopes
+        );
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    @DisplayName("Deve aceitar um conjunto contendo somente uma scope nula")
+    void supportsAllScopes_apenasScopeNula_deveRetornarTrue() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of("openid")
+        );
+
         Set<String> requestedScopes = new HashSet<>();
-        requestedScopes.add(" openid ");
-        requestedScopes.add("profile");
         requestedScopes.add(null);
 
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid", "profile"),
-                true
+        // Act
+        boolean result = application.supportsAllScopes(
+                requestedScopes
         );
 
-        assertTrue(client.supportsAllScopes(requestedScopes));
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    void shouldNotSupportAllScopesWhenAnyRequestedScopeIsNotAllowed() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid", "profile"),
-                true
+    @DisplayName("Deve negar quando ao menos uma scope solicitada não estiver autorizada")
+    void supportsAllScopes_scopeNaoAutorizada_deveRetornarFalse() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of("openid")
         );
 
-        assertFalse(client.supportsAllScopes(Set.of("openid", "admin")));
+        // Act
+        boolean result = application.supportsAllScopes(
+                Set.of("openid", "profile")
+        );
+
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    void shouldRotateSecretForConfidentialClient() {
-        ClientApplication client = new ClientApplication(
-                "internal-id",
-                "client-id",
+    @DisplayName("Deve rotacionar o segredo de uma aplicação cliente confidencial")
+    void rotateSecret_clienteConfidencial_deveAtualizarSegredoETimestamp() {
+        // Arrange
+        ClientApplication application = createConfidentialApplication(
                 "old-secret-hash",
-                "EcoFy Confidential",
-                ClientType.CONFIDENTIAL,
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true,
-                true,
-                CREATED_AT,
-                UPDATED_AT
-        );
-
-        client.rotateSecret("new-secret-hash");
-
-        assertEquals("new-secret-hash", client.clientSecretHash());
-        assertTrue(client.updatedAt().isAfter(UPDATED_AT));
-    }
-
-    @Test
-    void shouldThrowExceptionWhenRotatingSecretForNonConfidentialClient() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
                 true
         );
 
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> client.rotateSecret("new-secret-hash")
-        );
+        // Act
+        application.rotateSecret("new-secret-hash");
 
-        assertEquals("Only CONFIDENTIAL clients can have a secret", exception.getMessage());
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "new-secret-hash",
+                        application.clientSecretHash()
+                ),
+                () -> assertNotEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenRotatingSecretToNull() {
-        ClientApplication client = new ClientApplication(
-                "internal-id",
-                "client-id",
+    @DisplayName("Deve aceitar segredo em branco durante a rotação conforme o comportamento atual")
+    void rotateSecret_hashEmBranco_deveAtualizarSegredo() {
+        // Arrange
+        ClientApplication application = createConfidentialApplication(
                 "old-secret-hash",
-                "EcoFy Confidential",
-                ClientType.CONFIDENTIAL,
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true,
-                true,
-                CREATED_AT,
-                UPDATED_AT
+                true
         );
 
+        // Act
+        application.rotateSecret("   ");
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "   ",
+                        application.clientSecretHash()
+                ),
+                () -> assertNotEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar a rotação para um segredo nulo")
+    void rotateSecret_novoSegredoNulo_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplication application = createConfidentialApplication(
+                "old-secret-hash",
+                true
+        );
+
+        // Act
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> client.rotateSecret(null)
+                () -> application.rotateSecret(null)
         );
 
-        assertEquals("newSecretHash must not be null", exception.getMessage());
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "newSecretHash must not be null",
+                        exception.getMessage()
+                ),
+                () -> assertEquals(
+                        "old-secret-hash",
+                        application.clientSecretHash()
+                ),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
+        );
     }
 
     @Test
-    void shouldDeactivateActiveClient() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve rejeitar a rotação de segredo para uma aplicação não confidencial")
+    void rotateSecret_clienteNaoConfidencial_deveLancarIllegalStateException() {
+        // Arrange
+        ClientApplication application = createApplication(
+                Set.of(),
+                Set.of(),
+                Set.of()
         );
 
-        client.deactivate();
+        // Act
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> application.rotateSecret("new-secret-hash")
+        );
 
-        assertFalse(client.isActive());
-        assertTrue(client.updatedAt().isAfter(UPDATED_AT));
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "Only CONFIDENTIAL clients can have a secret",
+                        exception.getMessage()
+                ),
+                () -> assertNull(application.clientSecretHash()),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
+        );
     }
 
     @Test
-    void shouldDoNothingWhenClientIsAlreadyInactive() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                false
+    @DisplayName("Deve desativar uma aplicação ativa e atualizar o timestamp")
+    void deactivate_aplicacaoAtiva_deveDesativarAplicacao() {
+        // Arrange
+        ClientApplication application = createApplication(true);
+
+        // Act
+        application.deactivate();
+
+        // Assert
+        assertAll(
+                () -> assertFalse(application.isActive()),
+                () -> assertNotEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
         );
-
-        client.deactivate();
-
-        assertFalse(client.isActive());
-        assertEquals(UPDATED_AT, client.updatedAt());
     }
 
     @Test
-    void shouldActivateInactiveClient() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                false
+    @DisplayName("Deve manter o estado e o timestamp ao desativar uma aplicação já inativa")
+    void deactivate_aplicacaoInativa_deveManterEstado() {
+        // Arrange
+        ClientApplication application = createApplication(false);
+
+        // Act
+        application.deactivate();
+
+        // Assert
+        assertAll(
+                () -> assertFalse(application.isActive()),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
         );
-
-        client.activate();
-
-        assertTrue(client.isActive());
-        assertTrue(client.updatedAt().isAfter(UPDATED_AT));
     }
 
     @Test
-    void shouldDoNothingWhenClientIsAlreadyActive() {
-        ClientApplication client = basePublicClient(
-                Set.of(anyGrantType()),
-                Set.of("https://app.ecofy.com/callback"),
-                Set.of("openid"),
-                true
+    @DisplayName("Deve ativar uma aplicação inativa e atualizar o timestamp")
+    void activate_aplicacaoInativa_deveAtivarAplicacao() {
+        // Arrange
+        ClientApplication application = createApplication(false);
+
+        // Act
+        application.activate();
+
+        // Assert
+        assertAll(
+                () -> assertTrue(application.isActive()),
+                () -> assertNotEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
         );
-
-        client.activate();
-
-        assertTrue(client.isActive());
-        assertEquals(UPDATED_AT, client.updatedAt());
     }
 
-    private ClientApplication basePublicClient(Set<GrantType> grantTypes,
-                                               Set<String> redirectUris,
-                                               Set<String> scopes,
-                                               boolean active) {
+    @Test
+    @DisplayName("Deve manter o estado e o timestamp ao ativar uma aplicação já ativa")
+    void activate_aplicacaoAtiva_deveManterEstado() {
+        // Arrange
+        ClientApplication application = createApplication(true);
+
+        // Act
+        application.activate();
+
+        // Assert
+        assertAll(
+                () -> assertTrue(application.isActive()),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        application.updatedAt()
+                )
+        );
+    }
+
+    private ClientApplication createApplication(
+            Set<GrantType> grantTypes,
+            Set<String> redirectUris,
+            Set<String> scopes
+    ) {
         return new ClientApplication(
                 "internal-id",
-                "client-id",
+                "ecofy-spa",
                 null,
-                "EcoFy Public",
-                nonConfidentialClientType(),
+                "EcoFy SPA",
+                ClientType.SPA,
                 grantTypes,
                 redirectUris,
                 scopes,
+                false,
+                true,
+                CREATED_AT,
+                UPDATED_AT
+        );
+    }
+
+    private ClientApplication createApplication(boolean active) {
+        return new ClientApplication(
+                "internal-id",
+                "ecofy-spa",
+                null,
+                "EcoFy SPA",
+                ClientType.SPA,
+                Set.of(),
+                Set.of(),
+                Set.of(),
                 false,
                 active,
                 CREATED_AT,
@@ -720,16 +1141,23 @@ class ClientApplicationTest {
         );
     }
 
-    private static GrantType anyGrantType() {
-        return Arrays.stream(GrantType.values())
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("GrantType enum must have at least one value"));
-    }
-
-    private static ClientType nonConfidentialClientType() {
-        return Arrays.stream(ClientType.values())
-                .filter(clientType -> clientType != ClientType.CONFIDENTIAL)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("ClientType enum must have at least one non-CONFIDENTIAL value"));
+    private ClientApplication createConfidentialApplication(
+            String clientSecretHash,
+            boolean active
+    ) {
+        return new ClientApplication(
+                "internal-id",
+                "ecofy-client",
+                clientSecretHash,
+                "EcoFy",
+                ClientType.CONFIDENTIAL,
+                Set.of(GrantType.PASSWORD),
+                Set.of(),
+                Set.of(),
+                true,
+                active,
+                CREATED_AT,
+                UPDATED_AT
+        );
     }
 }

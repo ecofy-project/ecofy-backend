@@ -5,282 +5,644 @@ import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.domain.enums.ClientType;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
-import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import br.com.ecofy.auth.core.port.in.RegisterClientApplicationUseCase;
 import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
 import br.com.ecofy.auth.core.port.out.SaveClientApplicationPort;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do serviço de aplicações cliente")
 class ClientApplicationServiceTest {
+
+    private static final String CLIENT_NAME = "EcoFy Web";
+    private static final String REDIRECT_URI =
+            "https://app.ecofy.com/callback";
+    private static final String HASHED_SECRET =
+            "hashed-client-secret";
 
     @Mock
     private SaveClientApplicationPort saveClientApplicationPort;
 
-    @Mock
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private PasswordHashingPort passwordHashingPort;
 
-    private ClientApplicationService service() {
-        return new ClientApplicationService(saveClientApplicationPort, passwordHashingPort);
-    }
-
     @Test
-    void constructor_shouldRejectNullDependencies() {
-        assertEquals(
-                "saveClientApplicationPort must not be null",
-                assertThrows(NullPointerException.class, () -> new ClientApplicationService(null, passwordHashingPort)).getMessage()
+    @DisplayName("Deve rejeitar dependências nulas recebidas pelo construtor")
+    void constructor_dependenciasNulas_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        assertAll(
+                () -> assertNullDependency(
+                        "saveClientApplicationPort must not be null",
+                        () -> new ClientApplicationService(
+                                null,
+                                passwordHashingPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "passwordHashingPort must not be null",
+                        () -> new ClientApplicationService(
+                                saveClientApplicationPort,
+                                null
+                        )
+                )
         );
-        assertEquals(
-                "passwordHashingPort must not be null",
-                assertThrows(NullPointerException.class, () -> new ClientApplicationService(saveClientApplicationPort, null)).getMessage()
+
+        verifyNoInteractions(
+                saveClientApplicationPort,
+                passwordHashingPort
         );
     }
 
     @Test
-    void register_shouldRejectNullCommand() {
-        ClientApplicationService s = service();
-        assertEquals("command must not be null", assertThrows(NullPointerException.class, () -> s.register(null)).getMessage());
-        verifyNoInteractions(saveClientApplicationPort, passwordHashingPort);
+    @DisplayName("Deve rejeitar o comando de registro nulo")
+    void register_comandoNulo_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplicationService service = createService();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> service.register(null)
+        );
+
+        // Assert
+        assertEquals(
+                "command must not be null",
+                exception.getMessage()
+        );
+
+        verifyNoInteractions(
+                saveClientApplicationPort,
+                passwordHashingPort
+        );
     }
 
     @Test
-    void register_shouldCreateConfidentialClient_withSecretHash_defaultGrants_andRequireRedirectUris() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve registrar cliente confidencial com grants padrão e segredo protegido")
+    void register_clienteConfidencialSemGrants_deveAplicarPadroesEGerarSegredo() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("App");
-        when(cmd.clientType()).thenReturn(ClientType.CONFIDENTIAL);
-        when(cmd.grantTypes()).thenReturn(null);
-        when(cmd.redirectUris()).thenReturn(Set.of("https://app/cb"));
-        when(cmd.scopes()).thenReturn(Set.of("openid"));
-        when(cmd.firstParty()).thenReturn(true);
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.CONFIDENTIAL,
+                        null,
+                        Set.of(REDIRECT_URI)
+                );
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(ph.value()).thenReturn("hash-1");
-        when(passwordHashingPort.hash(any(String.class))).thenReturn(ph);
+        prepareSecretHashing();
+        prepareSuccessfulSave();
 
-        when(saveClientApplicationPort.save(any(ClientApplication.class))).thenAnswer(inv -> inv.getArgument(0));
+        ArgumentCaptor<String> secretCaptor =
+                ArgumentCaptor.forClass(String.class);
 
-        ClientApplication saved = s.register(cmd);
+        // Act
+        ClientApplication result = service.register(command);
 
-        assertNotNull(saved);
-        assertEquals(ClientType.CONFIDENTIAL, saved.clientType());
-        assertNotNull(saved.clientId());
-        assertTrue(saved.clientId().startsWith("eco_"));
-        assertNotNull(saved.grantTypes());
-        assertTrue(saved.grantTypes().contains(GrantType.AUTHORIZATION_CODE));
-        assertTrue(saved.grantTypes().contains(GrantType.REFRESH_TOKEN));
-        assertTrue(saved.grantTypes().contains(GrantType.CLIENT_CREDENTIALS));
+        // Assert
+        assertRegisteredClient(
+                result,
+                ClientType.CONFIDENTIAL
+        );
 
-        verify(passwordHashingPort).hash(any(String.class));
-        verify(saveClientApplicationPort).save(any(ClientApplication.class));
+        verify(passwordHashingPort)
+                .hash(secretCaptor.capture());
+
+        assertGeneratedSecret(secretCaptor.getValue());
+
+        verify(saveClientApplicationPort)
+                .save(result);
     }
 
     @Test
-    void register_shouldCreatePublicClient_withoutSecret_defaultGrants_andRequireRedirectUris() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve registrar cliente público com grants padrão sem gerar segredo")
+    void register_clientePublicoSemGrants_deveAplicarPadroesSemGerarSegredo() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("Pub");
-        when(cmd.clientType()).thenReturn(ClientType.PUBLIC);
-        when(cmd.grantTypes()).thenReturn(null);
-        when(cmd.redirectUris()).thenReturn(Set.of("https://pub/cb"));
-        when(cmd.scopes()).thenReturn(Set.of("openid"));
-        when(cmd.firstParty()).thenReturn(false);
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.PUBLIC,
+                        Set.of(),
+                        Set.of(REDIRECT_URI)
+                );
 
-        when(saveClientApplicationPort.save(any(ClientApplication.class))).thenAnswer(inv -> inv.getArgument(0));
+        prepareSuccessfulSave();
 
-        ClientApplication saved = s.register(cmd);
+        // Act
+        ClientApplication result = service.register(command);
 
-        assertNotNull(saved);
-        assertEquals(ClientType.PUBLIC, saved.clientType());
-        assertNotNull(saved.clientId());
-        assertTrue(saved.clientId().startsWith("eco_"));
-        assertTrue(saved.grantTypes().contains(GrantType.AUTHORIZATION_CODE));
-        assertTrue(saved.grantTypes().contains(GrantType.REFRESH_TOKEN));
-        assertFalse(saved.grantTypes().contains(GrantType.CLIENT_CREDENTIALS));
+        // Assert
+        assertRegisteredClient(
+                result,
+                ClientType.PUBLIC
+        );
 
         verifyNoInteractions(passwordHashingPort);
-        verify(saveClientApplicationPort).save(any(ClientApplication.class));
+
+        verify(saveClientApplicationPort)
+                .save(result);
     }
 
     @Test
-    void register_shouldCreateM2MClient_withSecretHash_defaultGrants_andNotRequireRedirectUris() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve registrar cliente SPA com grants padrão sem gerar segredo")
+    void register_clienteSpaSemGrants_deveAplicarPadroesSemGerarSegredo() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("M2M");
-        when(cmd.clientType()).thenReturn(ClientType.MACHINE_TO_MACHINE);
-        when(cmd.grantTypes()).thenReturn(null);
-        when(cmd.redirectUris()).thenReturn(null);
-        when(cmd.scopes()).thenReturn(Set.of("svc"));
-        when(cmd.firstParty()).thenReturn(true);
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.SPA,
+                        null,
+                        Set.of(REDIRECT_URI)
+                );
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(ph.value()).thenReturn("hash-2");
-        when(passwordHashingPort.hash(any(String.class))).thenReturn(ph);
+        prepareSuccessfulSave();
 
-        when(saveClientApplicationPort.save(any(ClientApplication.class))).thenAnswer(inv -> inv.getArgument(0));
+        // Act
+        ClientApplication result = service.register(command);
 
-        ClientApplication saved = s.register(cmd);
+        // Assert
+        assertRegisteredClient(
+                result,
+                ClientType.SPA
+        );
 
-        assertNotNull(saved);
-        assertEquals(ClientType.MACHINE_TO_MACHINE, saved.clientType());
-        assertNotNull(saved.clientId());
-        assertTrue(saved.clientId().startsWith("eco_"));
-        assertTrue(saved.grantTypes().contains(GrantType.CLIENT_CREDENTIALS));
-        assertFalse(saved.grantTypes().contains(GrantType.AUTHORIZATION_CODE));
+        verifyNoInteractions(passwordHashingPort);
 
-        verify(passwordHashingPort).hash(any(String.class));
-        verify(saveClientApplicationPort).save(any(ClientApplication.class));
+        verify(saveClientApplicationPort)
+                .save(result);
     }
 
     @Test
-    void register_shouldThrowInvalidRedirectUri_whenAuthCodeGrantAndRedirectUrisNull() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve registrar cliente máquina a máquina com grant padrão e segredo protegido")
+    void register_clienteM2mSemGrants_deveAplicarClientCredentialsEGerarSegredo() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("Spa");
-        when(cmd.clientType()).thenReturn(ClientType.SPA);
-        when(cmd.grantTypes()).thenReturn(Set.of(GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN));
-        when(cmd.redirectUris()).thenReturn(null);
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.MACHINE_TO_MACHINE,
+                        Set.of(),
+                        Set.of()
+                );
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.register(cmd));
-        assertEquals(AuthErrorCode.INVALID_REDIRECT_URI, ex.getErrorCode());
+        prepareSecretHashing();
+        prepareSuccessfulSave();
 
-        verifyNoInteractions(saveClientApplicationPort, passwordHashingPort);
+        ArgumentCaptor<String> secretCaptor =
+                ArgumentCaptor.forClass(String.class);
+
+        // Act
+        ClientApplication result = service.register(command);
+
+        // Assert
+        assertRegisteredClient(
+                result,
+                ClientType.MACHINE_TO_MACHINE
+        );
+
+        verify(passwordHashingPort)
+                .hash(secretCaptor.capture());
+
+        assertGeneratedSecret(secretCaptor.getValue());
+
+        verify(saveClientApplicationPort)
+                .save(result);
     }
 
     @Test
-    void register_shouldThrowInvalidRedirectUri_whenAuthCodeGrantAndRedirectUrisEmpty() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve registrar cliente confidencial com grant explícito sem exigir redirecionamento")
+    void register_clienteConfidencialComClientCredentials_deveManterGrantInformado() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("Spa");
-        when(cmd.clientType()).thenReturn(ClientType.SPA);
-        when(cmd.grantTypes()).thenReturn(Set.of(GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN));
-        when(cmd.redirectUris()).thenReturn(Set.of());
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.CONFIDENTIAL,
+                        Set.of(GrantType.CLIENT_CREDENTIALS),
+                        Set.of()
+                );
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.register(cmd));
-        assertEquals(AuthErrorCode.INVALID_REDIRECT_URI, ex.getErrorCode());
+        prepareSecretHashing();
+        prepareSuccessfulSave();
 
-        verifyNoInteractions(saveClientApplicationPort, passwordHashingPort);
+        // Act
+        ClientApplication result = service.register(command);
+
+        // Assert
+        assertRegisteredClient(
+                result,
+                ClientType.CONFIDENTIAL
+        );
+
+        verify(passwordHashingPort)
+                .hash(anyString());
+
+        verify(saveClientApplicationPort)
+                .save(result);
     }
 
     @Test
-    void register_shouldThrowClientNotAllowedForGrantType_whenSpaHasClientCredentials() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve rejeitar cliente máquina a máquina sem grant client credentials")
+    void register_clienteM2mSemClientCredentials_deveLancarGrantNaoPermitido() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("Spa");
-        when(cmd.clientType()).thenReturn(ClientType.SPA);
-        when(cmd.grantTypes()).thenReturn(Set.of(GrantType.CLIENT_CREDENTIALS));
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.MACHINE_TO_MACHINE,
+                        Set.of(GrantType.REFRESH_TOKEN),
+                        Set.of()
+                );
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.register(cmd));
-        assertEquals(AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE, ex.getErrorCode());
+        prepareSecretHashing();
 
-        verifyNoInteractions(saveClientApplicationPort, passwordHashingPort);
-    }
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
 
-    @Test
-    void register_shouldThrowClientNotAllowedForGrantType_whenM2MMissingClientCredentials() {
-        ClientApplicationService s = service();
+        // Assert
+        assertAuthException(
+                exception,
+                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                "M2M client must support CLIENT_CREDENTIALS grant"
+        );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("M2M");
-        when(cmd.clientType()).thenReturn(ClientType.MACHINE_TO_MACHINE);
-        when(cmd.grantTypes()).thenReturn(Set.of(GrantType.REFRESH_TOKEN));
+        verify(passwordHashingPort)
+                .hash(anyString());
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(ph.value()).thenReturn("hash");
-        when(passwordHashingPort.hash(anyString())).thenReturn(ph);
-
-        AuthException ex = assertThrows(AuthException.class, () -> s.register(cmd));
-        assertEquals(AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE, ex.getErrorCode());
-
-        verify(passwordHashingPort).hash(anyString());
         verifyNoInteractions(saveClientApplicationPort);
     }
 
     @Test
-    void register_shouldThrowClientNotAllowedForGrantType_whenM2MHasAuthorizationCode() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve rejeitar grant authorization code para cliente máquina a máquina")
+    void register_clienteM2mComAuthorizationCode_deveLancarGrantNaoPermitido() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("M2M");
-        when(cmd.clientType()).thenReturn(ClientType.MACHINE_TO_MACHINE);
-        when(cmd.grantTypes()).thenReturn(Set.of(GrantType.CLIENT_CREDENTIALS, GrantType.AUTHORIZATION_CODE));
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.MACHINE_TO_MACHINE,
+                        Set.of(
+                                GrantType.CLIENT_CREDENTIALS,
+                                GrantType.AUTHORIZATION_CODE
+                        ),
+                        Set.of(REDIRECT_URI)
+                );
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(ph.value()).thenReturn("hash-m2m");
-        when(passwordHashingPort.hash(anyString())).thenReturn(ph);
+        prepareSecretHashing();
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.register(cmd));
-        assertEquals(AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE, ex.getErrorCode());
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
 
-        verify(passwordHashingPort).hash(anyString());
+        // Assert
+        assertAuthException(
+                exception,
+                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                "M2M client cannot use AUTHORIZATION_CODE grant"
+        );
+
+        verify(passwordHashingPort)
+                .hash(anyString());
+
         verifyNoInteractions(saveClientApplicationPort);
     }
 
     @Test
-    void register_shouldThrowClientNotAllowedForGrantType_whenM2MHasPasswordGrant() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve rejeitar grant password para cliente máquina a máquina")
+    void register_clienteM2mComPassword_deveLancarGrantNaoPermitido() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("M2M");
-        when(cmd.clientType()).thenReturn(ClientType.MACHINE_TO_MACHINE);
-        when(cmd.grantTypes()).thenReturn(Set.of(GrantType.CLIENT_CREDENTIALS, GrantType.PASSWORD));
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.MACHINE_TO_MACHINE,
+                        Set.of(
+                                GrantType.CLIENT_CREDENTIALS,
+                                GrantType.PASSWORD
+                        ),
+                        Set.of()
+                );
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(ph.value()).thenReturn("hash-m2m");
-        when(passwordHashingPort.hash(anyString())).thenReturn(ph);
+        prepareSecretHashing();
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.register(cmd));
-        assertEquals(AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE, ex.getErrorCode());
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
 
-        verify(passwordHashingPort).hash(anyString());
+        // Assert
+        assertAuthException(
+                exception,
+                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                "M2M client cannot use PASSWORD grant"
+        );
+
+        verify(passwordHashingPort)
+                .hash(anyString());
+
         verifyNoInteractions(saveClientApplicationPort);
     }
 
     @Test
-    void register_shouldUseRequestedGrantsAsIs_whenProvided_andNotRequireRedirectUrisIfNoAuthCode() {
-        ClientApplicationService s = service();
+    @DisplayName("Deve rejeitar grant client credentials para cliente público")
+    void register_clientePublicoComClientCredentials_deveLancarGrantNaoPermitido() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        Set<GrantType> requested = Set.of(GrantType.REFRESH_TOKEN);
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.PUBLIC,
+                        Set.of(GrantType.CLIENT_CREDENTIALS),
+                        Set.of()
+                );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand cmd = mock(RegisterClientApplicationUseCase.RegisterClientCommand.class);
-        when(cmd.name()).thenReturn("Conf");
-        when(cmd.clientType()).thenReturn(ClientType.CONFIDENTIAL);
-        when(cmd.grantTypes()).thenReturn(requested);
-        when(cmd.redirectUris()).thenReturn(null);
-        when(cmd.scopes()).thenReturn(Set.of("openid"));
-        when(cmd.firstParty()).thenReturn(true);
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(ph.value()).thenReturn("hash-req");
-        when(passwordHashingPort.hash(any(String.class))).thenReturn(ph);
+        // Assert
+        assertAuthException(
+                exception,
+                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                "PUBLIC/SPA clients cannot use CLIENT_CREDENTIALS grant"
+        );
 
-        when(saveClientApplicationPort.save(any(ClientApplication.class))).thenAnswer(inv -> inv.getArgument(0));
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveClientApplicationPort
+        );
+    }
 
-        ArgumentCaptor<ClientApplication> captor = ArgumentCaptor.forClass(ClientApplication.class);
+    @Test
+    @DisplayName("Deve rejeitar grant client credentials para cliente SPA")
+    void register_clienteSpaComClientCredentials_deveLancarGrantNaoPermitido() {
+        // Arrange
+        ClientApplicationService service = createService();
 
-        ClientApplication saved = s.register(cmd);
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.SPA,
+                        Set.of(GrantType.CLIENT_CREDENTIALS),
+                        Set.of()
+                );
 
-        assertNotNull(saved);
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
 
-        verify(saveClientApplicationPort).save(captor.capture());
-        ClientApplication passed = captor.getValue();
-        assertTrue(passed.grantTypes().contains(GrantType.REFRESH_TOKEN));
-        assertFalse(passed.grantTypes().contains(GrantType.AUTHORIZATION_CODE));
+        // Assert
+        assertAuthException(
+                exception,
+                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                "PUBLIC/SPA clients cannot use CLIENT_CREDENTIALS grant"
+        );
+
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveClientApplicationPort
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar authorization code quando os redirecionamentos forem nulos")
+    void register_authorizationCodeComRedirectUrisNulas_deveLancarRedirectInvalido() {
+        // Arrange
+        ClientApplicationService service = createService();
+
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.CONFIDENTIAL,
+                        Set.of(GrantType.AUTHORIZATION_CODE),
+                        null
+                );
+
+        prepareSecretHashing();
+
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
+
+        // Assert
+        assertAuthException(
+                exception,
+                AuthErrorCode.INVALID_REDIRECT_URI,
+                "AUTHORIZATION_CODE grant requires at least one redirectUri configured"
+        );
+
+        verify(passwordHashingPort)
+                .hash(anyString());
+
+        verifyNoInteractions(saveClientApplicationPort);
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar authorization code quando os redirecionamentos estiverem vazios")
+    void register_authorizationCodeComRedirectUrisVazias_deveLancarRedirectInvalido() {
+        // Arrange
+        ClientApplicationService service = createService();
+
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        ClientType.PUBLIC,
+                        Set.of(GrantType.AUTHORIZATION_CODE),
+                        Set.of()
+                );
+
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
+
+        // Assert
+        assertAuthException(
+                exception,
+                AuthErrorCode.INVALID_REDIRECT_URI,
+                "AUTHORIZATION_CODE grant requires at least one redirectUri configured"
+        );
+
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveClientApplicationPort
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar o tipo de cliente nulo durante a resolução dos grants")
+    void register_tipoDeClienteNulo_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplicationService service = createService();
+
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                createCommand(
+                        null,
+                        null,
+                        Set.of()
+                );
+
+        // Act
+        assertThrows(
+                NullPointerException.class,
+                () -> service.register(command)
+        );
+
+        // Assert
+        verifyNoInteractions(
+                passwordHashingPort,
+                saveClientApplicationPort
+        );
+    }
+
+    private ClientApplicationService createService() {
+        return new ClientApplicationService(
+                saveClientApplicationPort,
+                passwordHashingPort
+        );
+    }
+
+    private RegisterClientApplicationUseCase.RegisterClientCommand createCommand(
+            ClientType clientType,
+            Set<GrantType> grantTypes,
+            Set<String> redirectUris
+    ) {
+        RegisterClientApplicationUseCase.RegisterClientCommand command =
+                org.mockito.Mockito.mock(
+                        RegisterClientApplicationUseCase.RegisterClientCommand.class
+                );
+
+        lenient().when(command.name())
+                .thenReturn(CLIENT_NAME);
+
+        lenient().when(command.clientType())
+                .thenReturn(clientType);
+
+        lenient().when(command.grantTypes())
+                .thenReturn(grantTypes);
+
+        lenient().when(command.redirectUris())
+                .thenReturn(redirectUris);
+
+        lenient().when(command.scopes())
+                .thenReturn(Set.of("profile:read"));
+
+        lenient().when(command.firstParty())
+                .thenReturn(true);
+
+        return command;
+    }
+
+    private void prepareSecretHashing() {
+        when(
+                passwordHashingPort.hash(anyString()).value()
+        ).thenReturn(HASHED_SECRET);
+    }
+
+    private void prepareSuccessfulSave() {
+        when(
+                saveClientApplicationPort.save(
+                        any(ClientApplication.class)
+                )
+        ).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private void assertRegisteredClient(
+            ClientApplication client,
+            ClientType expectedClientType
+    ) {
+        assertAll(
+                () -> assertNotNull(client),
+                () -> assertEquals(
+                        expectedClientType,
+                        client.clientType()
+                ),
+                () -> assertTrue(client.isActive()),
+                () -> assertNotNull(client.clientId()),
+                () -> assertTrue(
+                        client.clientId().matches(
+                                "^eco_[A-Za-z0-9_-]{16}$"
+                        )
+                )
+        );
+    }
+
+    private void assertGeneratedSecret(String secret) {
+        assertAll(
+                () -> assertNotNull(secret),
+                () -> assertEquals(43, secret.length()),
+                () -> assertTrue(
+                        secret.matches(
+                                "^[A-Za-z0-9_-]{43}$"
+                        )
+                )
+        );
+    }
+
+    private void assertAuthException(
+            AuthException exception,
+            AuthErrorCode expectedErrorCode,
+            String expectedMessage
+    ) {
+        assertAll(
+                () -> assertEquals(
+                        expectedErrorCode,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        expectedMessage,
+                        exception.getMessage()
+                )
+        );
+    }
+
+    private void assertNullDependency(
+            String expectedMessage,
+            Executable executable
+    ) {
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                executable
+        );
+
+        assertEquals(
+                expectedMessage,
+                exception.getMessage()
+        );
     }
 }

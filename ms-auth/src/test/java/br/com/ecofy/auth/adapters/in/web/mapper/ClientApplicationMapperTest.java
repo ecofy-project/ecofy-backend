@@ -1,34 +1,49 @@
 package br.com.ecofy.auth.adapters.in.web.mapper;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import br.com.ecofy.auth.adapters.in.web.dto.response.ClientApplicationResponse;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.domain.enums.ClientType;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Constructor;
-import java.time.Instant;
-import java.util.*;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
+@DisplayName("Testes unitários do mapeador de aplicações cliente")
 class ClientApplicationMapperTest {
 
     private static final Instant CREATED_AT = Instant.parse("2026-01-01T10:00:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-01-02T10:00:00Z");
 
     @Test
-    void shouldMapClientApplicationToResponse() {
+    @DisplayName("Deve converter a aplicação cliente preenchida para a resposta correspondente")
+    void toResponse_clientePreenchido_deveConverterTodosOsCampos() {
+        // Arrange
         GrantType grantType = anyGrantType();
+        ClientType clientType = nonConfidentialClientType();
 
         ClientApplication client = new ClientApplication(
                 "internal-id",
                 "ecofy-web",
                 null,
                 "EcoFy Web",
-                nonConfidentialClientType(),
+                clientType,
                 Set.of(grantType),
                 Set.of("https://app.ecofy.com/callback"),
                 Set.of("openid", "profile"),
@@ -38,12 +53,14 @@ class ClientApplicationMapperTest {
                 UPDATED_AT
         );
 
+        // Act
         ClientApplicationResponse response = ClientApplicationMapper.toResponse(client);
 
+        // Assert
         assertEquals("internal-id", response.id());
         assertEquals("ecofy-web", response.clientId());
         assertEquals("EcoFy Web", response.name());
-        assertEquals(nonConfidentialClientType(), response.clientType());
+        assertEquals(clientType, response.clientType());
         assertEquals(Set.of(grantType), response.grantTypes());
         assertEquals(Set.of("https://app.ecofy.com/callback"), response.redirectUris());
         assertEquals(Set.of("openid", "profile"), response.scopes());
@@ -54,15 +71,17 @@ class ClientApplicationMapperTest {
     }
 
     @Test
-    void shouldGenerateResponseIdWhenClientIdIsNullInDomainObject() {
+    @DisplayName("Deve gerar um identificador UUID quando a aplicação não possuir identificador interno")
+    void toResponse_identificadorNulo_deveGerarIdentificadorUuid() {
+        // Arrange
         GrantType grantType = anyGrantType();
-
+        ClientType clientType = nonConfidentialClientType();
         ClientApplication client = mock(ClientApplication.class);
 
         when(client.id()).thenReturn(null);
         when(client.clientId()).thenReturn("ecofy-web");
         when(client.name()).thenReturn("EcoFy Web");
-        when(client.clientType()).thenReturn(nonConfidentialClientType());
+        when(client.clientType()).thenReturn(clientType);
         when(client.grantTypes()).thenReturn(Set.of(grantType));
         when(client.redirectUris()).thenReturn(Set.of("https://app.ecofy.com/callback"));
         when(client.scopes()).thenReturn(Set.of("openid"));
@@ -71,15 +90,16 @@ class ClientApplicationMapperTest {
         when(client.createdAt()).thenReturn(CREATED_AT);
         when(client.updatedAt()).thenReturn(UPDATED_AT);
 
+        // Act
         ClientApplicationResponse response = ClientApplicationMapper.toResponse(client);
 
+        // Assert
         assertNotNull(response.id());
         assertFalse(response.id().isBlank());
-        assertDoesNotThrow(() -> java.util.UUID.fromString(response.id()));
-
+        assertDoesNotThrow(() -> UUID.fromString(response.id()));
         assertEquals("ecofy-web", response.clientId());
         assertEquals("EcoFy Web", response.name());
-        assertEquals(nonConfidentialClientType(), response.clientType());
+        assertEquals(clientType, response.clientType());
         assertEquals(Set.of(grantType), response.grantTypes());
         assertEquals(Set.of("https://app.ecofy.com/callback"), response.redirectUris());
         assertEquals(Set.of("openid"), response.scopes());
@@ -90,7 +110,9 @@ class ClientApplicationMapperTest {
     }
 
     @Test
-    void shouldReturnEmptySetsWhenClientCollectionsAreNull() {
+    @DisplayName("Deve retornar conjuntos vazios quando as coleções da aplicação forem nulas")
+    void toResponse_colecoesNulas_deveRetornarConjuntosVazios() {
+        // Arrange
         ClientApplication client = mock(ClientApplication.class);
 
         when(client.id()).thenReturn("internal-id");
@@ -105,8 +127,13 @@ class ClientApplicationMapperTest {
         when(client.createdAt()).thenReturn(CREATED_AT);
         when(client.updatedAt()).thenReturn(UPDATED_AT);
 
+        // Act
         ClientApplicationResponse response = ClientApplicationMapper.toResponse(client);
 
+        // Assert
+        assertNotNull(response.grantTypes());
+        assertNotNull(response.redirectUris());
+        assertNotNull(response.scopes());
         assertTrue(response.grantTypes().isEmpty());
         assertTrue(response.redirectUris().isEmpty());
         assertTrue(response.scopes().isEmpty());
@@ -115,7 +142,9 @@ class ClientApplicationMapperTest {
     }
 
     @Test
-    void shouldReturnEmptySetsWhenClientCollectionsAreEmpty() {
+    @DisplayName("Deve preservar conjuntos vazios quando a aplicação não possuir valores nas coleções")
+    void toResponse_colecoesVazias_deveRetornarConjuntosVazios() {
+        // Arrange
         ClientApplication client = mock(ClientApplication.class);
 
         when(client.id()).thenReturn("internal-id");
@@ -130,24 +159,27 @@ class ClientApplicationMapperTest {
         when(client.createdAt()).thenReturn(CREATED_AT);
         when(client.updatedAt()).thenReturn(UPDATED_AT);
 
+        // Act
         ClientApplicationResponse response = ClientApplicationMapper.toResponse(client);
 
+        // Assert
         assertTrue(response.grantTypes().isEmpty());
         assertTrue(response.redirectUris().isEmpty());
         assertTrue(response.scopes().isEmpty());
+        assertTrue(response.firstParty());
+        assertTrue(response.active());
     }
 
     @Test
-    void shouldFilterNullValuesFromCollections() {
+    @DisplayName("Deve remover valores nulos das coleções ao converter a aplicação")
+    void toResponse_colecoesComValoresNulos_deveFiltrarValoresNulos() {
+        // Arrange
         GrantType grantType = anyGrantType();
-
         Set<GrantType> grantTypes = new HashSet<>(Arrays.asList(grantType, null));
-
         Set<String> redirectUris = new HashSet<>(Arrays.asList(
                 "https://app.ecofy.com/callback",
                 null
         ));
-
         Set<String> scopes = new HashSet<>(Arrays.asList(
                 "openid",
                 "profile",
@@ -168,23 +200,22 @@ class ClientApplicationMapperTest {
         when(client.createdAt()).thenReturn(CREATED_AT);
         when(client.updatedAt()).thenReturn(UPDATED_AT);
 
+        // Act
         ClientApplicationResponse response = ClientApplicationMapper.toResponse(client);
 
+        // Assert
         assertEquals(Set.of(grantType), response.grantTypes());
         assertEquals(Set.of("https://app.ecofy.com/callback"), response.redirectUris());
         assertEquals(Set.of("openid", "profile"), response.scopes());
-
-        assertEquals(1, response.grantTypes().size());
-        assertEquals(1, response.redirectUris().size());
-        assertEquals(2, response.scopes().size());
-
         assertTrue(response.grantTypes().stream().noneMatch(Objects::isNull));
         assertTrue(response.redirectUris().stream().noneMatch(Objects::isNull));
         assertTrue(response.scopes().stream().noneMatch(Objects::isNull));
     }
 
     @Test
-    void shouldReturnUnmodifiableSetsInResponse() {
+    @DisplayName("Deve retornar conjuntos imutáveis ao converter a aplicação cliente")
+    void toResponse_clienteValido_deveRetornarConjuntosImutaveis() {
+        // Arrange
         GrantType grantType = anyGrantType();
 
         ClientApplication client = new ClientApplication(
@@ -202,18 +233,18 @@ class ClientApplicationMapperTest {
                 UPDATED_AT
         );
 
+        // Act
         ClientApplicationResponse response = ClientApplicationMapper.toResponse(client);
 
+        // Assert
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> response.grantTypes().add(grantType)
         );
-
         assertThrows(
                 UnsupportedOperationException.class,
-                () -> response.redirectUris().add("https://evil.com/callback")
+                () -> response.redirectUris().add("https://outro.exemplo/callback")
         );
-
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> response.scopes().add("admin")
@@ -221,33 +252,55 @@ class ClientApplicationMapperTest {
     }
 
     @Test
-    void shouldThrowExceptionWhenClientIsNull() {
+    @DisplayName("Deve lançar exceção quando a aplicação cliente for nula")
+    void toResponse_clienteNulo_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplication client = null;
+
+        // Act
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> ClientApplicationMapper.toResponse(null)
+                () -> ClientApplicationMapper.toResponse(client)
         );
 
+        // Assert
         assertEquals("client must not be null", exception.getMessage());
     }
 
     @Test
-    void shouldReturnEmptyListWhenClientListIsNull() {
-        List<ClientApplicationResponse> responses = ClientApplicationMapper.toResponseList(null);
+    @DisplayName("Deve retornar lista vazia quando a lista de aplicações for nula")
+    void toResponseList_listaNula_deveRetornarListaVazia() {
+        // Arrange
+        List<ClientApplication> clients = null;
 
+        // Act
+        List<ClientApplicationResponse> responses =
+                ClientApplicationMapper.toResponseList(clients);
+
+        // Assert
         assertNotNull(responses);
         assertTrue(responses.isEmpty());
     }
 
     @Test
-    void shouldReturnEmptyListWhenClientListIsEmpty() {
-        List<ClientApplicationResponse> responses = ClientApplicationMapper.toResponseList(List.of());
+    @DisplayName("Deve retornar lista vazia quando não houver aplicações cliente")
+    void toResponseList_listaVazia_deveRetornarListaVazia() {
+        // Arrange
+        List<ClientApplication> clients = List.of();
 
+        // Act
+        List<ClientApplicationResponse> responses =
+                ClientApplicationMapper.toResponseList(clients);
+
+        // Assert
         assertNotNull(responses);
         assertTrue(responses.isEmpty());
     }
 
     @Test
-    void shouldMapClientListFilteringNullValues() {
+    @DisplayName("Deve converter a lista de aplicações ignorando elementos nulos")
+    void toResponseList_listaComElementoNulo_deveConverterElementosValidos() {
+        // Arrange
         GrantType grantType = anyGrantType();
 
         ClientApplication firstClient = new ClientApplication(
@@ -280,10 +333,17 @@ class ClientApplicationMapperTest {
                 UPDATED_AT
         );
 
-        List<ClientApplicationResponse> responses = ClientApplicationMapper.toResponseList(
-                Arrays.asList(firstClient, null, secondClient)
+        List<ClientApplication> clients = Arrays.asList(
+                firstClient,
+                null,
+                secondClient
         );
 
+        // Act
+        List<ClientApplicationResponse> responses =
+                ClientApplicationMapper.toResponseList(clients);
+
+        // Assert
         assertEquals(2, responses.size());
 
         assertEquals("internal-id-1", responses.get(0).id());
@@ -306,7 +366,9 @@ class ClientApplicationMapperTest {
     }
 
     @Test
-    void shouldReturnUnmodifiableResponseList() {
+    @DisplayName("Deve retornar lista imutável após converter as aplicações cliente")
+    void toResponseList_listaValida_deveRetornarListaImutavel() {
+        // Arrange
         ClientApplication client = new ClientApplication(
                 "internal-id",
                 "ecofy-web",
@@ -322,10 +384,12 @@ class ClientApplicationMapperTest {
                 UPDATED_AT
         );
 
-        List<ClientApplicationResponse> responses = ClientApplicationMapper.toResponseList(List.of(client));
+        // Act
+        List<ClientApplicationResponse> responses =
+                ClientApplicationMapper.toResponseList(List.of(client));
 
+        // Assert
         assertEquals(1, responses.size());
-
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> responses.add(ClientApplicationMapper.toResponse(client))
@@ -333,27 +397,37 @@ class ClientApplicationMapperTest {
     }
 
     @Test
-    void shouldInstantiatePrivateConstructorForCoverage() throws Exception {
+    @DisplayName("Deve manter o construtor privado da classe utilitária")
+    void constructor_classeUtilitaria_deveSerPrivadoEExecutavelPorReflexao() throws Exception {
+        // Arrange
         Constructor<ClientApplicationMapper> constructor =
                 ClientApplicationMapper.class.getDeclaredConstructor();
 
+        // Act
         constructor.setAccessible(true);
-
         ClientApplicationMapper instance = constructor.newInstance();
 
+        // Assert
+        assertTrue(Modifier.isPrivate(constructor.getModifiers()));
         assertNotNull(instance);
     }
 
     private static GrantType anyGrantType() {
         return Arrays.stream(GrantType.values())
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("GrantType enum must have at least one value"));
+                .orElseThrow(() ->
+                        new IllegalStateException("GrantType enum must have at least one value")
+                );
     }
 
     private static ClientType nonConfidentialClientType() {
         return Arrays.stream(ClientType.values())
                 .filter(clientType -> clientType != ClientType.CONFIDENTIAL)
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("ClientType enum must have at least one non-CONFIDENTIAL value"));
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "ClientType enum must have at least one non-CONFIDENTIAL value"
+                        )
+                );
     }
 }

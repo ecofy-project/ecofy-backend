@@ -1,49 +1,57 @@
 package br.com.ecofy.auth.config;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestClient;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários da configuração dos clientes HTTP")
 class HttpClientsConfigTest {
 
+    @Mock
+    private UsersMsProperties usersMsProperties;
+
     @Test
-    void msUsersRestClient_shouldCallPropsBaseUrl_buildClient_andThrowOnNullProps() {
+    @DisplayName("Deve criar o cliente HTTP do ms-users com a URL base configurada")
+    void msUsersRestClient_propriedadesValidas_deveRetornarRestClientConfigurado() {
+        // Arrange
+        String baseUrl = "http://localhost:8081";
+        when(usersMsProperties.baseUrl()).thenReturn(baseUrl);
+
         HttpClientsConfig config = new HttpClientsConfig();
 
-        assertThrows(NullPointerException.class, () -> config.msUsersRestClient(null));
+        // Act
+        RestClient result =
+                config.msUsersRestClient(usersMsProperties);
 
-        UsersMsProperties props = mock(UsersMsProperties.class);
-        when(props.baseUrl()).thenReturn("http://localhost:8081");
+        // Assert
+        assertNotNull(result);
 
-        RestClient client = config.msUsersRestClient(props);
-
-        assertNotNull(client);
-
-        verify(props, times(1)).baseUrl();
-        verifyNoMoreInteractions(props);
+        verify(usersMsProperties).baseUrl();
     }
 
-    // heapers
+    @Test
+    @DisplayName("Deve lançar exceção quando as propriedades do ms-users forem nulas")
+    void msUsersRestClient_propriedadesNulas_deveLancarNullPointerException() {
+        // Arrange
+        HttpClientsConfig config = new HttpClientsConfig();
 
-    private static String extractBaseUrl(RestClient client) throws Exception {
-        for (String field : new String[]{"baseUrl", "baseUri", "uriBuilderFactory", "uriTemplateHandler"}) {
-            try {
-                var f = client.getClass().getDeclaredField(field);
-                f.setAccessible(true);
-                Object v = f.get(client);
-                if (v == null) continue;
+        // Act
+        assertThrows(
+                NullPointerException.class,
+                () -> config.msUsersRestClient(null)
+        );
 
-                if (v instanceof String s && !s.isBlank()) return s;
-
-                String fromToString = v.toString();
-                if (fromToString.contains("http://") || fromToString.contains("https://")) {
-                    return fromToString;
-                }
-            } catch (NoSuchFieldException ignored) {
-            }
-        }
-        return null;
+        // Assert
+        verifyNoInteractions(usersMsProperties);
     }
 }

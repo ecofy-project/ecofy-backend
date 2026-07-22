@@ -3,29 +3,58 @@ package br.com.ecofy.auth.core.application.service;
 import br.com.ecofy.auth.core.application.exception.AuthErrorCode;
 import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.domain.AuthUser;
-import br.com.ecofy.auth.core.domain.Role;
 import br.com.ecofy.auth.core.domain.event.UserRegisteredEvent;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
 import br.com.ecofy.auth.core.port.in.RegisterUserUseCase;
-import br.com.ecofy.auth.core.port.out.*;
+import br.com.ecofy.auth.core.port.out.LoadAuthUserByEmailPort;
+import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
+import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
+import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
+import br.com.ecofy.auth.core.port.out.SendVerificationEmailPort;
+import br.com.ecofy.auth.core.port.out.SyncUserToUsersMsPort;
+import br.com.ecofy.auth.core.port.out.VerificationTokenStorePort;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Method;
-import java.util.Set;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do serviço de registro de usuários")
 class RegisterUserServiceTest {
+
+    private static final String EMAIL = "matheus@ecofy.com";
+    private static final String RAW_PASSWORD = "StrongPassword@123";
+    private static final String FIRST_NAME = "Matheus";
+    private static final String LAST_NAME = "Silva";
 
     @Mock
     private SaveAuthUserPort saveAuthUserPort;
@@ -48,8 +77,104 @@ class RegisterUserServiceTest {
     @Mock
     private SyncUserToUsersMsPort syncUserToUsersMsPort;
 
-    private RegisterUserService service() {
-        return new RegisterUserService(
+    @Mock
+    private PasswordHash passwordHash;
+
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    private AuthUser existingUser;
+
+    @Test
+    @DisplayName("Deve rejeitar dependências nulas recebidas pelo construtor")
+    void constructor_dependenciasNulas_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
+        assertAll(
+                () -> assertNullDependency(
+                        "saveAuthUserPort must not be null",
+                        () -> new RegisterUserService(
+                                null,
+                                loadAuthUserByEmailPort,
+                                passwordHashingPort,
+                                sendVerificationEmailPort,
+                                verificationTokenStorePort,
+                                publishAuthEventPort,
+                                syncUserToUsersMsPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "loadAuthUserByEmailPort must not be null",
+                        () -> new RegisterUserService(
+                                saveAuthUserPort,
+                                null,
+                                passwordHashingPort,
+                                sendVerificationEmailPort,
+                                verificationTokenStorePort,
+                                publishAuthEventPort,
+                                syncUserToUsersMsPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "passwordHashingPort must not be null",
+                        () -> new RegisterUserService(
+                                saveAuthUserPort,
+                                loadAuthUserByEmailPort,
+                                null,
+                                sendVerificationEmailPort,
+                                verificationTokenStorePort,
+                                publishAuthEventPort,
+                                syncUserToUsersMsPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "sendVerificationEmailPort must not be null",
+                        () -> new RegisterUserService(
+                                saveAuthUserPort,
+                                loadAuthUserByEmailPort,
+                                passwordHashingPort,
+                                null,
+                                verificationTokenStorePort,
+                                publishAuthEventPort,
+                                syncUserToUsersMsPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "verificationTokenStorePort must not be null",
+                        () -> new RegisterUserService(
+                                saveAuthUserPort,
+                                loadAuthUserByEmailPort,
+                                passwordHashingPort,
+                                sendVerificationEmailPort,
+                                null,
+                                publishAuthEventPort,
+                                syncUserToUsersMsPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "publishAuthEventPort must not be null",
+                        () -> new RegisterUserService(
+                                saveAuthUserPort,
+                                loadAuthUserByEmailPort,
+                                passwordHashingPort,
+                                sendVerificationEmailPort,
+                                verificationTokenStorePort,
+                                null,
+                                syncUserToUsersMsPort
+                        )
+                ),
+                () -> assertNullDependency(
+                        "syncUserToUsersMsPort must not be null",
+                        () -> new RegisterUserService(
+                                saveAuthUserPort,
+                                loadAuthUserByEmailPort,
+                                passwordHashingPort,
+                                sendVerificationEmailPort,
+                                verificationTokenStorePort,
+                                publishAuthEventPort,
+                                null
+                        )
+                )
+        );
+
+        verifyNoInteractions(
                 saveAuthUserPort,
                 loadAuthUserByEmailPort,
                 passwordHashingPort,
@@ -61,252 +186,472 @@ class RegisterUserServiceTest {
     }
 
     @Test
-    void constructor_shouldRejectNullPorts() {
-        assertEquals(
-                "saveAuthUserPort must not be null",
-                assertThrows(NullPointerException.class, () -> new RegisterUserService(
-                        null,
-                        loadAuthUserByEmailPort,
-                        passwordHashingPort,
-                        sendVerificationEmailPort,
-                        verificationTokenStorePort,
-                        publishAuthEventPort,
-                        syncUserToUsersMsPort
-                )).getMessage()
+    @DisplayName("Deve rejeitar o comando de registro nulo")
+    void register_comandoNulo_deveLancarNullPointerException() {
+        // Arrange
+        RegisterUserService service = createService();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> service.register(null)
         );
 
+        // Assert
         assertEquals(
-                "loadAuthUserByEmailPort must not be null",
-                assertThrows(NullPointerException.class, () -> new RegisterUserService(
-                        saveAuthUserPort,
-                        null,
-                        passwordHashingPort,
-                        sendVerificationEmailPort,
-                        verificationTokenStorePort,
-                        publishAuthEventPort,
-                        syncUserToUsersMsPort
-                )).getMessage()
+                "command must not be null",
+                exception.getMessage()
         );
 
-        assertEquals(
-                "passwordHashingPort must not be null",
-                assertThrows(NullPointerException.class, () -> new RegisterUserService(
-                        saveAuthUserPort,
-                        loadAuthUserByEmailPort,
-                        null,
-                        sendVerificationEmailPort,
-                        verificationTokenStorePort,
-                        publishAuthEventPort,
-                        syncUserToUsersMsPort
-                )).getMessage()
-        );
-
-        assertEquals(
-                "sendVerificationEmailPort must not be null",
-                assertThrows(NullPointerException.class, () -> new RegisterUserService(
-                        saveAuthUserPort,
-                        loadAuthUserByEmailPort,
-                        passwordHashingPort,
-                        null,
-                        verificationTokenStorePort,
-                        publishAuthEventPort,
-                        syncUserToUsersMsPort
-                )).getMessage()
-        );
-
-        assertEquals(
-                "verificationTokenStorePort must not be null",
-                assertThrows(NullPointerException.class, () -> new RegisterUserService(
-                        saveAuthUserPort,
-                        loadAuthUserByEmailPort,
-                        passwordHashingPort,
-                        sendVerificationEmailPort,
-                        null,
-                        publishAuthEventPort,
-                        syncUserToUsersMsPort
-                )).getMessage()
-        );
-
-        assertEquals(
-                "publishAuthEventPort must not be null",
-                assertThrows(NullPointerException.class, () -> new RegisterUserService(
-                        saveAuthUserPort,
-                        loadAuthUserByEmailPort,
-                        passwordHashingPort,
-                        sendVerificationEmailPort,
-                        verificationTokenStorePort,
-                        null,
-                        syncUserToUsersMsPort
-                )).getMessage()
-        );
-
-        assertEquals(
-                "syncUserToUsersMsPort must not be null",
-                assertThrows(NullPointerException.class, () -> new RegisterUserService(
-                        saveAuthUserPort,
-                        loadAuthUserByEmailPort,
-                        passwordHashingPort,
-                        sendVerificationEmailPort,
-                        verificationTokenStorePort,
-                        publishAuthEventPort,
-                        null
-                )).getMessage()
+        verifyNoInteractions(
+                saveAuthUserPort,
+                loadAuthUserByEmailPort,
+                passwordHashingPort,
+                sendVerificationEmailPort,
+                verificationTokenStorePort,
+                publishAuthEventPort,
+                syncUserToUsersMsPort
         );
     }
 
     @Test
-    void register_shouldRejectNullCommand() {
-        RegisterUserService s = service();
-        assertEquals("command must not be null", assertThrows(NullPointerException.class, () -> s.register(null)).getMessage());
-        verifyNoInteractions(saveAuthUserPort, loadAuthUserByEmailPort, passwordHashingPort, sendVerificationEmailPort, verificationTokenStorePort, publishAuthEventPort, syncUserToUsersMsPort);
+    @DisplayName("Deve rejeitar o registro quando o e-mail já estiver cadastrado")
+    void register_emailJaCadastrado_deveLancarAuthException() {
+        // Arrange
+        RegisterUserService service = createService();
+
+        RegisterUserUseCase.RegisterUserCommand command =
+                createCommand();
+
+        stubBasicCommand(
+                command,
+                null,
+                null
+        );
+
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.of(existingUser));
+
+        // Act
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.register(command)
+        );
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.EMAIL_ALREADY_REGISTERED,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "Email already registered: " + EMAIL,
+                        exception.getMessage()
+                )
+        );
+
+        ArgumentCaptor<EmailAddress> emailCaptor =
+                ArgumentCaptor.forClass(EmailAddress.class);
+
+        verify(loadAuthUserByEmailPort)
+                .loadByEmail(emailCaptor.capture());
+
+        assertEquals(
+                EMAIL,
+                emailCaptor.getValue().value()
+        );
+
+        verifyNoInteractions(
+                saveAuthUserPort,
+                passwordHashingPort,
+                sendVerificationEmailPort,
+                verificationTokenStorePort,
+                publishAuthEventPort,
+                syncUserToUsersMsPort
+        );
     }
 
     @Test
-    void register_shouldThrowEmailAlreadyRegistered_whenExistingUserFound() {
-        RegisterUserService s = service();
+    @DisplayName("Deve registrar usuário pendente com configurações padrão e enviar a verificação de e-mail")
+    void register_configuracoesPadrao_deveRegistrarUsuarioPendenteEEnviarVerificacao() {
+        // Arrange
+        RegisterUserService service = createService();
 
-        RegisterUserUseCase.RegisterUserCommand cmd = mock(RegisterUserUseCase.RegisterUserCommand.class);
-        when(cmd.email()).thenReturn("u@ecofy.com");
-        when(cmd.locale()).thenReturn(null);
-        when(cmd.roles()).thenReturn(null);
-        when(cmd.firstName()).thenReturn("U");
-        when(cmd.lastName()).thenReturn("E");
+        RegisterUserUseCase.RegisterUserCommand command =
+                createCommand();
 
-        AuthUser existing = mock(AuthUser.class, Answers.RETURNS_DEEP_STUBS);
-        when(existing.id().value()).thenReturn(UUID.fromString("11111111-2222-3333-4444-555555555555"));
+        stubBasicCommand(
+                command,
+                null,
+                null
+        );
 
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(java.util.Optional.of(existing));
+        when(command.rawPassword())
+                .thenReturn(RAW_PASSWORD);
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.register(cmd));
-        assertEquals(AuthErrorCode.EMAIL_ALREADY_REGISTERED, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("Email already registered: u@ecofy.com"));
+        when(command.autoConfirmEmail())
+                .thenReturn(false);
 
-        verify(loadAuthUserByEmailPort).loadByEmail(any(EmailAddress.class));
-        verifyNoInteractions(passwordHashingPort, saveAuthUserPort, syncUserToUsersMsPort, verificationTokenStorePort, sendVerificationEmailPort, publishAuthEventPort);
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.empty());
+
+        when(passwordHashingPort.hash(RAW_PASSWORD))
+                .thenReturn(passwordHash);
+
+        when(saveAuthUserPort.save(any(AuthUser.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ArgumentCaptor<EmailAddress> emailCaptor =
+                ArgumentCaptor.forClass(EmailAddress.class);
+
+        ArgumentCaptor<String> storedTokenCaptor =
+                ArgumentCaptor.forClass(String.class);
+
+        ArgumentCaptor<String> emailedTokenCaptor =
+                ArgumentCaptor.forClass(String.class);
+
+        // Act
+        AuthUser result = service.register(command);
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        EMAIL,
+                        result.email().value()
+                ),
+                () -> assertFalse(result.isEmailVerified())
+        );
+
+        InOrder inOrder = inOrder(
+                loadAuthUserByEmailPort,
+                passwordHashingPort,
+                saveAuthUserPort,
+                syncUserToUsersMsPort,
+                verificationTokenStorePort,
+                sendVerificationEmailPort,
+                publishAuthEventPort
+        );
+
+        inOrder.verify(loadAuthUserByEmailPort)
+                .loadByEmail(emailCaptor.capture());
+
+        inOrder.verify(passwordHashingPort)
+                .hash(RAW_PASSWORD);
+
+        inOrder.verify(saveAuthUserPort)
+                .save(same(result));
+
+        inOrder.verify(syncUserToUsersMsPort)
+                .upsertUser(same(result));
+
+        inOrder.verify(verificationTokenStorePort)
+                .store(
+                        same(result),
+                        storedTokenCaptor.capture()
+                );
+
+        inOrder.verify(sendVerificationEmailPort)
+                .send(
+                        same(result),
+                        emailedTokenCaptor.capture()
+                );
+
+        inOrder.verify(publishAuthEventPort)
+                .publish(any(UserRegisteredEvent.class));
+
+        String generatedToken = storedTokenCaptor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        EMAIL,
+                        emailCaptor.getValue().value()
+                ),
+                () -> assertEquals(
+                        generatedToken,
+                        emailedTokenCaptor.getValue()
+                ),
+                () -> assertDoesNotThrow(
+                        () -> UUID.fromString(generatedToken)
+                )
+        );
     }
 
     @Test
-    void register_shouldAutoConfirm_whenEnabled_useDefaultLocaleAndDefaultRole_andNotSendVerification() {
-        RegisterUserService s = service();
+    @DisplayName("Deve auto-confirmar o e-mail, ignorar papéis inválidos e continuar quando a sincronização falhar")
+    void register_autoConfirmacaoESincronizacaoFalha_devePersistirPublicarEventoEContinuar() {
+        // Arrange
+        RegisterUserService service = createService();
 
-        RegisterUserUseCase.RegisterUserCommand cmd = mock(RegisterUserUseCase.RegisterUserCommand.class);
-        when(cmd.email()).thenReturn("u@ecofy.com");
-        when(cmd.locale()).thenReturn(null);
-        when(cmd.roles()).thenReturn(null);
-        when(cmd.firstName()).thenReturn("User");
-        when(cmd.lastName()).thenReturn("One");
-        when(cmd.rawPassword()).thenReturn("pass");
-        when(cmd.autoConfirmEmail()).thenReturn(true);
+        RegisterUserUseCase.RegisterUserCommand command =
+                createCommand();
 
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(java.util.Optional.empty());
+        List<String> roles = Arrays.asList(
+                " ROLE_ADMIN ",
+                null,
+                " ",
+                "",
+                "ROLE_ADMIN",
+                "ROLE_USER"
+        );
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(passwordHashingPort.hash("pass")).thenReturn(ph);
+        stubBasicCommand(
+                command,
+                "en-US",
+                roles
+        );
 
-        AuthUser newUser = mock(AuthUser.class);
-        AuthUser persisted = mock(AuthUser.class, Answers.RETURNS_DEEP_STUBS);
-        UUID id = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
-        when(persisted.id().value()).thenReturn(id);
+        when(command.rawPassword())
+                .thenReturn(RAW_PASSWORD);
 
-        try (MockedStatic<AuthUser> mocked = mockStatic(AuthUser.class)) {
-            mocked.when(() -> AuthUser.newPendingUser(
-                            any(EmailAddress.class),
-                            same(ph),
-                            eq("User"),
-                            eq("One"),
-                            eq("pt-BR"),
-                            anySet()
-                    ))
-                    .thenAnswer(inv -> {
-                        @SuppressWarnings("unchecked")
-                        Set<Role> roles = (Set<Role>) inv.getArgument(5);
-                        assertEquals(1, roles.size());
-                        assertTrue(roles.stream().anyMatch(r -> "ROLE_USER".equals(r.name())));
-                        return newUser;
-                    });
+        when(command.autoConfirmEmail())
+                .thenReturn(true);
 
-            when(saveAuthUserPort.save(newUser)).thenReturn(persisted);
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.empty());
 
-            AuthUser result = s.register(cmd);
+        when(passwordHashingPort.hash(RAW_PASSWORD))
+                .thenReturn(passwordHash);
 
-            assertSame(persisted, result);
-        }
+        when(saveAuthUserPort.save(any(AuthUser.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        verify(newUser).confirmEmail();
-        verify(saveAuthUserPort).save(newUser);
-        verify(syncUserToUsersMsPort).upsertUser(persisted);
-        verify(publishAuthEventPort).publish(any(UserRegisteredEvent.class));
-        verifyNoInteractions(verificationTokenStorePort, sendVerificationEmailPort);
+        IllegalStateException syncException =
+                new IllegalStateException("ms-users unavailable");
+
+        doThrow(syncException)
+                .when(syncUserToUsersMsPort)
+                .upsertUser(any(AuthUser.class));
+
+        // Act
+        AuthUser result = service.register(command);
+
+        // Assert
+        assertTrue(result.isEmailVerified());
+
+        verify(syncUserToUsersMsPort)
+                .upsertUser(same(result));
+
+        verify(publishAuthEventPort)
+                .publish(any(UserRegisteredEvent.class));
+
+        verifyNoInteractions(
+                verificationTokenStorePort,
+                sendVerificationEmailPort
+        );
     }
 
     @Test
-    void register_shouldSwallowSyncFailure_andSendVerification_whenAutoConfirmFalse_andFilterRolesAndUseProvidedLocale() {
-        RegisterUserService s = service();
+    @DisplayName("Deve aplicar o papel padrão quando a lista estiver vazia e propagar falha de persistência")
+    void register_listaDePapeisVaziaEPersistenciaFalha_devePropagarExcecao() {
+        // Arrange
+        RegisterUserService service = createService();
 
-        RegisterUserUseCase.RegisterUserCommand cmd = mock(RegisterUserUseCase.RegisterUserCommand.class);
-        when(cmd.email()).thenReturn("u@ecofy.com");
-        when(cmd.locale()).thenReturn("en-US");
-        when(cmd.roles()).thenReturn(java.util.Arrays.asList(" ", null, "AUTH_ADMIN", " AUTH_USER "));
-        when(cmd.firstName()).thenReturn("User");
-        when(cmd.lastName()).thenReturn("Two");
-        when(cmd.rawPassword()).thenReturn("pass");
-        when(cmd.autoConfirmEmail()).thenReturn(false);
+        RegisterUserUseCase.RegisterUserCommand command =
+                createCommand();
 
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(java.util.Optional.empty());
+        stubBasicCommand(
+                command,
+                "pt-BR",
+                List.of()
+        );
 
-        PasswordHash ph = mock(PasswordHash.class);
-        when(passwordHashingPort.hash("pass")).thenReturn(ph);
+        when(command.rawPassword())
+                .thenReturn(RAW_PASSWORD);
 
-        AuthUser newUser = mock(AuthUser.class);
-        AuthUser persisted = mock(AuthUser.class, Answers.RETURNS_DEEP_STUBS);
-        UUID id = UUID.fromString("22222222-3333-4444-5555-666666666666");
-        when(persisted.id().value()).thenReturn(id);
-        when(persisted.email().value()).thenReturn("u@ecofy.com");
+        when(command.autoConfirmEmail())
+                .thenReturn(false);
 
-        try (MockedStatic<AuthUser> mocked = mockStatic(AuthUser.class)) {
-            mocked.when(() -> AuthUser.newPendingUser(
-                            any(EmailAddress.class),
-                            same(ph),
-                            eq("User"),
-                            eq("Two"),
-                            eq("en-US"),
-                            anySet()
-                    ))
-                    .thenAnswer(inv -> {
-                        @SuppressWarnings("unchecked")
-                        Set<Role> roles = (Set<Role>) inv.getArgument(5);
-                        assertEquals(2, roles.size());
-                        assertTrue(roles.stream().anyMatch(r -> "AUTH_ADMIN".equals(r.name())));
-                        assertTrue(roles.stream().anyMatch(r -> "AUTH_USER".equals(r.name())));
-                        return newUser;
-                    });
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.empty());
 
-            when(saveAuthUserPort.save(newUser)).thenReturn(persisted);
+        when(passwordHashingPort.hash(RAW_PASSWORD))
+                .thenReturn(passwordHash);
 
-            doThrow(new RuntimeException("ms-users down")).when(syncUserToUsersMsPort).upsertUser(persisted);
+        IllegalStateException expectedException =
+                new IllegalStateException("Persistence unavailable");
 
-            s.register(cmd);
-        }
+        when(saveAuthUserPort.save(any(AuthUser.class)))
+                .thenThrow(expectedException);
 
-        verify(saveAuthUserPort).save(newUser);
-        verify(syncUserToUsersMsPort).upsertUser(persisted);
+        // Act
+        IllegalStateException actualException = assertThrows(
+                IllegalStateException.class,
+                () -> service.register(command)
+        );
 
-        verify(verificationTokenStorePort).store(eq(persisted), anyString());
-        verify(sendVerificationEmailPort).send(eq(persisted), anyString());
+        // Assert
+        assertSame(
+                expectedException,
+                actualException
+        );
 
-        verify(publishAuthEventPort).publish(any(UserRegisteredEvent.class));
+        verify(passwordHashingPort)
+                .hash(RAW_PASSWORD);
+
+        verify(saveAuthUserPort)
+                .save(any(AuthUser.class));
+
+        verifyNoInteractions(
+                syncUserToUsersMsPort,
+                verificationTokenStorePort,
+                sendVerificationEmailPort,
+                publishAuthEventPort
+        );
     }
 
     @Test
-    void maskToken_shouldCoverAllBranches_inOneTest() throws Exception {
-        RegisterUserService s = service();
+    @DisplayName("Deve propagar falha na geração do hash sem persistir o usuário")
+    void register_geracaoDoHashFalha_devePropagarExcecaoSemPersistirUsuario() {
+        // Arrange
+        RegisterUserService service = createService();
 
-        Method m = RegisterUserService.class.getDeclaredMethod("maskToken", String.class);
-        m.setAccessible(true);
+        RegisterUserUseCase.RegisterUserCommand command =
+                createCommand();
 
-        assertEquals("***", (String) m.invoke(s, (String) null));
-        assertEquals("***", (String) m.invoke(s, "   "));
-        assertEquals("***", (String) m.invoke(s, "1234567890"));
-        assertEquals("1234567890...", (String) m.invoke(s, "12345678901"));
+        stubBasicCommand(
+                command,
+                "pt-BR",
+                List.of("ROLE_USER")
+        );
+
+        when(command.rawPassword())
+                .thenReturn(RAW_PASSWORD);
+
+        when(loadAuthUserByEmailPort.loadByEmail(
+                any(EmailAddress.class)
+        )).thenReturn(Optional.empty());
+
+        IllegalStateException expectedException =
+                new IllegalStateException("Hashing unavailable");
+
+        when(passwordHashingPort.hash(RAW_PASSWORD))
+                .thenThrow(expectedException);
+
+        // Act
+        IllegalStateException actualException = assertThrows(
+                IllegalStateException.class,
+                () -> service.register(command)
+        );
+
+        // Assert
+        assertSame(
+                expectedException,
+                actualException
+        );
+
+        verify(saveAuthUserPort, never())
+                .save(any(AuthUser.class));
+
+        verifyNoInteractions(
+                syncUserToUsersMsPort,
+                verificationTokenStorePort,
+                sendVerificationEmailPort,
+                publishAuthEventPort
+        );
+    }
+
+    @Test
+    @DisplayName("Deve mascarar tokens nulos, em branco, curtos e longos conforme o limite definido")
+    void maskToken_diferentesFormatos_deveRetornarTokenMascarado() throws Exception {
+        // Arrange
+        RegisterUserService service = createService();
+
+        Method method = RegisterUserService.class.getDeclaredMethod(
+                "maskToken",
+                String.class
+        );
+
+        method.setAccessible(true);
+
+        // Act
+        String nullTokenResult =
+                (String) method.invoke(service, (Object) null);
+
+        String blankTokenResult =
+                (String) method.invoke(service, "   ");
+
+        String shortTokenResult =
+                (String) method.invoke(service, "1234567890");
+
+        String longTokenResult =
+                (String) method.invoke(service, "12345678901");
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "***",
+                        nullTokenResult
+                ),
+                () -> assertEquals(
+                        "***",
+                        blankTokenResult
+                ),
+                () -> assertEquals(
+                        "***",
+                        shortTokenResult
+                ),
+                () -> assertEquals(
+                        "1234567890...",
+                        longTokenResult
+                )
+        );
+    }
+
+    private RegisterUserService createService() {
+        return new RegisterUserService(
+                saveAuthUserPort,
+                loadAuthUserByEmailPort,
+                passwordHashingPort,
+                sendVerificationEmailPort,
+                verificationTokenStorePort,
+                publishAuthEventPort,
+                syncUserToUsersMsPort
+        );
+    }
+
+    private RegisterUserUseCase.RegisterUserCommand createCommand() {
+        return mock(
+                RegisterUserUseCase.RegisterUserCommand.class
+        );
+    }
+
+    private void stubBasicCommand(
+            RegisterUserUseCase.RegisterUserCommand command,
+            String locale,
+            List<String> roles
+    ) {
+        when(command.email())
+                .thenReturn(EMAIL);
+
+        when(command.firstName())
+                .thenReturn(FIRST_NAME);
+
+        when(command.lastName())
+                .thenReturn(LAST_NAME);
+
+        when(command.locale())
+                .thenReturn(locale);
+
+        when(command.roles())
+                .thenReturn(roles);
+    }
+
+    private void assertNullDependency(
+            String expectedMessage,
+            Executable executable
+    ) {
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                executable
+        );
+
+        assertEquals(
+                expectedMessage,
+                exception.getMessage()
+        );
     }
 }

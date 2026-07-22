@@ -6,10 +6,16 @@ import br.com.ecofy.auth.adapters.in.web.mapper.ClientApplicationMapper;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
 import br.com.ecofy.auth.core.port.in.RegisterClientApplicationUseCase;
+import java.net.URI;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,14 +23,12 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.net.URI;
-import java.util.Set;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do controlador de aplicações cliente")
 class ClientApplicationControllerTest {
 
     @Mock
@@ -41,16 +45,14 @@ class ClientApplicationControllerTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI(uri);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
     }
 
     @Test
+    @DisplayName("Deve definir firstParty como falso quando o valor não for informado")
     void register_shouldDefaultFirstPartyToFalse_whenFirstPartyIsNull() {
-
         // Arrange
         setupRequestContext("/api/admin/clients");
 
-        // tipos corretos: Set<GrantType>, Set<String>, Set<String>
         Set<GrantType> grantTypes = Set.of(GrantType.AUTHORIZATION_CODE);
         Set<String> redirectUris = Set.of("https://app.example.com/callback");
         Set<String> scopes = Set.of("openid", "profile");
@@ -84,41 +86,55 @@ class ClientApplicationControllerTest {
 
             // Assert
             assertEquals(HttpStatus.CREATED, response.getStatusCode());
-            assertSame(mappedResponse, response.getBody(), "Body deve ser o mapeado pelo ClientApplicationMapper");
+            assertSame(
+                    mappedResponse,
+                    response.getBody(),
+                    "Body deve ser o mapeado pelo ClientApplicationMapper"
+            );
 
             URI location = response.getHeaders().getLocation();
             assertNotNull(location, "Location não pode ser nulo");
-            assertTrue(location.toString().contains("/api/admin/clients/"),
-                    "Location deve conter o path base do endpoint");
-            assertTrue(location.toString().endsWith("/client-123"),
-                    "Location deve terminar com o clientId retornado");
+            assertTrue(
+                    location.toString().contains("/api/admin/clients/"),
+                    "Location deve conter o path base do endpoint"
+            );
+            assertTrue(
+                    location.toString().endsWith("/client-123"),
+                    "Location deve terminar com o clientId retornado"
+            );
 
             ArgumentCaptor<RegisterClientApplicationUseCase.RegisterClientCommand> cmdCaptor =
-                    ArgumentCaptor.forClass(RegisterClientApplicationUseCase.RegisterClientCommand.class);
+                    ArgumentCaptor.forClass(
+                            RegisterClientApplicationUseCase.RegisterClientCommand.class
+                    );
 
-            verify(registerClientApplicationUseCase, times(1)).register(cmdCaptor.capture());
+            verify(registerClientApplicationUseCase, times(1))
+                    .register(cmdCaptor.capture());
 
-            RegisterClientApplicationUseCase.RegisterClientCommand cmd = cmdCaptor.getValue();
+            RegisterClientApplicationUseCase.RegisterClientCommand cmd =
+                    cmdCaptor.getValue();
+
             assertNotNull(cmd);
-
             assertEquals("My Client", cmd.name());
             assertNull(cmd.clientType());
             assertEquals(grantTypes, cmd.grantTypes());
             assertEquals(redirectUris, cmd.redirectUris());
             assertEquals(scopes, cmd.scopes());
-            assertFalse(cmd.firstParty(), "Quando request.firstParty() é null, deve ser false no comando");
+            assertFalse(
+                    cmd.firstParty(),
+                    "Quando request.firstParty() é null, deve ser false no comando"
+            );
         }
-
     }
 
     @Test
+    @DisplayName("Deve usar firstParty como verdadeiro quando o valor for informado")
     void register_shouldUseFirstPartyFromRequest_whenProvidedAsTrue() {
-
         // Arrange
         setupRequestContext("/api/admin/clients");
 
         Set<GrantType> grantTypes = Set.of(GrantType.CLIENT_CREDENTIALS);
-        Set<String> redirectUris = Set.of(); // vazio
+        Set<String> redirectUris = Set.of();
         Set<String> scopes = Set.of("api.read");
 
         ClientApplicationRequest request = new ClientApplicationRequest(
@@ -157,20 +173,24 @@ class ClientApplicationControllerTest {
             assertTrue(location.toString().endsWith("/client-999"));
 
             ArgumentCaptor<RegisterClientApplicationUseCase.RegisterClientCommand> cmdCaptor =
-                    ArgumentCaptor.forClass(RegisterClientApplicationUseCase.RegisterClientCommand.class);
+                    ArgumentCaptor.forClass(
+                            RegisterClientApplicationUseCase.RegisterClientCommand.class
+                    );
 
             verify(registerClientApplicationUseCase).register(cmdCaptor.capture());
 
-            RegisterClientApplicationUseCase.RegisterClientCommand cmd = cmdCaptor.getValue();
+            RegisterClientApplicationUseCase.RegisterClientCommand cmd =
+                    cmdCaptor.getValue();
+
             assertNotNull(cmd);
             assertEquals("Another Client", cmd.name());
             assertEquals(grantTypes, cmd.grantTypes());
             assertEquals(redirectUris, cmd.redirectUris());
             assertEquals(scopes, cmd.scopes());
-            assertTrue(cmd.firstParty(), "Quando request.firstParty() é true, o comando deve refletir true");
-
+            assertTrue(
+                    cmd.firstParty(),
+                    "Quando request.firstParty() é true, o comando deve refletir true"
+            );
         }
-
     }
-
 }

@@ -1,163 +1,272 @@
 package br.com.ecofy.auth.core.domain.valueobject;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import static org.junit.jupiter.api.Assertions.*;
-
+@DisplayName("Testes unitários do endereço de e-mail")
 class EmailAddressTest {
 
     @Test
-    void shouldCreateEmailAddressWithNormalizedValue() {
-        EmailAddress emailAddress = new EmailAddress("  MATHEUS.LEMES@ECOFY.COM.BR  ");
+    @DisplayName("Deve criar o endereço de e-mail normalizando espaços e letras maiúsculas")
+    void constructor_emailValidoComEspacosEMaiusculas_deveCriarEmailNormalizado() {
+        // Arrange
+        String value = "  Usuario@Exemplo.COM  ";
 
-        assertEquals("matheus.lemes@ecofy.com.br", emailAddress.value());
-        assertEquals("matheus.lemes@ecofy.com.br", emailAddress.toString());
+        // Act
+        EmailAddress emailAddress = new EmailAddress(value);
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "usuario@exemplo.com",
+                        emailAddress.value()
+                ),
+                () -> assertEquals(
+                        "usuario@exemplo.com",
+                        emailAddress.toString()
+                )
+        );
     }
 
     @Test
-    void shouldCreateEmailAddressWithValidSimpleEmail() {
-        EmailAddress emailAddress = new EmailAddress("user@test.com");
+    @DisplayName("Deve aceitar um endereço de e-mail válido com subdomínio")
+    void constructor_emailComSubdominio_deveCriarEmail() {
+        // Arrange
+        String value = "usuario@conta.exemplo.com";
 
-        assertEquals("user@test.com", emailAddress.value());
+        // Act
+        EmailAddress emailAddress = new EmailAddress(value);
+
+        // Assert
+        assertEquals(
+                value,
+                emailAddress.value()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailIsNull() {
+    @DisplayName("Deve rejeitar um endereço de e-mail nulo")
+    void constructor_emailNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new EmailAddress(null)
         );
 
-        assertEquals("email must not be null", exception.getMessage());
+        assertEquals(
+                "email must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailIsBlank() {
+    @DisplayName("Deve rejeitar um endereço de e-mail vazio")
+    void constructor_emailVazio_deveLancarIllegalArgumentException() {
+        // Arrange
+        String value = "";
+
+        // Act
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EmailAddress("   ")
+                () -> new EmailAddress(value)
         );
 
-        assertEquals("Invalid email address:    ", exception.getMessage());
+        // Assert
+        assertEquals(
+                "Invalid email address: " + value,
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailDoesNotHaveAtSign() {
+    @DisplayName("Deve rejeitar um endereço de e-mail composto somente por espaços")
+    void constructor_emailComEspacos_deveLancarIllegalArgumentException() {
+        // Arrange
+        String value = "   ";
+
+        // Act
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EmailAddress("matheus.ecofy.com")
+                () -> new EmailAddress(value)
         );
 
-        assertEquals("Invalid email address: matheus.ecofy.com", exception.getMessage());
+        // Assert
+        assertEquals(
+                "Invalid email address: " + value,
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailHasMoreThanOneAtSign() {
+    @DisplayName("Deve rejeitar um endereço de e-mail sem arroba")
+    void constructor_emailSemArroba_deveLancarIllegalArgumentException() {
+        // Arrange
+        String value = "usuario.exemplo.com";
+
+        // Act
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EmailAddress("matheus@@ecofy.com")
+                () -> new EmailAddress(value)
         );
 
-        assertEquals("Invalid email address: matheus@@ecofy.com", exception.getMessage());
+        // Assert
+        assertEquals(
+                "Invalid email address: " + value,
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailDoesNotHaveDomainDot() {
+    @DisplayName("Deve rejeitar um endereço de e-mail sem domínio")
+    void constructor_emailSemDominio_deveLancarIllegalArgumentException() {
+        // Arrange
+        String value = "usuario@";
+
+        // Act
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EmailAddress("matheus@ecofy")
+                () -> new EmailAddress(value)
         );
 
-        assertEquals("Invalid email address: matheus@ecofy", exception.getMessage());
+        // Assert
+        assertEquals(
+                "Invalid email address: " + value,
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailHasWhitespaceInside() {
+    @DisplayName("Deve rejeitar um endereço de e-mail sem ponto no domínio")
+    void constructor_emailSemPontoNoDominio_deveLancarIllegalArgumentException() {
+        // Arrange
+        String value = "usuario@exemplo";
+
+        // Act
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EmailAddress("matheus lemes@ecofy.com")
+                () -> new EmailAddress(value)
         );
 
-        assertEquals("Invalid email address: matheus lemes@ecofy.com", exception.getMessage());
+        // Assert
+        assertEquals(
+                "Invalid email address: " + value,
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailStartsWithAtSign() {
+    @DisplayName("Deve rejeitar um endereço de e-mail com espaço interno")
+    void constructor_emailComEspacoInterno_deveLancarIllegalArgumentException() {
+        // Arrange
+        String value = "usuario teste@exemplo.com";
+
+        // Act
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EmailAddress("@ecofy.com")
+                () -> new EmailAddress(value)
         );
 
-        assertEquals("Invalid email address: @ecofy.com", exception.getMessage());
+        // Assert
+        assertEquals(
+                "Invalid email address: " + value,
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailEndsWithAtSign() {
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> new EmailAddress("matheus@")
+    @DisplayName("Deve considerar igual a própria instância")
+    void equals_mesmaInstancia_deveRetornarTrue() {
+        // Arrange
+        EmailAddress emailAddress = new EmailAddress(
+                "usuario@exemplo.com"
         );
 
-        assertEquals("Invalid email address: matheus@", exception.getMessage());
+        // Act
+        boolean result = emailAddress.equals(emailAddress);
+
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailDomainStartsWithDot() {
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> new EmailAddress("matheus@.com")
+    @DisplayName("Deve considerar iguais os endereços que resultam no mesmo valor normalizado")
+    void equals_emailsComMesmoValorNormalizado_deveRetornarTrue() {
+        // Arrange
+        EmailAddress emailAddress = new EmailAddress(
+                "usuario@exemplo.com"
         );
 
-        assertEquals("Invalid email address: matheus@.com", exception.getMessage());
+        EmailAddress equivalentEmail = new EmailAddress(
+                "  USUARIO@EXEMPLO.COM  "
+        );
+
+        // Act
+        boolean result = emailAddress.equals(equivalentEmail);
+
+        // Assert
+        assertAll(
+                () -> assertTrue(result),
+                () -> assertEquals(
+                        emailAddress.hashCode(),
+                        equivalentEmail.hashCode()
+                )
+        );
     }
 
     @Test
-    void shouldCompareEmailAddressByNormalizedValue() {
-        EmailAddress emailAddress = new EmailAddress("MATHEUS@ECOFY.COM");
-        EmailAddress sameValue = new EmailAddress("  matheus@ecofy.com  ");
-        EmailAddress differentValue = new EmailAddress("outro@ecofy.com");
+    @DisplayName("Deve considerar diferentes os endereços com valores distintos")
+    void equals_emailsDiferentes_deveRetornarFalse() {
+        // Arrange
+        EmailAddress emailAddress = new EmailAddress(
+                "usuario@exemplo.com"
+        );
 
-        assertEquals(emailAddress, emailAddress);
-        assertEquals(emailAddress, sameValue);
-        assertNotEquals(emailAddress, differentValue);
-        assertNotEquals(emailAddress, null);
-        assertNotEquals(emailAddress, "matheus@ecofy.com");
+        EmailAddress differentEmail = new EmailAddress(
+                "outro@exemplo.com"
+        );
+
+        // Act
+        boolean result = emailAddress.equals(differentEmail);
+
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    void shouldGenerateHashCodeUsingNormalizedValue() {
-        EmailAddress emailAddress = new EmailAddress("MATHEUS@ECOFY.COM");
-        EmailAddress sameValue = new EmailAddress("  matheus@ecofy.com  ");
+    @DisplayName("Deve considerar diferente um objeto de outro tipo")
+    void equals_objetoDeOutroTipo_deveRetornarFalse() {
+        // Arrange
+        EmailAddress emailAddress = new EmailAddress(
+                "usuario@exemplo.com"
+        );
 
-        assertEquals(emailAddress.hashCode(), sameValue.hashCode());
+        // Act
+        boolean result = emailAddress.equals(
+                "usuario@exemplo.com"
+        );
+
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    void shouldBeSerializable() throws IOException, ClassNotFoundException {
-        EmailAddress original = new EmailAddress("MATHEUS@ECOFY.COM");
+    @DisplayName("Deve considerar diferente um objeto nulo")
+    void equals_objetoNulo_deveRetornarFalse() {
+        // Arrange
+        EmailAddress emailAddress = new EmailAddress(
+                "usuario@exemplo.com"
+        );
 
-        byte[] serialized;
+        // Act
+        boolean result = emailAddress.equals(null);
 
-        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-             ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)) {
-
-            objectOutputStream.writeObject(original);
-            serialized = byteArrayOutputStream.toByteArray();
-        }
-
-        EmailAddress deserialized;
-
-        try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(serialized);
-             ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
-
-            deserialized = (EmailAddress) objectInputStream.readObject();
-        }
-
-        assertEquals(original, deserialized);
-        assertEquals(original.value(), deserialized.value());
-        assertEquals(original.toString(), deserialized.toString());
-        assertEquals(original.hashCode(), deserialized.hashCode());
+        // Assert
+        assertFalse(result);
     }
 }

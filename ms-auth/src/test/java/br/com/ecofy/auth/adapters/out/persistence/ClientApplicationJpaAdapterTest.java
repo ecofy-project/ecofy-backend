@@ -1,157 +1,503 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.ClientApplicationEntity;
-import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
 import br.com.ecofy.auth.adapters.out.persistence.repository.ClientApplicationRepository;
 import br.com.ecofy.auth.core.domain.ClientApplication;
+import br.com.ecofy.auth.core.domain.enums.ClientType;
+import br.com.ecofy.auth.core.domain.enums.GrantType;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do adaptador JPA de aplicações cliente")
 class ClientApplicationJpaAdapterTest {
+
+    private static final String ID = "application-id";
+    private static final String CLIENT_ID = "ecofy-client";
+    private static final String CLIENT_SECRET_HASH = "client-secret-hash";
+    private static final String NAME = "Aplicação EcoFy";
+    private static final Instant CREATED_AT =
+            Instant.parse("2026-07-20T10:00:00Z");
+    private static final Instant UPDATED_AT =
+            Instant.parse("2026-07-20T11:00:00Z");
+
+    private static final ClientType CLIENT_TYPE =
+            ClientType.values()[0];
+    private static final GrantType GRANT_TYPE =
+            GrantType.values()[0];
 
     @Mock
     private ClientApplicationRepository repository;
 
     @Test
-    void constructor_shouldRejectNullRepository() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> new ClientApplicationJpaAdapter(null));
-        assertEquals("repository must not be null", ex.getMessage());
+    @DisplayName("Deve rejeitar repositório nulo ao construir o adaptador")
+    void constructor_repositorioNulo_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplicationRepository nullRepository = null;
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new ClientApplicationJpaAdapter(nullRepository)
+        );
+
+        // Assert
+        assertEquals(
+                "repository must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void save_shouldRejectNullClientApplication() {
-        ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+    @DisplayName("Deve rejeitar aplicação cliente nula sem acessar o repositório")
+    void save_clientApplicationNula_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplicationJpaAdapter adapter = createAdapter();
 
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.save(null));
-        assertEquals("clientApplication must not be null", ex.getMessage());
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.save(null)
+        );
 
-        verifyNoInteractions(repository);
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "clientApplication must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(repository)
+        );
     }
 
     @Test
-    void save_shouldSetCreatedAtAndUpdatedAt_whenEntityHasNullCreatedAt() {
-        ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+    @DisplayName("Deve preservar a data de criação e atualizar a data de modificação ao salvar")
+    void save_aplicacaoValida_devePreservarCreatedAtEAtualizarUpdatedAt() {
+        // Arrange
+        ClientApplication clientApplication = createClientApplication(
+                CREATED_AT,
+                UPDATED_AT
+        );
 
-        ClientApplication domain = mock(ClientApplication.class);
-        when(domain.clientId()).thenReturn("client-1");
-        when(domain.name()).thenReturn("App 1");
+        when(repository.save(any(ClientApplicationEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ClientApplicationEntity entity = new ClientApplicationEntity();
-        entity.setClientId("client-1");
-        entity.setCreatedAt(null);
+        ClientApplicationJpaAdapter adapter = createAdapter();
+        ArgumentCaptor<ClientApplicationEntity> captor =
+                ArgumentCaptor.forClass(ClientApplicationEntity.class);
 
-        ArgumentCaptor<ClientApplicationEntity> captor = ArgumentCaptor.forClass(ClientApplicationEntity.class);
-        when(repository.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
+        Instant beforeSave = Instant.now();
 
-        ClientApplication mappedDomain = mock(ClientApplication.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toEntity(same(domain))).thenReturn(entity);
-            mocked.when(() -> PersistenceMapper.toDomain(any(ClientApplicationEntity.class))).thenReturn(mappedDomain);
+        // Act
+        ClientApplication result = adapter.save(clientApplication);
 
-            ClientApplication result = adapter.save(domain);
-            assertSame(mappedDomain, result);
-        }
+        Instant afterSave = Instant.now();
 
-        ClientApplicationEntity persisted = captor.getValue();
-        assertNotNull(persisted.getCreatedAt());
-        assertNotNull(persisted.getUpdatedAt());
-        assertFalse(persisted.getUpdatedAt().isBefore(persisted.getCreatedAt()));
+        // Assert
+        verify(repository).save(captor.capture());
 
-        verify(repository).save(any(ClientApplicationEntity.class));
-        verifyNoMoreInteractions(repository);
+        ClientApplicationEntity savedEntity = captor.getValue();
+
+        assertAll(
+                () -> assertEquals(ID, savedEntity.getId()),
+                () -> assertEquals(CLIENT_ID, savedEntity.getClientId()),
+                () -> assertEquals(
+                        CLIENT_SECRET_HASH,
+                        savedEntity.getClientSecretHash()
+                ),
+                () -> assertEquals(NAME, savedEntity.getName()),
+                () -> assertEquals(
+                        CLIENT_TYPE,
+                        savedEntity.getClientType()
+                ),
+                () -> assertEquals(
+                        Set.of(GRANT_TYPE),
+                        savedEntity.getGrantTypes()
+                ),
+                () -> assertEquals(
+                        Set.of("https://ecofy.com/callback"),
+                        savedEntity.getRedirectUris()
+                ),
+                () -> assertEquals(
+                        Set.of("openid", "profile"),
+                        savedEntity.getScopes()
+                ),
+                () -> assertTrue(savedEntity.isFirstParty()),
+                () -> assertTrue(savedEntity.isActive()),
+                () -> assertEquals(
+                        CREATED_AT,
+                        savedEntity.getCreatedAt()
+                ),
+                () -> assertFalse(
+                        savedEntity.getUpdatedAt().isBefore(beforeSave)
+                ),
+                () -> assertFalse(
+                        savedEntity.getUpdatedAt().isAfter(afterSave)
+                ),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.createdAt()
+                ),
+                () -> assertEquals(
+                        savedEntity.getUpdatedAt(),
+                        result.updatedAt()
+                )
+        );
     }
 
     @Test
-    void save_shouldKeepCreatedAt_whenEntityAlreadyHasCreatedAt_andAlwaysUpdateUpdatedAt() {
-        ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+    @DisplayName("Deve preencher createdAt quando a aplicação mapeada não possuir data de criação")
+    void save_aplicacaoSemCreatedAt_devePreencherCreatedAtComDataAtual() {
+        // Arrange
+        ClientApplication clientApplication = mock(ClientApplication.class);
 
-        ClientApplication domain = mock(ClientApplication.class);
-        when(domain.clientId()).thenReturn("client-2");
-        when(domain.name()).thenReturn("App 2");
+        when(clientApplication.id()).thenReturn(ID);
+        when(clientApplication.clientId()).thenReturn(CLIENT_ID);
+        when(clientApplication.clientSecretHash())
+                .thenReturn(CLIENT_SECRET_HASH);
+        when(clientApplication.name()).thenReturn(NAME);
+        when(clientApplication.clientType()).thenReturn(CLIENT_TYPE);
+        when(clientApplication.grantTypes())
+                .thenReturn(Set.of(GRANT_TYPE));
+        when(clientApplication.redirectUris())
+                .thenReturn(Set.of("https://ecofy.com/callback"));
+        when(clientApplication.scopes())
+                .thenReturn(Set.of("openid", "profile"));
+        when(clientApplication.isFirstParty()).thenReturn(true);
+        when(clientApplication.isActive()).thenReturn(true);
+        when(clientApplication.createdAt()).thenReturn(null);
+        when(clientApplication.updatedAt()).thenReturn(null);
 
-        Instant createdAt = Instant.parse("2020-01-01T00:00:00Z");
-        ClientApplicationEntity entity = new ClientApplicationEntity();
-        entity.setClientId("client-2");
-        entity.setCreatedAt(createdAt);
-        entity.setUpdatedAt(null);
+        when(repository.save(any(ClientApplicationEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ArgumentCaptor<ClientApplicationEntity> captor = ArgumentCaptor.forClass(ClientApplicationEntity.class);
-        when(repository.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
+        ClientApplicationJpaAdapter adapter = createAdapter();
+        ArgumentCaptor<ClientApplicationEntity> captor =
+                ArgumentCaptor.forClass(ClientApplicationEntity.class);
 
-        ClientApplication mappedDomain = mock(ClientApplication.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toEntity(same(domain))).thenReturn(entity);
-            mocked.when(() -> PersistenceMapper.toDomain(any(ClientApplicationEntity.class))).thenReturn(mappedDomain);
+        Instant beforeSave = Instant.now();
 
-            ClientApplication result = adapter.save(domain);
-            assertSame(mappedDomain, result);
-        }
+        // Act
+        ClientApplication result = adapter.save(clientApplication);
 
-        ClientApplicationEntity persisted = captor.getValue();
-        assertEquals(createdAt, persisted.getCreatedAt());
-        assertNotNull(persisted.getUpdatedAt());
-        assertFalse(persisted.getUpdatedAt().isBefore(persisted.getCreatedAt()));
+        Instant afterSave = Instant.now();
 
-        verify(repository).save(any(ClientApplicationEntity.class));
-        verifyNoMoreInteractions(repository);
+        // Assert
+        verify(repository).save(captor.capture());
+
+        ClientApplicationEntity savedEntity = captor.getValue();
+
+        assertAll(
+                () -> assertNotNull(savedEntity.getCreatedAt()),
+                () -> assertNotNull(savedEntity.getUpdatedAt()),
+                () -> assertEquals(
+                        savedEntity.getCreatedAt(),
+                        savedEntity.getUpdatedAt()
+                ),
+                () -> assertFalse(
+                        savedEntity.getCreatedAt().isBefore(beforeSave)
+                ),
+                () -> assertFalse(
+                        savedEntity.getCreatedAt().isAfter(afterSave)
+                ),
+                () -> assertEquals(
+                        savedEntity.getCreatedAt(),
+                        result.createdAt()
+                ),
+                () -> assertEquals(
+                        savedEntity.getUpdatedAt(),
+                        result.updatedAt()
+                ),
+                () -> assertEquals(ID, result.id()),
+                () -> assertEquals(CLIENT_ID, result.clientId())
+        );
     }
 
     @Test
-    void loadByClientId_shouldRejectNullClientId() {
-        ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+    @DisplayName("Deve preservar createdAt quando a aplicação já possuir data de criação")
+    void save_aplicacaoComCreatedAt_devePreservarCreatedAtEAtualizarUpdatedAt() {
+        // Arrange
+        ClientApplication clientApplication = createClientApplication(
+                CREATED_AT,
+                UPDATED_AT
+        );
 
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadByClientId(null));
-        assertEquals("clientId must not be null", ex.getMessage());
+        when(repository.save(any(ClientApplicationEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        verifyNoInteractions(repository);
+        ClientApplicationJpaAdapter adapter = createAdapter();
+        ArgumentCaptor<ClientApplicationEntity> captor =
+                ArgumentCaptor.forClass(ClientApplicationEntity.class);
+
+        Instant beforeSave = Instant.now();
+
+        // Act
+        ClientApplication result = adapter.save(clientApplication);
+
+        Instant afterSave = Instant.now();
+
+        // Assert
+        verify(repository).save(captor.capture());
+
+        ClientApplicationEntity savedEntity = captor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        CREATED_AT,
+                        savedEntity.getCreatedAt()
+                ),
+                () -> assertNotNull(savedEntity.getUpdatedAt()),
+                () -> assertFalse(
+                        savedEntity.getUpdatedAt().isBefore(beforeSave)
+                ),
+                () -> assertFalse(
+                        savedEntity.getUpdatedAt().isAfter(afterSave)
+                ),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.createdAt()
+                ),
+                () -> assertEquals(
+                        savedEntity.getUpdatedAt(),
+                        result.updatedAt()
+                )
+        );
     }
 
     @Test
-    void loadByClientId_shouldReturnEmpty_whenNotFound() {
-        ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+    @DisplayName("Deve preservar a data de criação e atualizar updatedAt ao salvar aplicação existente")
+    void save_aplicacaoComCreatedAt_devePreservarCriacaoEAtualizarUpdatedAt()
+            throws Exception {
+        // Arrange
+        ClientApplication clientApplication = createClientApplication(
+                CREATED_AT,
+                UPDATED_AT
+        );
 
-        when(repository.findByClientId("missing")).thenReturn(Optional.empty());
+        when(repository.save(any(ClientApplicationEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Optional<ClientApplication> result = adapter.loadByClientId("missing");
+        ClientApplicationJpaAdapter adapter = createAdapter();
+        ArgumentCaptor<ClientApplicationEntity> captor =
+                ArgumentCaptor.forClass(ClientApplicationEntity.class);
 
-        assertTrue(result.isEmpty());
-        verify(repository).findByClientId("missing");
-        verifyNoMoreInteractions(repository);
+        Instant beforeSave = Instant.now();
+
+        // Act
+        ClientApplication result = adapter.save(clientApplication);
+
+        Instant afterSave = Instant.now();
+
+        // Assert
+        verify(repository).save(captor.capture());
+        ClientApplicationEntity savedEntity = captor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        CREATED_AT,
+                        savedEntity.getCreatedAt()
+                ),
+                () -> assertNotNull(savedEntity.getUpdatedAt()),
+                () -> assertFalse(
+                        savedEntity.getUpdatedAt().isBefore(beforeSave)
+                ),
+                () -> assertFalse(
+                        savedEntity.getUpdatedAt().isAfter(afterSave)
+                ),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.createdAt()
+                ),
+                () -> assertEquals(
+                        savedEntity.getUpdatedAt(),
+                        result.updatedAt()
+                )
+        );
     }
 
     @Test
-    void loadByClientId_shouldMapToDomain_whenFound() {
-        ClientApplicationJpaAdapter adapter = new ClientApplicationJpaAdapter(repository);
+    @DisplayName("Deve rejeitar clientId nulo sem consultar o repositório")
+    void loadByClientId_clientIdNulo_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplicationJpaAdapter adapter = createAdapter();
 
-        ClientApplicationEntity entity = new ClientApplicationEntity();
-        entity.setClientId("client-3");
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.loadByClientId(null)
+        );
 
-        when(repository.findByClientId("client-3")).thenReturn(Optional.of(entity));
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "clientId must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(repository)
+        );
+    }
 
-        ClientApplication mappedDomain = mock(ClientApplication.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(same(entity))).thenReturn(mappedDomain);
+    @Test
+    @DisplayName("Deve consultar o repositório mesmo quando o clientId estiver em branco")
+    void loadByClientId_clientIdEmBranco_deveConsultarERetornarVazio() {
+        // Arrange
+        String blankClientId = "   ";
 
-            Optional<ClientApplication> result = adapter.loadByClientId("client-3");
+        when(repository.findByClientId(blankClientId))
+                .thenReturn(Optional.empty());
 
-            assertTrue(result.isPresent());
-            assertSame(mappedDomain, result.get());
-        }
+        ClientApplicationJpaAdapter adapter = createAdapter();
 
-        verify(repository).findByClientId("client-3");
-        verifyNoMoreInteractions(repository);
+        // Act
+        Optional<ClientApplication> result =
+                adapter.loadByClientId(blankClientId);
+
+        // Assert
+        assertAll(
+                () -> assertTrue(result.isEmpty()),
+                () -> verify(repository)
+                        .findByClientId(blankClientId)
+        );
+    }
+
+    @Test
+    @DisplayName("Deve retornar vazio quando não existir aplicação com o clientId informado")
+    void loadByClientId_aplicacaoInexistente_deveRetornarOptionalVazio() {
+        // Arrange
+        when(repository.findByClientId(CLIENT_ID))
+                .thenReturn(Optional.empty());
+
+        ClientApplicationJpaAdapter adapter = createAdapter();
+
+        // Act
+        Optional<ClientApplication> result =
+                adapter.loadByClientId(CLIENT_ID);
+
+        // Assert
+        assertAll(
+                () -> assertTrue(result.isEmpty()),
+                () -> verify(repository).findByClientId(CLIENT_ID)
+        );
+    }
+
+    @Test
+    @DisplayName("Deve converter e retornar a aplicação encontrada pelo clientId")
+    void loadByClientId_aplicacaoExistente_deveRetornarAplicacaoMapeada() {
+        // Arrange
+        ClientApplicationEntity entity = createClientApplicationEntity();
+
+        when(repository.findByClientId(CLIENT_ID))
+                .thenReturn(Optional.of(entity));
+
+        ClientApplicationJpaAdapter adapter = createAdapter();
+
+        // Act
+        Optional<ClientApplication> result =
+                adapter.loadByClientId(CLIENT_ID);
+
+        // Assert
+        ClientApplication clientApplication = result.orElseThrow();
+
+        assertAll(
+                () -> assertEquals(ID, clientApplication.id()),
+                () -> assertEquals(
+                        CLIENT_ID,
+                        clientApplication.clientId()
+                ),
+                () -> assertEquals(
+                        CLIENT_SECRET_HASH,
+                        clientApplication.clientSecretHash()
+                ),
+                () -> assertEquals(
+                        NAME,
+                        clientApplication.name()
+                ),
+                () -> assertEquals(
+                        CLIENT_TYPE,
+                        clientApplication.clientType()
+                ),
+                () -> assertEquals(
+                        Set.of(GRANT_TYPE),
+                        clientApplication.grantTypes()
+                ),
+                () -> assertEquals(
+                        Set.of("https://ecofy.com/callback"),
+                        clientApplication.redirectUris()
+                ),
+                () -> assertEquals(
+                        Set.of("openid", "profile"),
+                        clientApplication.scopes()
+                ),
+                () -> assertTrue(clientApplication.isFirstParty()),
+                () -> assertTrue(clientApplication.isActive()),
+                () -> assertEquals(
+                        CREATED_AT,
+                        clientApplication.createdAt()
+                ),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        clientApplication.updatedAt()
+                )
+        );
+
+        verify(repository).findByClientId(CLIENT_ID);
+    }
+
+    private ClientApplicationJpaAdapter createAdapter() {
+        return new ClientApplicationJpaAdapter(repository);
+    }
+
+    private ClientApplication createClientApplication(
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        return new ClientApplication(
+                ID,
+                CLIENT_ID,
+                CLIENT_SECRET_HASH,
+                NAME,
+                CLIENT_TYPE,
+                Set.of(GRANT_TYPE),
+                Set.of("https://ecofy.com/callback"),
+                Set.of("openid", "profile"),
+                true,
+                true,
+                createdAt,
+                updatedAt
+        );
+    }
+
+    private ClientApplicationEntity createClientApplicationEntity() {
+        return ClientApplicationEntity.builder()
+                .id(ID)
+                .clientId(CLIENT_ID)
+                .clientSecretHash(CLIENT_SECRET_HASH)
+                .name(NAME)
+                .clientType(CLIENT_TYPE)
+                .grantTypes(Set.of(GRANT_TYPE))
+                .redirectUris(Set.of("https://ecofy.com/callback"))
+                .scopes(Set.of("openid", "profile"))
+                .firstParty(true)
+                .active(true)
+                .createdAt(CREATED_AT)
+                .updatedAt(UPDATED_AT)
+                .build();
     }
 }

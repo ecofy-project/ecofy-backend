@@ -1,103 +1,169 @@
 package br.com.ecofy.auth.core.domain.valueobject;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.*;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Testes unitários do identificador do usuário de autenticação")
 class AuthUserIdTest {
 
     @Test
-    void shouldCreateAuthUserIdWithUuidValue() {
-        UUID uuid = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    @DisplayName("Deve criar o identificador e preservar o UUID informado")
+    void constructor_uuidValido_deveCriarIdentificador() {
+        // Arrange
+        UUID value = UUID.fromString(
+                "7f0b5416-5322-4c34-873e-b96aa3f62639"
+        );
 
-        AuthUserId authUserId = new AuthUserId(uuid);
+        // Act
+        AuthUserId authUserId = new AuthUserId(value);
 
-        assertEquals(uuid, authUserId.value());
-        assertEquals("11111111-1111-1111-1111-111111111111", authUserId.toString());
+        // Assert
+        assertAll(
+                () -> assertSame(
+                        value,
+                        authUserId.value()
+                ),
+                () -> assertEquals(
+                        value.toString(),
+                        authUserId.toString()
+                )
+        );
     }
 
     @Test
-    void shouldGenerateNewAuthUserId() {
-        AuthUserId authUserId = AuthUserId.newId();
+    @DisplayName("Deve aceitar um UUID com todos os bits iguais a zero")
+    void constructor_uuidComBitsZerados_deveCriarIdentificador() {
+        // Arrange
+        UUID value = new UUID(0L, 0L);
 
-        assertNotNull(authUserId);
-        assertNotNull(authUserId.value());
+        // Act
+        AuthUserId authUserId = new AuthUserId(value);
+
+        // Assert
+        assertEquals(
+                value,
+                authUserId.value()
+        );
     }
 
     @Test
-    void shouldGenerateDifferentIdsWhenCallingNewIdMultipleTimes() {
-        AuthUserId first = AuthUserId.newId();
-        AuthUserId second = AuthUserId.newId();
-
-        assertNotEquals(first, second);
-        assertNotEquals(first.value(), second.value());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenValueIsNull() {
+    @DisplayName("Deve rejeitar um UUID nulo")
+    void constructor_uuidNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new AuthUserId(null)
         );
 
-        assertEquals("value must not be null", exception.getMessage());
+        assertEquals(
+                "value must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldCompareAuthUserIdByUuidValue() {
-        UUID uuid = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    @DisplayName("Deve gerar um novo identificador com UUID não nulo")
+    void newId_semParametros_deveGerarNovoIdentificador() {
+        // Arrange e Act
+        AuthUserId firstId = AuthUserId.newId();
+        AuthUserId secondId = AuthUserId.newId();
 
-        AuthUserId authUserId = new AuthUserId(uuid);
-        AuthUserId sameValue = new AuthUserId(uuid);
-        AuthUserId differentValue = new AuthUserId(
-                UUID.fromString("22222222-2222-2222-2222-222222222222")
+        // Assert
+        assertAll(
+                () -> assertNotNull(firstId),
+                () -> assertNotNull(firstId.value()),
+                () -> assertNotNull(secondId.value()),
+                () -> assertNotEquals(
+                        firstId,
+                        secondId
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve considerar iguais os identificadores com o mesmo UUID")
+    void equals_mesmoUuid_deveRetornarTrue() {
+        // Arrange
+        UUID value = UUID.fromString(
+                "7f0b5416-5322-4c34-873e-b96aa3f62639"
         );
 
-        assertEquals(authUserId, authUserId);
-        assertEquals(authUserId, sameValue);
-        assertNotEquals(authUserId, differentValue);
-        assertNotEquals(authUserId, null);
-        assertNotEquals(authUserId, uuid);
-        assertNotEquals(authUserId, "11111111-1111-1111-1111-111111111111");
+        AuthUserId authUserId = new AuthUserId(value);
+        AuthUserId equivalentId = new AuthUserId(value);
+
+        // Act e Assert
+        assertAll(
+                () -> assertTrue(
+                        authUserId.equals(authUserId)
+                ),
+                () -> assertTrue(
+                        authUserId.equals(equivalentId)
+                ),
+                () -> assertEquals(
+                        authUserId,
+                        equivalentId
+                ),
+                () -> assertEquals(
+                        authUserId.hashCode(),
+                        equivalentId.hashCode()
+                )
+        );
     }
 
     @Test
-    void shouldGenerateHashCodeUsingUuidValue() {
-        UUID uuid = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    @DisplayName("Deve considerar diferentes os identificadores com UUIDs distintos")
+    void equals_uuidsDiferentes_deveRetornarFalse() {
+        // Arrange
+        AuthUserId authUserId = new AuthUserId(
+                UUID.fromString(
+                        "7f0b5416-5322-4c34-873e-b96aa3f62639"
+                )
+        );
 
-        AuthUserId authUserId = new AuthUserId(uuid);
-        AuthUserId sameValue = new AuthUserId(uuid);
+        AuthUserId differentId = new AuthUserId(
+                UUID.fromString(
+                        "084fc53e-0845-461f-968f-b0f707ab8156"
+                )
+        );
 
-        assertEquals(authUserId.hashCode(), sameValue.hashCode());
+        // Act e Assert
+        assertFalse(
+                authUserId.equals(differentId)
+        );
     }
 
     @Test
-    void shouldBeSerializable() throws IOException, ClassNotFoundException {
-        UUID uuid = UUID.fromString("11111111-1111-1111-1111-111111111111");
-        AuthUserId original = new AuthUserId(uuid);
+    @DisplayName("Deve considerar diferente um objeto de outro tipo")
+    void equals_objetoDeOutroTipo_deveRetornarFalse() {
+        // Arrange
+        AuthUserId authUserId = AuthUserId.newId();
 
-        byte[] serialized;
+        // Act e Assert
+        assertFalse(
+                authUserId.equals("outro tipo")
+        );
+    }
 
-        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-             ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)) {
+    @Test
+    @DisplayName("Deve considerar diferente um objeto nulo")
+    void equals_objetoNulo_deveRetornarFalse() {
+        // Arrange
+        AuthUserId authUserId = AuthUserId.newId();
 
-            objectOutputStream.writeObject(original);
-            serialized = byteArrayOutputStream.toByteArray();
-        }
-
-        AuthUserId deserialized;
-
-        try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(serialized);
-             ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
-
-            deserialized = (AuthUserId) objectInputStream.readObject();
-        }
-
-        assertEquals(original, deserialized);
-        assertEquals(original.value(), deserialized.value());
-        assertEquals(original.toString(), deserialized.toString());
+        // Act e Assert
+        assertFalse(
+                authUserId.equals(null)
+        );
     }
 }

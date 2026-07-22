@@ -1,6 +1,7 @@
 package br.com.ecofy.auth.config;
 
 import br.com.ecofy.auth.adapters.out.jwt.JwtNimbusTokenProviderAdapter;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,10 +23,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@DisplayName("Testes da configuração da cadeia de filtros de segurança")
 @ExtendWith(MockitoExtension.class)
 class SecurityConfigSecurityFilterChainTest {
 
     @Test
+    @DisplayName("Deve configurar todos os recursos de segurança e construir a cadeia de filtros")
     void securityFilterChain_shouldConfigureAllDsl_andBuildChain() throws Exception {
         JwtProperties props = new JwtProperties();
         props.setIssuer("https://auth.ecofy.com");

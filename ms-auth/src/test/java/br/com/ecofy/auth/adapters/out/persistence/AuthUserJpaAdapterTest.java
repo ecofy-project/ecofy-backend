@@ -1,31 +1,59 @@
 package br.com.ecofy.auth.adapters.out.persistence;
 
 import br.com.ecofy.auth.adapters.out.persistence.entity.AuthUserEntity;
-import br.com.ecofy.auth.adapters.out.persistence.mapper.PersistenceMapper;
+import br.com.ecofy.auth.adapters.out.persistence.entity.PermissionEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity;
 import br.com.ecofy.auth.adapters.out.persistence.repository.AuthUserRepository;
 import br.com.ecofy.auth.adapters.out.persistence.repository.RoleRepository;
 import br.com.ecofy.auth.core.domain.AuthUser;
+import br.com.ecofy.auth.core.domain.Permission;
+import br.com.ecofy.auth.core.domain.Role;
+import br.com.ecofy.auth.core.domain.enums.AuthUserStatus;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do adaptador JPA de usuários autenticáveis")
 class AuthUserJpaAdapterTest {
+
+    private static final UUID USER_ID = UUID.fromString(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    );
+    private static final String EMAIL = "usuario@ecofy.com";
+    private static final String PASSWORD_HASH = "password-hash";
+    private static final Instant CREATED_AT =
+            Instant.parse("2026-07-20T10:00:00Z");
+    private static final Instant UPDATED_AT =
+            Instant.parse("2026-07-20T11:00:00Z");
+    private static final Instant LAST_LOGIN_AT =
+            Instant.parse("2026-07-20T12:00:00Z");
 
     @Mock
     private AuthUserRepository authUserRepository;
@@ -34,319 +62,553 @@ class AuthUserJpaAdapterTest {
     private RoleRepository roleRepository;
 
     @Test
-    void constructor_shouldRejectNullRepository() {
-        NullPointerException ex = assertThrows(NullPointerException.class,
-                () -> new AuthUserJpaAdapter(null, roleRepository));
-        assertEquals("authUserRepository must not be null", ex.getMessage());
+    @DisplayName("Deve rejeitar repositório de usuários nulo ao construir o adaptador")
+    void constructor_authUserRepositoryNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthUserRepository nullRepository = null;
 
-        NullPointerException ex2 = assertThrows(NullPointerException.class,
-                () -> new AuthUserJpaAdapter(authUserRepository, null));
-        assertEquals("roleRepository must not be null", ex2.getMessage());
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new AuthUserJpaAdapter(
+                        nullRepository,
+                        roleRepository
+                )
+        );
+
+        // Assert
+        assertEquals(
+                "authUserRepository must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void save_shouldRejectNullUser() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve rejeitar repositório de funções nulo ao construir o adaptador")
+    void constructor_roleRepositoryNulo_deveLancarNullPointerException() {
+        // Arrange
+        RoleRepository nullRepository = null;
 
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.save(null));
-        assertEquals("user must not be null", ex.getMessage());
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new AuthUserJpaAdapter(
+                        authUserRepository,
+                        nullRepository
+                )
+        );
 
-        verifyNoInteractions(authUserRepository);
+        // Assert
+        assertEquals(
+                "roleRepository must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void save_shouldCreateNewEntity_whenNotFound_andSetCreatedAtAndUpdatedAt() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve rejeitar usuário nulo sem acessar os repositórios")
+    void save_usuarioNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthUserJpaAdapter adapter = createAdapter();
 
-        UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
-        AuthUser user = mockAuthUser(id, "user@ecofy.com");
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.save(null)
+        );
 
-        when(authUserRepository.findById(id)).thenReturn(Optional.empty());
-
-        ArgumentCaptor<AuthUserEntity> entityCaptor = ArgumentCaptor.forClass(AuthUserEntity.class);
-        when(authUserRepository.save(entityCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
-
-        AuthUser mappedDomain = mock(AuthUser.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(any(AuthUserEntity.class), any(), any()))
-                    .thenReturn(mappedDomain);
-
-            AuthUser result = adapter.save(user);
-            assertSame(mappedDomain, result);
-        }
-
-        AuthUserEntity savedEntity = entityCaptor.getValue();
-        assertNotNull(savedEntity);
-        assertEquals(id, savedEntity.getId());
-        assertEquals("user@ecofy.com", savedEntity.getEmail());
-        assertNotNull(savedEntity.getCreatedAt());
-        assertNotNull(savedEntity.getUpdatedAt());
-        assertFalse(savedEntity.getUpdatedAt().isBefore(savedEntity.getCreatedAt()));
-
-        verify(authUserRepository).findById(id);
-        verify(authUserRepository).save(any(AuthUserEntity.class));
-        verifyNoMoreInteractions(authUserRepository);
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "user must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(
+                        authUserRepository,
+                        roleRepository
+                )
+        );
     }
 
     @Test
-    void save_shouldUpdateExistingEntity_whenFound_andKeepExistingCreatedAt_whenAlreadySet() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve criar e persistir um novo usuário com funções existentes")
+    void save_usuarioNovo_deveCriarEPersistirEntidade() {
+        // Arrange
+        Role existingRole = new Role(
+                "ROLE_USER",
+                "Usuário",
+                Set.of()
+        );
+        Role missingRole = new Role(
+                "ROLE_MISSING",
+                "Função inexistente",
+                Set.of()
+        );
 
-        UUID id = UUID.fromString("22222222-2222-2222-2222-222222222222");
-        AuthUser user = mockAuthUser(id, "existing@ecofy.com");
+        Set<Role> roles = new HashSet<>();
+        roles.add(existingRole);
+        roles.add(missingRole);
+        roles.add(null);
 
-        Instant existingCreatedAt = Instant.parse("2020-01-01T00:00:00Z");
-        AuthUserEntity existing = new AuthUserEntity();
-        existing.setId(id);
-        existing.setCreatedAt(existingCreatedAt);
+        AuthUser user = createDomainUser(roles);
+        RoleEntity existingRoleEntity = createRoleEntity(
+                "ROLE_USER",
+                "Usuário"
+        );
 
-        when(authUserRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(authUserRepository.findById(USER_ID))
+                .thenReturn(Optional.empty());
+        when(roleRepository.findById("ROLE_USER"))
+                .thenReturn(Optional.of(existingRoleEntity));
+        when(roleRepository.findById("ROLE_MISSING"))
+                .thenReturn(Optional.empty());
+        when(authUserRepository.save(any(AuthUserEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ArgumentCaptor<AuthUserEntity> entityCaptor = ArgumentCaptor.forClass(AuthUserEntity.class);
-        when(authUserRepository.save(entityCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+        AuthUserJpaAdapter adapter = createAdapter();
+        ArgumentCaptor<AuthUserEntity> captor =
+                ArgumentCaptor.forClass(AuthUserEntity.class);
+        Instant beforeSave = Instant.now();
 
-        AuthUser mappedDomain = mock(AuthUser.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(same(existing), any(), any()))
-                    .thenReturn(mappedDomain);
+        // Act
+        AuthUser result = adapter.save(user);
 
-            AuthUser result = adapter.save(user);
-            assertSame(mappedDomain, result);
-        }
+        Instant afterSave = Instant.now();
 
-        AuthUserEntity savedEntity = entityCaptor.getValue();
-        assertSame(existing, savedEntity);
-        assertEquals(existingCreatedAt, savedEntity.getCreatedAt());
-        assertNotNull(savedEntity.getUpdatedAt());
-        assertEquals("existing@ecofy.com", savedEntity.getEmail());
+        // Assert
+        verify(authUserRepository).save(captor.capture());
+        AuthUserEntity savedEntity = captor.getValue();
 
-        verify(authUserRepository).findById(id);
-        verify(authUserRepository).save(existing);
-        verifyNoMoreInteractions(authUserRepository);
+        assertAll(
+                () -> assertEquals(USER_ID, savedEntity.getId()),
+                () -> assertEquals(EMAIL, savedEntity.getEmail()),
+                () -> assertEquals(
+                        PASSWORD_HASH,
+                        savedEntity.getPasswordHash()
+                ),
+                () -> assertEquals(
+                        AuthUserStatus.ACTIVE,
+                        savedEntity.getStatus()
+                ),
+                () -> assertTrue(savedEntity.isEmailVerified()),
+                () -> assertEquals(
+                        "Matheus",
+                        savedEntity.getFirstName()
+                ),
+                () -> assertEquals(
+                        "Silva",
+                        savedEntity.getLastName()
+                ),
+                () -> assertEquals(
+                        "pt-BR",
+                        savedEntity.getLocale()
+                ),
+                () -> assertEquals(
+                        LAST_LOGIN_AT,
+                        savedEntity.getLastLoginAt()
+                ),
+                () -> assertEquals(
+                        2,
+                        savedEntity.getFailedLoginAttempts()
+                ),
+                () -> assertNotNull(savedEntity.getCreatedAt()),
+                () -> assertNotNull(savedEntity.getUpdatedAt()),
+                () -> assertFalse(
+                        savedEntity.getCreatedAt().isBefore(beforeSave)
+                ),
+                () -> assertFalse(
+                        savedEntity.getCreatedAt().isAfter(afterSave)
+                ),
+                () -> assertEquals(
+                        savedEntity.getCreatedAt(),
+                        savedEntity.getUpdatedAt()
+                ),
+                () -> assertEquals(1, savedEntity.getRoles().size()),
+                () -> assertTrue(
+                        savedEntity.getRoles().contains(existingRoleEntity)
+                )
+        );
+
+        assertAll(
+                () -> assertEquals(USER_ID, result.id().value()),
+                () -> assertEquals(EMAIL, result.email().value()),
+                () -> assertEquals(
+                        PASSWORD_HASH,
+                        result.passwordHash().value()
+                ),
+                () -> assertEquals(
+                        AuthUserStatus.ACTIVE,
+                        result.status()
+                ),
+                () -> assertTrue(result.isEmailVerified()),
+                () -> assertEquals("Matheus", result.firstName()),
+                () -> assertEquals("Silva", result.lastName()),
+                () -> assertEquals("pt-BR", result.locale()),
+                () -> assertEquals(1, result.roles().size()),
+                () -> assertTrue(
+                        result.directPermissions().isEmpty()
+                )
+        );
+
+        verify(authUserRepository).findById(USER_ID);
+        verify(roleRepository).findById("ROLE_USER");
+        verify(roleRepository).findById("ROLE_MISSING");
+        verify(roleRepository, never()).findById(null);
     }
 
     @Test
-    void save_shouldSetCreatedAt_whenExistingEntityHasNullCreatedAt() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve atualizar usuário existente preservando a data de criação")
+    void save_usuarioExistenteComCreatedAt_deveAtualizarEPreservarCriacao() {
+        // Arrange
+        AuthUser user = createDomainUser(Set.of());
+        AuthUserEntity existingEntity = createAuthUserEntity(USER_ID);
+        existingEntity.setCreatedAt(CREATED_AT);
+        existingEntity.setUpdatedAt(UPDATED_AT);
 
-        UUID id = UUID.fromString("33333333-3333-3333-3333-333333333333");
-        AuthUser user = mockAuthUser(id, "nullcreated@ecofy.com");
+        when(authUserRepository.findById(USER_ID))
+                .thenReturn(Optional.of(existingEntity));
+        when(authUserRepository.save(existingEntity))
+                .thenReturn(existingEntity);
 
-        AuthUserEntity existing = new AuthUserEntity();
-        existing.setId(id);
-        existing.setCreatedAt(null);
+        AuthUserJpaAdapter adapter = createAdapter();
+        Instant beforeSave = Instant.now();
 
-        when(authUserRepository.findById(id)).thenReturn(Optional.of(existing));
+        // Act
+        AuthUser result = adapter.save(user);
 
-        ArgumentCaptor<AuthUserEntity> entityCaptor = ArgumentCaptor.forClass(AuthUserEntity.class);
-        when(authUserRepository.save(entityCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+        Instant afterSave = Instant.now();
 
-        AuthUser mappedDomain = mock(AuthUser.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(same(existing), any(), any()))
-                    .thenReturn(mappedDomain);
+        // Assert
+        assertAll(
+                () -> assertSame(
+                        existingEntity,
+                        captureSavedEntity()
+                ),
+                () -> assertEquals(
+                        CREATED_AT,
+                        existingEntity.getCreatedAt()
+                ),
+                () -> assertFalse(
+                        existingEntity.getUpdatedAt().isBefore(beforeSave)
+                ),
+                () -> assertFalse(
+                        existingEntity.getUpdatedAt().isAfter(afterSave)
+                ),
+                () -> assertEquals(EMAIL, existingEntity.getEmail()),
+                () -> assertEquals(
+                        PASSWORD_HASH,
+                        existingEntity.getPasswordHash()
+                ),
+                () -> assertTrue(existingEntity.getRoles().isEmpty()),
+                () -> assertEquals(USER_ID, result.id().value())
+        );
 
-            AuthUser result = adapter.save(user);
-            assertSame(mappedDomain, result);
-        }
-
-        AuthUserEntity savedEntity = entityCaptor.getValue();
-        assertSame(existing, savedEntity);
-        assertNotNull(savedEntity.getCreatedAt());
-        assertNotNull(savedEntity.getUpdatedAt());
-
-        verify(authUserRepository).findById(id);
-        verify(authUserRepository).save(existing);
-        verifyNoMoreInteractions(authUserRepository);
+        verify(authUserRepository).findById(USER_ID);
+        verifyNoInteractions(roleRepository);
     }
 
     @Test
-    void loadByEmail_shouldRejectNullEmail() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve preencher a data de criação quando a entidade existente não possuir esse valor")
+    void save_usuarioExistenteSemCreatedAt_devePreencherDatasTemporais() {
+        // Arrange
+        AuthUser user = createDomainUser(Set.of());
+        AuthUserEntity existingEntity = createAuthUserEntity(USER_ID);
+        existingEntity.setCreatedAt(null);
+        existingEntity.setUpdatedAt(null);
 
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadByEmail(null));
-        assertEquals("email must not be null", ex.getMessage());
+        when(authUserRepository.findById(USER_ID))
+                .thenReturn(Optional.of(existingEntity));
+        when(authUserRepository.save(existingEntity))
+                .thenReturn(existingEntity);
 
-        verifyNoInteractions(authUserRepository);
+        AuthUserJpaAdapter adapter = createAdapter();
+        Instant beforeSave = Instant.now();
+
+        // Act
+        AuthUser result = adapter.save(user);
+
+        Instant afterSave = Instant.now();
+
+        // Assert
+        assertAll(
+                () -> assertNotNull(existingEntity.getCreatedAt()),
+                () -> assertNotNull(existingEntity.getUpdatedAt()),
+                () -> assertEquals(
+                        existingEntity.getCreatedAt(),
+                        existingEntity.getUpdatedAt()
+                ),
+                () -> assertFalse(
+                        existingEntity.getCreatedAt().isBefore(beforeSave)
+                ),
+                () -> assertFalse(
+                        existingEntity.getCreatedAt().isAfter(afterSave)
+                ),
+                () -> assertEquals(USER_ID, result.id().value())
+        );
+
+        verify(authUserRepository).save(existingEntity);
+        verifyNoInteractions(roleRepository);
     }
 
     @Test
-    void loadByEmail_shouldReturnEmpty_whenNotFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve rejeitar e-mail nulo sem consultar o repositório")
+    void loadByEmail_emailNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthUserJpaAdapter adapter = createAdapter();
 
-        EmailAddress email = mock(EmailAddress.class);
-        when(email.value()).thenReturn("missing@ecofy.com");
-        when(authUserRepository.findByEmailIgnoreCase("missing@ecofy.com")).thenReturn(Optional.empty());
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.loadByEmail(null)
+        );
 
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "email must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(authUserRepository)
+        );
+    }
+
+    @Test
+    @DisplayName("Deve retornar vazio quando não existir usuário com o e-mail informado")
+    void loadByEmail_usuarioInexistente_deveRetornarOptionalVazio() {
+        // Arrange
+        EmailAddress email = new EmailAddress(EMAIL);
+
+        when(authUserRepository.findByEmailIgnoreCase(email.value()))
+                .thenReturn(Optional.empty());
+
+        AuthUserJpaAdapter adapter = createAdapter();
+
+        // Act
         Optional<AuthUser> result = adapter.loadByEmail(email);
 
-        assertTrue(result.isEmpty());
-        verify(authUserRepository).findByEmailIgnoreCase("missing@ecofy.com");
-        verifyNoMoreInteractions(authUserRepository);
+        // Assert
+        assertAll(
+                () -> assertTrue(result.isEmpty()),
+                () -> verify(authUserRepository)
+                        .findByEmailIgnoreCase(email.value()),
+                () -> verifyNoInteractions(roleRepository)
+        );
     }
 
     @Test
-    void loadByEmail_shouldMapToDomain_whenFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve converter e retornar o usuário encontrado pelo e-mail")
+    void loadByEmail_usuarioExistente_deveRetornarUsuarioMapeado() {
+        // Arrange
+        EmailAddress email = new EmailAddress(EMAIL);
+        AuthUserEntity entity = createAuthUserEntity(USER_ID);
 
-        EmailAddress email = mock(EmailAddress.class);
-        when(email.value()).thenReturn("found@ecofy.com");
+        when(authUserRepository.findByEmailIgnoreCase(email.value()))
+                .thenReturn(Optional.of(entity));
 
-        AuthUserEntity entity = new AuthUserEntity();
-        entity.setId(UUID.fromString("44444444-4444-4444-4444-444444444444"));
-        entity.setEmail("found@ecofy.com");
+        AuthUserJpaAdapter adapter = createAdapter();
 
-        when(authUserRepository.findByEmailIgnoreCase("found@ecofy.com")).thenReturn(Optional.of(entity));
+        // Act
+        Optional<AuthUser> result = adapter.loadByEmail(email);
 
-        AuthUser mappedDomain = mock(AuthUser.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(same(entity), any(), any()))
-                    .thenReturn(mappedDomain);
+        // Assert
+        assertAll(
+                () -> assertTrue(result.isPresent()),
+                () -> assertEquals(
+                        USER_ID,
+                        result.orElseThrow().id().value()
+                ),
+                () -> assertEquals(
+                        EMAIL,
+                        result.orElseThrow().email().value()
+                ),
+                () -> assertEquals(
+                        AuthUserStatus.ACTIVE,
+                        result.orElseThrow().status()
+                ),
+                () -> assertEquals(
+                        1,
+                        result.orElseThrow().roles().size()
+                ),
+                () -> assertEquals(
+                        1,
+                        result.orElseThrow()
+                                .directPermissions()
+                                .size()
+                )
+        );
 
-            Optional<AuthUser> result = adapter.loadByEmail(email);
-
-            assertTrue(result.isPresent());
-            assertSame(mappedDomain, result.get());
-        }
-
-        verify(authUserRepository).findByEmailIgnoreCase("found@ecofy.com");
-        verifyNoMoreInteractions(authUserRepository);
+        verify(authUserRepository)
+                .findByEmailIgnoreCase(email.value());
     }
 
     @Test
-    void loadById_shouldRejectNullId() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve rejeitar identificador nulo sem consultar o repositório")
+    void loadById_idNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthUserJpaAdapter adapter = createAdapter();
 
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> adapter.loadById(null));
-        assertEquals("id must not be null", ex.getMessage());
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.loadById(null)
+        );
 
-        verifyNoInteractions(authUserRepository);
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "id must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(authUserRepository)
+        );
     }
 
     @Test
-    void loadById_shouldReturnEmpty_whenNotFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve retornar vazio quando não existir usuário com o identificador informado")
+    void loadById_usuarioInexistente_deveRetornarOptionalVazio() {
+        // Arrange
+        AuthUserId id = new AuthUserId(USER_ID);
 
-        UUID uuid = UUID.fromString("55555555-5555-5555-5555-555555555555");
-        AuthUserId id = mock(AuthUserId.class);
-        when(id.value()).thenReturn(uuid);
-        when(authUserRepository.findById(uuid)).thenReturn(Optional.empty());
+        when(authUserRepository.findById(id.value()))
+                .thenReturn(Optional.empty());
 
+        AuthUserJpaAdapter adapter = createAdapter();
+
+        // Act
         Optional<AuthUser> result = adapter.loadById(id);
 
-        assertTrue(result.isEmpty());
-        verify(authUserRepository).findById(uuid);
-        verifyNoMoreInteractions(authUserRepository);
+        // Assert
+        assertAll(
+                () -> assertTrue(result.isEmpty()),
+                () -> verify(authUserRepository).findById(id.value()),
+                () -> verifyNoInteractions(roleRepository)
+        );
     }
 
     @Test
-    void loadById_shouldMapToDomain_whenFound() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
+    @DisplayName("Deve converter e retornar o usuário encontrado pelo identificador")
+    void loadById_usuarioExistente_deveRetornarUsuarioMapeado() {
+        // Arrange
+        AuthUserId id = new AuthUserId(USER_ID);
+        AuthUserEntity entity = createAuthUserEntity(USER_ID);
 
-        UUID uuid = UUID.fromString("66666666-6666-6666-6666-666666666666");
-        AuthUserId id = mock(AuthUserId.class);
-        when(id.value()).thenReturn(uuid);
+        when(authUserRepository.findById(id.value()))
+                .thenReturn(Optional.of(entity));
+
+        AuthUserJpaAdapter adapter = createAdapter();
+
+        // Act
+        Optional<AuthUser> result = adapter.loadById(id);
+
+        // Assert
+        AuthUser user = result.orElseThrow();
+
+        assertAll(
+                () -> assertEquals(USER_ID, user.id().value()),
+                () -> assertEquals(EMAIL, user.email().value()),
+                () -> assertEquals(
+                        PASSWORD_HASH,
+                        user.passwordHash().value()
+                ),
+                () -> assertEquals(
+                        AuthUserStatus.ACTIVE,
+                        user.status()
+                ),
+                () -> assertTrue(user.isEmailVerified()),
+                () -> assertEquals("Matheus", user.firstName()),
+                () -> assertEquals("Silva", user.lastName()),
+                () -> assertEquals("pt-BR", user.locale()),
+                () -> assertEquals(CREATED_AT, user.createdAt()),
+                () -> assertEquals(UPDATED_AT, user.updatedAt()),
+                () -> assertEquals(
+                        LAST_LOGIN_AT,
+                        user.lastLoginAt()
+                ),
+                () -> assertEquals(
+                        2,
+                        user.failedLoginAttempts()
+                ),
+                () -> assertEquals(1, user.roles().size()),
+                () -> assertEquals(
+                        1,
+                        user.directPermissions().size()
+                )
+        );
+
+        verify(authUserRepository).findById(id.value());
+    }
+
+    private AuthUserJpaAdapter createAdapter() {
+        return new AuthUserJpaAdapter(
+                authUserRepository,
+                roleRepository
+        );
+    }
+
+    private AuthUser createDomainUser(Set<Role> roles) {
+        return new AuthUser(
+                new AuthUserId(USER_ID),
+                new EmailAddress(EMAIL),
+                new PasswordHash(PASSWORD_HASH),
+                AuthUserStatus.ACTIVE,
+                true,
+                "Matheus",
+                "Silva",
+                "pt-BR",
+                roles,
+                Set.of(),
+                CREATED_AT,
+                UPDATED_AT,
+                LAST_LOGIN_AT,
+                2
+        );
+    }
+
+    private AuthUserEntity createAuthUserEntity(UUID id) {
+        PermissionEntity permission = new PermissionEntity();
+        permission.setName("profile.read");
+        permission.setDescription("Permite consultar o perfil");
+        permission.setDomain("users");
+
+        RoleEntity role = createRoleEntity(
+                "ROLE_USER",
+                "Usuário"
+        );
 
         AuthUserEntity entity = new AuthUserEntity();
-        entity.setId(uuid);
-        entity.setEmail("byid@ecofy.com");
+        entity.setId(id);
+        entity.setEmail(EMAIL);
+        entity.setPasswordHash(PASSWORD_HASH);
+        entity.setStatus(AuthUserStatus.ACTIVE);
+        entity.setEmailVerified(true);
+        entity.setFirstName("Matheus");
+        entity.setLastName("Silva");
+        entity.setLocale("pt-BR");
+        entity.setCreatedAt(CREATED_AT);
+        entity.setUpdatedAt(UPDATED_AT);
+        entity.setLastLoginAt(LAST_LOGIN_AT);
+        entity.setFailedLoginAttempts(2);
+        entity.setRoles(new HashSet<>(Set.of(role)));
+        entity.setPermissions(new HashSet<>(Set.of(permission)));
 
-        when(authUserRepository.findById(uuid)).thenReturn(Optional.of(entity));
-
-        AuthUser mappedDomain = mock(AuthUser.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(same(entity), any(), any()))
-                    .thenReturn(mappedDomain);
-
-            Optional<AuthUser> result = adapter.loadById(id);
-
-            assertTrue(result.isPresent());
-            assertSame(mappedDomain, result.get());
-        }
-
-        verify(authUserRepository).findById(uuid);
-        verifyNoMoreInteractions(authUserRepository);
+        return entity;
     }
 
-    @Test
-    void save_shouldPersistFailedLoginAttemptsAndResolvedRoles() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
-
-        UUID id = UUID.fromString("77777777-7777-7777-7777-777777777777");
-        AuthUser user = mockAuthUser(id, "roles@ecofy.com");
-        when(user.failedLoginAttempts()).thenReturn(3);
-        when(user.roles()).thenReturn(java.util.Set.of(
-                new br.com.ecofy.auth.core.domain.Role("ROLE_ADMIN", null, java.util.Set.of())));
-
-        br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity adminEntity =
-                new br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity();
-        adminEntity.setName("ROLE_ADMIN");
-        when(roleRepository.findById("ROLE_ADMIN")).thenReturn(Optional.of(adminEntity));
-
-        when(authUserRepository.findById(id)).thenReturn(Optional.empty());
-
-        ArgumentCaptor<AuthUserEntity> entityCaptor = ArgumentCaptor.forClass(AuthUserEntity.class);
-        when(authUserRepository.save(entityCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
-
-        AuthUser mappedDomain = mock(AuthUser.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(any(AuthUserEntity.class), any(), any()))
-                    .thenReturn(mappedDomain);
-
-            adapter.save(user);
-        }
-
-        AuthUserEntity saved = entityCaptor.getValue();
-        assertEquals(3, saved.getFailedLoginAttempts());
-        assertTrue(saved.getRoles().contains(adminEntity), "Role ROLE_ADMIN deve ser persistida");
-        verify(roleRepository).findById("ROLE_ADMIN");
+    private RoleEntity createRoleEntity(
+            String name,
+            String description
+    ) {
+        RoleEntity entity = new RoleEntity();
+        entity.setName(name);
+        entity.setDescription(description);
+        entity.setPermissions(new HashSet<>());
+        return entity;
     }
 
-    @Test
-    void save_shouldSkipUnknownRoles_withoutFailing() {
-        AuthUserJpaAdapter adapter = new AuthUserJpaAdapter(authUserRepository, roleRepository);
-
-        UUID id = UUID.fromString("88888888-8888-8888-8888-888888888888");
-        AuthUser user = mockAuthUser(id, "unknownrole@ecofy.com");
-        when(user.roles()).thenReturn(java.util.Set.of(
-                new br.com.ecofy.auth.core.domain.Role("ROLE_GHOST", null, java.util.Set.of())));
-        when(roleRepository.findById("ROLE_GHOST")).thenReturn(Optional.empty());
-
-        when(authUserRepository.findById(id)).thenReturn(Optional.empty());
-
-        ArgumentCaptor<AuthUserEntity> entityCaptor = ArgumentCaptor.forClass(AuthUserEntity.class);
-        when(authUserRepository.save(entityCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
-
-        AuthUser mappedDomain = mock(AuthUser.class);
-        try (MockedStatic<PersistenceMapper> mocked = mockStatic(PersistenceMapper.class)) {
-            mocked.when(() -> PersistenceMapper.toDomain(any(AuthUserEntity.class), any(), any()))
-                    .thenReturn(mappedDomain);
-
-            adapter.save(user);
-        }
-
-        AuthUserEntity saved = entityCaptor.getValue();
-        assertTrue(saved.getRoles().isEmpty(), "Role inexistente é ignorada (sem FK inválida)");
-    }
-
-    // heapers
-
-    private static AuthUser mockAuthUser(UUID id, String emailValue) {
-        AuthUser user = mock(AuthUser.class);
-
-        AuthUserId authUserId = mock(AuthUserId.class);
-        when(authUserId.value()).thenReturn(id);
-
-        EmailAddress email = mock(EmailAddress.class);
-        when(email.value()).thenReturn(emailValue);
-
-        PasswordHash passwordHash = mock(PasswordHash.class);
-        when(passwordHash.value()).thenReturn("hash");
-
-        when(user.id()).thenReturn(authUserId);
-        when(user.email()).thenReturn(email);
-        when(user.passwordHash()).thenReturn(passwordHash);
-
-        return user;
+    private AuthUserEntity captureSavedEntity() {
+        ArgumentCaptor<AuthUserEntity> captor =
+                ArgumentCaptor.forClass(AuthUserEntity.class);
+        verify(authUserRepository).save(captor.capture());
+        return captor.getValue();
     }
 }

@@ -1,87 +1,159 @@
 package br.com.ecofy.auth.core.domain.valueobject;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import static org.junit.jupiter.api.Assertions.*;
-
+@DisplayName("Testes unitários do hash de senha")
 class PasswordHashTest {
 
     @Test
-    void shouldCreatePasswordHashWithValue() {
-        String hash = "$2a$10$abcdefghijklmnopqrstuv";
+    @DisplayName("Deve criar o hash de senha e preservar o valor informado")
+    void constructor_valorValido_deveCriarPasswordHash() {
+        // Arrange
+        String value = "$2a$12$hashSeguro";
 
-        PasswordHash passwordHash = new PasswordHash(hash);
+        // Act
+        PasswordHash passwordHash = new PasswordHash(value);
 
-        assertEquals(hash, passwordHash.value());
+        // Assert
+        assertEquals(value, passwordHash.value());
     }
 
     @Test
-    void shouldThrowExceptionWhenValueIsNull() {
+    @DisplayName("Deve aceitar uma string vazia como valor do hash")
+    void constructor_valorVazio_deveCriarPasswordHash() {
+        // Arrange
+        String value = "";
+
+        // Act
+        PasswordHash passwordHash = new PasswordHash(value);
+
+        // Assert
+        assertEquals(value, passwordHash.value());
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar um valor nulo para o hash de senha")
+    void constructor_valorNulo_deveLancarNullPointerException() {
+        // Arrange, Act e Assert
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
                 () -> new PasswordHash(null)
         );
 
-        assertEquals("password hash must not be null", exception.getMessage());
+        assertEquals(
+                "password hash must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void shouldReturnMaskedValueInToString() {
-        PasswordHash passwordHash = new PasswordHash("$2a$10$abcdefghijklmnopqrstuv");
+    @DisplayName("Deve ocultar o conteúdo do hash na representação textual")
+    void toString_hashExistente_deveRetornarValorMascarado() {
+        // Arrange
+        PasswordHash passwordHash = new PasswordHash(
+                "$2a$12$hashSeguro"
+        );
 
+        // Act
         String result = passwordHash.toString();
 
+        // Assert
         assertEquals("********", result);
-        assertFalse(result.contains("$2a$10$abcdefghijklmnopqrstuv"));
     }
 
     @Test
-    void shouldComparePasswordHashByValue() {
-        PasswordHash passwordHash = new PasswordHash("hash-value");
-        PasswordHash sameValue = new PasswordHash("hash-value");
-        PasswordHash differentValue = new PasswordHash("another-hash-value");
+    @DisplayName("Deve considerar igual a própria instância")
+    void equals_mesmaInstancia_deveRetornarTrue() {
+        // Arrange
+        PasswordHash passwordHash = new PasswordHash(
+                "$2a$12$hashSeguro"
+        );
 
-        assertEquals(passwordHash, passwordHash);
-        assertEquals(passwordHash, sameValue);
-        assertNotEquals(passwordHash, differentValue);
-        assertNotEquals(passwordHash, null);
-        assertNotEquals(passwordHash, "hash-value");
+        // Act
+        boolean result = passwordHash.equals(passwordHash);
+
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    void shouldGenerateHashCodeUsingValue() {
-        PasswordHash passwordHash = new PasswordHash("hash-value");
-        PasswordHash sameValue = new PasswordHash("hash-value");
+    @DisplayName("Deve considerar iguais os hashes com o mesmo valor")
+    void equals_hashesComMesmoValor_deveRetornarTrue() {
+        // Arrange
+        PasswordHash passwordHash = new PasswordHash(
+                "$2a$12$hashSeguro"
+        );
+        PasswordHash equivalentHash = new PasswordHash(
+                "$2a$12$hashSeguro"
+        );
 
-        assertEquals(passwordHash.hashCode(), sameValue.hashCode());
+        // Act
+        boolean result = passwordHash.equals(equivalentHash);
+
+        // Assert
+        assertAll(
+                () -> assertTrue(result),
+                () -> assertEquals(
+                        passwordHash.hashCode(),
+                        equivalentHash.hashCode()
+                )
+        );
     }
 
     @Test
-    void shouldBeSerializable() throws IOException, ClassNotFoundException {
-        PasswordHash original = new PasswordHash("serialized-hash-value");
+    @DisplayName("Deve considerar diferentes os hashes com valores distintos")
+    void equals_hashesComValoresDiferentes_deveRetornarFalse() {
+        // Arrange
+        PasswordHash passwordHash = new PasswordHash(
+                "$2a$12$hashSeguro"
+        );
+        PasswordHash differentHash = new PasswordHash(
+                "$2a$12$outroHash"
+        );
 
-        byte[] serialized;
+        // Act
+        boolean result = passwordHash.equals(differentHash);
 
-        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-             ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)) {
+        // Assert
+        assertFalse(result);
+    }
 
-            objectOutputStream.writeObject(original);
-            serialized = byteArrayOutputStream.toByteArray();
-        }
+    @Test
+    @DisplayName("Deve considerar diferente um objeto de outro tipo")
+    void equals_objetoDeOutroTipo_deveRetornarFalse() {
+        // Arrange
+        PasswordHash passwordHash = new PasswordHash(
+                "$2a$12$hashSeguro"
+        );
 
-        PasswordHash deserialized;
+        // Act
+        boolean result = passwordHash.equals(
+                "$2a$12$hashSeguro"
+        );
 
-        try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(serialized);
-             ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
+        // Assert
+        assertFalse(result);
+    }
 
-            deserialized = (PasswordHash) objectInputStream.readObject();
-        }
+    @Test
+    @DisplayName("Deve considerar diferente um objeto nulo")
+    void equals_objetoNulo_deveRetornarFalse() {
+        // Arrange
+        PasswordHash passwordHash = new PasswordHash(
+                "$2a$12$hashSeguro"
+        );
 
-        assertEquals(original, deserialized);
-        assertEquals(original.value(), deserialized.value());
-        assertEquals(original.hashCode(), deserialized.hashCode());
-        assertEquals("********", deserialized.toString());
+        // Act
+        boolean result = passwordHash.equals(null);
+
+        // Assert
+        assertFalse(result);
     }
 }

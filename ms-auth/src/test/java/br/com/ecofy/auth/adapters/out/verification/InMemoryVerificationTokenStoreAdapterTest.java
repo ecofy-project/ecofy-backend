@@ -1,176 +1,393 @@
 package br.com.ecofy.auth.adapters.out.verification;
 
-import br.com.ecofy.auth.adapters.out.reset.InMemoryPasswordResetTokenStoreAdapter;
 import br.com.ecofy.auth.core.domain.AuthUser;
+import br.com.ecofy.auth.core.domain.enums.AuthUserStatus;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
+import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
+import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Testes unitários do armazenamento de tokens de verificação em memória")
 class InMemoryVerificationTokenStoreAdapterTest {
 
+    private static final String VALID_TOKEN =
+            "email-verification-token-123456789";
+    private static final String SECOND_TOKEN =
+            "second-verification-token-987654321";
+
     @Test
-    void store_shouldIgnore_whenUserIsNull() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve ignorar o armazenamento quando o usuário for nulo")
+    void store_usuarioNulo_deveIgnorarArmazenamento() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-        adapter.store(null, "token-1");
+        // Act
+        adapter.store(null, VALID_TOKEN);
+        Optional<AuthUser> result = adapter.consume(VALID_TOKEN);
 
-        assertTrue(adapter.consume("token-1").isEmpty());
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    void store_shouldIgnore_whenTokenIsNull() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve ignorar o armazenamento quando o token for nulo")
+    void store_tokenNulo_deveIgnorarArmazenamento() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+        AuthUser user = createUser(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "primeiro@ecofy.com"
+        );
 
-        adapter.store(mockUser(), null);
+        // Act
+        adapter.store(user, null);
 
-        assertTrue(adapter.consume("any").isEmpty());
+        // Assert
+        assertTrue(adapter.consume(VALID_TOKEN).isEmpty());
     }
 
     @Test
-    void store_shouldIgnore_whenTokenIsBlank() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve ignorar o armazenamento quando o token estiver vazio")
+    void store_tokenVazio_deveIgnorarArmazenamento() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+        AuthUser user = createUser(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "primeiro@ecofy.com"
+        );
 
-        adapter.store(mockUser(), "   ");
+        // Act
+        adapter.store(user, "");
 
+        // Assert
+        assertTrue(adapter.consume("").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Deve ignorar o armazenamento quando o token contiver apenas espaços")
+    void store_tokenEmBranco_deveIgnorarArmazenamento() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+        AuthUser user = createUser(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "primeiro@ecofy.com"
+        );
+
+        // Act
+        adapter.store(user, "   ");
+
+        // Assert
         assertTrue(adapter.consume("   ").isEmpty());
     }
 
     @Test
-    void store_shouldStoreToken_andConsumeShouldReturnUser_andRemoveToken() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve armazenar e recuperar o usuário associado ao token")
+    void store_tokenValido_deveArmazenarUsuarioAssociado() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+        AuthUser user = createUser(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "primeiro@ecofy.com"
+        );
 
-        AuthUser user = mockUser();
-        String token = "token-12345";
+        // Act
+        adapter.store(user, VALID_TOKEN);
+        Optional<AuthUser> result = adapter.consume(VALID_TOKEN);
 
-        adapter.store(user, token);
-
-        Optional<AuthUser> first = adapter.consume(token);
-        assertTrue(first.isPresent());
-        assertSame(user, first.get());
-
-        Optional<AuthUser> second = adapter.consume(token);
-        assertTrue(second.isEmpty());
+        // Assert
+        assertTrue(result.isPresent());
+        assertSame(user, result.orElseThrow());
     }
 
     @Test
-    void consume_shouldReturnEmpty_whenTokenIsNull() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve remover o token após o primeiro consumo bem-sucedido")
+    void consume_tokenConsumidoDuasVezes_deveRetornarUsuarioSomenteNaPrimeira() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+        AuthUser user = createUser(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "primeiro@ecofy.com"
+        );
+        adapter.store(user, VALID_TOKEN);
 
-        assertTrue(adapter.consume(null).isEmpty());
+        // Act
+        Optional<AuthUser> firstResult =
+                adapter.consume(VALID_TOKEN);
+        Optional<AuthUser> secondResult =
+                adapter.consume(VALID_TOKEN);
+
+        // Assert
+        assertTrue(firstResult.isPresent());
+        assertSame(user, firstResult.orElseThrow());
+        assertTrue(secondResult.isEmpty());
     }
 
     @Test
-    void consume_shouldReturnEmpty_whenTokenIsBlank() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve substituir o usuário quando o mesmo token for armazenado novamente")
+    void store_tokenJaExistente_deveSubstituirUsuarioAssociado() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+        AuthUser firstUser = createUser(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "primeiro@ecofy.com"
+        );
+        AuthUser secondUser = createUser(
+                "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                "segundo@ecofy.com"
+        );
 
-        assertTrue(adapter.consume("  ").isEmpty());
+        // Act
+        adapter.store(firstUser, VALID_TOKEN);
+        adapter.store(secondUser, VALID_TOKEN);
+        Optional<AuthUser> result = adapter.consume(VALID_TOKEN);
+
+        // Assert
+        assertTrue(result.isPresent());
+        assertSame(secondUser, result.orElseThrow());
     }
 
     @Test
-    void consume_shouldReturnEmpty_whenTokenNotFound() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve armazenar tokens diferentes de forma independente")
+    void store_tokensDiferentes_deveManterUsuariosIndependentes() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+        AuthUser firstUser = createUser(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "primeiro@ecofy.com"
+        );
+        AuthUser secondUser = createUser(
+                "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                "segundo@ecofy.com"
+        );
 
-        assertTrue(adapter.consume("missing-token").isEmpty());
+        // Act
+        adapter.store(firstUser, VALID_TOKEN);
+        adapter.store(secondUser, SECOND_TOKEN);
+
+        Optional<AuthUser> firstResult =
+                adapter.consume(VALID_TOKEN);
+        Optional<AuthUser> secondResult =
+                adapter.consume(SECOND_TOKEN);
+
+        // Assert
+        assertTrue(firstResult.isPresent());
+        assertTrue(secondResult.isPresent());
+        assertSame(firstUser, firstResult.orElseThrow());
+        assertSame(secondUser, secondResult.orElseThrow());
     }
 
     @Test
-    void store_shouldOverwriteExistingToken_withNewUser() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve retornar vazio quando o token consumido for nulo")
+    void consume_tokenNulo_deveRetornarOptionalVazio() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-        AuthUser user1 = mockUser();
-        AuthUser user2 = mockUser();
-        String token = "same-token";
+        // Act
+        Optional<AuthUser> result = adapter.consume(null);
 
-        adapter.store(user1, token);
-        adapter.store(user2, token);
-
-        Optional<AuthUser> consumed = adapter.consume(token);
-        assertTrue(consumed.isPresent());
-        assertSame(user2, consumed.get());
-
-        assertTrue(adapter.consume(token).isEmpty());
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    void tokenMaskBranches_shouldBeCovered_viaStoreAndConsumePaths() {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve retornar vazio quando o token consumido estiver vazio")
+    void consume_tokenVazio_deveRetornarOptionalVazio() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-        AuthUser user = mockUser();
+        // Act
+        Optional<AuthUser> result = adapter.consume("");
 
-        String shortToken = "1234567890";
-        adapter.store(user, shortToken);
-        assertTrue(adapter.consume(shortToken).isPresent());
-
-        String longToken = "12345678901";
-        adapter.store(user, longToken);
-        assertTrue(adapter.consume(longToken).isPresent());
-
-        assertTrue(adapter.consume("not-present-long-token-123456").isEmpty());
-    }
-
-
-    @Test
-    void maskToken_shouldCoverTrueBranches_tokenNull_and_tokenBlank() throws Exception {
-        InMemoryPasswordResetTokenStoreAdapter adapter = new InMemoryPasswordResetTokenStoreAdapter();
-
-        assertEquals("***", invokeMaskToken(adapter, null));
-        assertEquals("***", invokeMaskToken(adapter, "   "));
-        assertEquals("***", invokeMaskToken(adapter, "\n\t "));
-        assertEquals("***", invokeMaskToken(adapter, ""));
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    void maskToken_shouldReturnStars_whenTokenIsNull() throws Exception {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve retornar vazio quando o token consumido estiver em branco")
+    void consume_tokenEmBranco_deveRetornarOptionalVazio() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-        assertEquals("***", invokeMaskToken(adapter, null));
+        // Act
+        Optional<AuthUser> result = adapter.consume("   ");
+
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    void maskToken_shouldReturnStars_whenTokenIsBlank() throws Exception {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve retornar vazio quando o token curto não estiver armazenado")
+    void consume_tokenCurtoInexistente_deveRetornarOptionalVazio() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-        assertEquals("***", invokeMaskToken(adapter, ""));
-        assertEquals("***", invokeMaskToken(adapter, "   "));
-        assertEquals("***", invokeMaskToken(adapter, "\n\t "));
+        // Act
+        Optional<AuthUser> result = adapter.consume("1234567890");
+
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    void maskToken_shouldReturnStars_whenTokenLengthIsLessOrEqualThan10() throws Exception {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve retornar vazio quando o token longo não estiver armazenado")
+    void consume_tokenLongoInexistente_deveRetornarOptionalVazio() {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-        assertEquals("***", invokeMaskToken(adapter, "1"));
-        assertEquals("***", invokeMaskToken(adapter, "1234567890"));
+        // Act
+        Optional<AuthUser> result =
+                adapter.consume("12345678901");
+
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    void maskToken_shouldReturnFirst10CharactersPlusEllipsis_whenTokenLengthIsGreaterThan10() throws Exception {
-        InMemoryVerificationTokenStoreAdapter adapter = new InMemoryVerificationTokenStoreAdapter();
+    @DisplayName("Deve mascarar token nulo com três asteriscos")
+    void maskToken_tokenNulo_deveRetornarMascaraCompleta()
+            throws Exception {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-        assertEquals("1234567890...", invokeMaskToken(adapter, "12345678901"));
-        assertEquals("abcdefghij...", invokeMaskToken(adapter, "abcdefghijklmno"));
+        // Act
+        String result = invokeMaskToken(adapter, null);
+
+        // Assert
+        assertEquals("***", result);
     }
 
-    // heapers
+    @Test
+    @DisplayName("Deve mascarar token vazio com três asteriscos")
+    void maskToken_tokenVazio_deveRetornarMascaraCompleta()
+            throws Exception {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
 
-    private static AuthUser mockUser() {
-        AuthUser user = mock(AuthUser.class);
-        AuthUserId id = mock(AuthUserId.class);
-        when(id.value()).thenReturn(UUID.randomUUID());
-        when(user.id()).thenReturn(id);
-        return user;
+        // Act
+        String result = invokeMaskToken(adapter, "");
+
+        // Assert
+        assertEquals("***", result);
     }
 
-    private static String invokeMaskToken(Object target, String token) throws Exception {
-        Method method = target.getClass().getDeclaredMethod("maskToken", String.class);
+    @Test
+    @DisplayName("Deve mascarar token em branco com três asteriscos")
+    void maskToken_tokenEmBranco_deveRetornarMascaraCompleta()
+            throws Exception {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+
+        // Act
+        String result = invokeMaskToken(adapter, "   ");
+
+        // Assert
+        assertEquals("***", result);
+    }
+
+    @Test
+    @DisplayName("Deve mascarar completamente token com exatamente dez caracteres")
+    void maskToken_tokenComDezCaracteres_deveRetornarMascaraCompleta()
+            throws Exception {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+
+        // Act
+        String result = invokeMaskToken(
+                adapter,
+                "1234567890"
+        );
+
+        // Assert
+        assertEquals("***", result);
+    }
+
+    @Test
+    @DisplayName("Deve exibir os primeiros dez caracteres quando o token ultrapassar o limite")
+    void maskToken_tokenComMaisDeDezCaracteres_deveRetornarPrefixoMascarado()
+            throws Exception {
+        // Arrange
+        InMemoryVerificationTokenStoreAdapter adapter =
+                createAdapter();
+
+        // Act
+        String result = invokeMaskToken(
+                adapter,
+                "12345678901"
+        );
+
+        // Assert
+        assertEquals("1234567890...", result);
+    }
+
+    private InMemoryVerificationTokenStoreAdapter createAdapter() {
+        return new InMemoryVerificationTokenStoreAdapter();
+    }
+
+    private AuthUser createUser(
+            String id,
+            String email
+    ) {
+        Instant now = Instant.parse("2026-07-20T12:00:00Z");
+
+        return new AuthUser(
+                new AuthUserId(UUID.fromString(id)),
+                new EmailAddress(email),
+                new PasswordHash("password-hash"),
+                AuthUserStatus.ACTIVE,
+                true,
+                "Usuário",
+                "EcoFy",
+                "pt-BR",
+                Set.of(),
+                Set.of(),
+                now,
+                now,
+                null,
+                0
+        );
+    }
+
+    private String invokeMaskToken(
+            InMemoryVerificationTokenStoreAdapter adapter,
+            String token
+    ) throws Exception {
+        Method method =
+                InMemoryVerificationTokenStoreAdapter.class
+                        .getDeclaredMethod(
+                                "maskToken",
+                                String.class
+                        );
+
         method.setAccessible(true);
-        return (String) method.invoke(target, token);
-    }
 
+        return (String) method.invoke(adapter, token);
+    }
 }

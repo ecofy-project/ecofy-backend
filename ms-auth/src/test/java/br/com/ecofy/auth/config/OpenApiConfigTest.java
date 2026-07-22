@@ -1,112 +1,194 @@
 package br.com.ecofy.auth.config;
 
+import io.swagger.v3.oas.models.ExternalDocumentation;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.models.GroupedOpenApi;
 
-import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Testes unitários da configuração OpenAPI")
 class OpenApiConfigTest {
 
+    private static final String SECURITY_SCHEME_BEARER = "BearerAuth";
+
     @Test
-    void ecofyAuthOpenAPI_shouldConfigureInfoExternalDocsSecuritySchemeAndRequirement() {
+    @DisplayName("Deve criar a documentação principal com informações, links e autenticação JWT")
+    void ecofyAuthOpenAPI_configuracaoPadrao_deveRetornarDocumentacaoCompleta() {
+        // Arrange
         OpenApiConfig config = new OpenApiConfig();
 
-        OpenAPI api = config.ecofyAuthOpenAPI();
+        // Act
+        OpenAPI result = config.ecofyAuthOpenAPI();
 
-        assertNotNull(api);
+        // Assert
+        assertNotNull(result);
 
-        Info info = api.getInfo();
-        assertNotNull(info);
-
-        assertNotNull(info.getTitle());
-        assertNotNull(info.getVersion());
-        assertNotNull(info.getDescription());
-
+        Info info = result.getInfo();
         Contact contact = info.getContact();
-        assertNotNull(contact);
-        assertNotNull(contact.getName());
-        assertNotNull(contact.getEmail());
-        assertNotNull(contact.getUrl());
-
         License license = info.getLicense();
-        assertNotNull(license);
-        assertNotNull(license.getName());
-        assertNotNull(license.getUrl());
+        ExternalDocumentation externalDocs = result.getExternalDocs();
 
-        assertNotNull(info.getTermsOfService());
+        SecurityScheme securityScheme = result.getComponents()
+                .getSecuritySchemes()
+                .get(SECURITY_SCHEME_BEARER);
 
-        assertNotNull(api.getExternalDocs());
-        assertNotNull(api.getExternalDocs().getDescription());
-        assertNotNull(api.getExternalDocs().getUrl());
+        SecurityRequirement securityRequirement = result.getSecurity()
+                .get(0);
 
-        assertNotNull(api.getComponents());
-        assertNotNull(api.getComponents().getSecuritySchemes());
-        assertTrue(api.getComponents().getSecuritySchemes().containsKey("BearerAuth"));
-
-        SecurityScheme scheme = api.getComponents().getSecuritySchemes().get("BearerAuth");
-        assertNotNull(scheme);
-        assertNotNull(scheme.getName());
-        assertEquals(SecurityScheme.Type.HTTP, scheme.getType());
-        assertNotNull(scheme.getScheme());
-        assertNotNull(scheme.getBearerFormat());
-        assertNotNull(scheme.getDescription());
-
-        assertNotNull(api.getSecurity());
-        assertFalse(api.getSecurity().isEmpty());
-        assertTrue(api.getSecurity().get(0).containsKey("BearerAuth"));
+        assertAll(
+                () -> assertNotNull(info),
+                () -> assertEquals(
+                        "EcoFy Auth Service – OIDC/JWT",
+                        info.getTitle()
+                ),
+                () -> assertEquals(
+                        """
+                                Microserviço de autenticação da plataforma EcoFy.
+                                Responsável por registro de usuários, OIDC/JWT, refresh tokens,
+                                confirmação de e-mail e provisionamento de client applications.
+                                """,
+                        info.getDescription()
+                ),
+                () -> assertEquals("v1.0.0", info.getVersion()),
+                () -> assertEquals(
+                        "https://ecofy.com/terms",
+                        info.getTermsOfService()
+                ),
+                () -> assertNotNull(contact),
+                () -> assertEquals(
+                        "EcoFy Platform",
+                        contact.getName()
+                ),
+                () -> assertEquals(
+                        "dev@ecofy.com",
+                        contact.getEmail()
+                ),
+                () -> assertEquals(
+                        "https://ecofy.com",
+                        contact.getUrl()
+                ),
+                () -> assertNotNull(license),
+                () -> assertEquals(
+                        "Proprietary / EcoFy",
+                        license.getName()
+                ),
+                () -> assertEquals(
+                        "https://ecofy.com/license",
+                        license.getUrl()
+                ),
+                () -> assertNotNull(externalDocs),
+                () -> assertEquals(
+                        "EcoFy Platform – Docs",
+                        externalDocs.getDescription()
+                ),
+                () -> assertEquals(
+                        "https://docs.ecofy.com",
+                        externalDocs.getUrl()
+                ),
+                () -> assertNotNull(result.getComponents()),
+                () -> assertNotNull(
+                        result.getComponents().getSecuritySchemes()
+                ),
+                () -> assertNotNull(securityScheme),
+                () -> assertEquals(
+                        "Authorization",
+                        securityScheme.getName()
+                ),
+                () -> assertEquals(
+                        SecurityScheme.Type.HTTP,
+                        securityScheme.getType()
+                ),
+                () -> assertEquals(
+                        "bearer",
+                        securityScheme.getScheme()
+                ),
+                () -> assertEquals(
+                        "JWT",
+                        securityScheme.getBearerFormat()
+                ),
+                () -> assertEquals(
+                        """
+                                Use: "Bearer &lt;token&gt;" no header Authorization.
+                                Os tokens são emitidos pelo ms-auth e validados via JWKS.
+                                """,
+                        securityScheme.getDescription()
+                ),
+                () -> assertNotNull(result.getSecurity()),
+                () -> assertEquals(1, result.getSecurity().size()),
+                () -> assertTrue(
+                        securityRequirement.containsKey(
+                                SECURITY_SCHEME_BEARER
+                        )
+                ),
+                () -> assertEquals(
+                        List.of(),
+                        securityRequirement.get(
+                                SECURITY_SCHEME_BEARER
+                        )
+                )
+        );
     }
 
     @Test
-    void authApiGroup_shouldMatchApiPathsAndExcludeActuator() throws Exception {
+    @DisplayName("Deve agrupar os endpoints públicos da API e excluir os endpoints operacionais")
+    void authApiGroup_configuracaoPadrao_deveAgruparEndpointsPublicos() {
+        // Arrange
         OpenApiConfig config = new OpenApiConfig();
 
-        GroupedOpenApi group = config.authApiGroup();
+        // Act
+        GroupedOpenApi result = config.authApiGroup();
 
-        assertNotNull(group);
-        assertEquals("auth-api", group.getGroup());
-
-        assertArrayEquals(new String[]{"/api/**"}, readPathsToMatch(group));
-        assertArrayEquals(new String[]{"/actuator/**"}, readPathsToExclude(group));
+        // Assert
+        assertAll(
+                () -> assertNotNull(result),
+                () -> assertEquals(
+                        "auth-api",
+                        result.getGroup()
+                ),
+                () -> assertEquals(
+                        List.of("/api/**"),
+                        result.getPathsToMatch()
+                ),
+                () -> assertEquals(
+                        List.of("/actuator/**"),
+                        result.getPathsToExclude()
+                )
+        );
     }
 
     @Test
-    void actuatorGroup_shouldMatchActuatorPaths() throws Exception {
+    @DisplayName("Deve agrupar separadamente os endpoints operacionais do Actuator")
+    void actuatorGroup_configuracaoPadrao_deveAgruparEndpointsOperacionais() {
+        // Arrange
         OpenApiConfig config = new OpenApiConfig();
 
-        GroupedOpenApi group = config.actuatorGroup();
+        // Act
+        GroupedOpenApi result = config.actuatorGroup();
 
-        assertNotNull(group);
-        assertEquals("actuator", group.getGroup());
-
-        assertArrayEquals(new String[]{"/actuator/**"}, readPathsToMatch(group));
-    }
-
-    // heapers
-
-    private static String[] readPathsToMatch(GroupedOpenApi group) throws Exception {
-        return readStringArrayViaGetter(group, "getPathsToMatch");
-    }
-
-    private static String[] readPathsToExclude(GroupedOpenApi group) throws Exception {
-        return readStringArrayViaGetter(group, "getPathsToExclude");
-    }
-
-    private static String[] readStringArrayViaGetter(Object target, String getterName) throws Exception {
-        Method m = target.getClass().getMethod(getterName);
-        Object v = m.invoke(target);
-
-        if (v == null) return null;
-        if (v instanceof String[] arr) return arr;
-        if (v instanceof List<?> list) return list.stream().map(String::valueOf).toArray(String[]::new);
-
-        throw new AssertionError("Unsupported return type for " + getterName + ": " + v.getClass().getName());
+        // Assert
+        assertAll(
+                () -> assertNotNull(result),
+                () -> assertEquals(
+                        "actuator",
+                        result.getGroup()
+                ),
+                () -> assertEquals(
+                        List.of("/actuator/**"),
+                        result.getPathsToMatch()
+                )
+        );
     }
 }

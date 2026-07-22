@@ -22,6 +22,7 @@ import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
 import br.com.ecofy.auth.core.port.out.PublishAuthEventPort;
 import br.com.ecofy.auth.core.port.out.RefreshTokenStorePort;
 import br.com.ecofy.auth.core.port.out.SaveAuthUserPort;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,31 +35,54 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
-/**
- * Cobre as regras de SEGURANÇA do login adicionadas no Dia 1-2:
- * - persistência de tentativas falhas e estado de login;
- * - bloqueio de contas pendentes/locked/blocked/deleted/não verificadas;
- * - emissão de claims de roles/permissions no access token.
- */
+// Valida as regras de segurança do login: tentativas falhas, bloqueio de contas e claims emitidas.
+@DisplayName("Testes de segurança do serviço de autenticação")
 @ExtendWith(MockitoExtension.class)
 class AuthServiceSecurityTest {
 
-    @Mock private LoadAuthUserByEmailPort loadAuthUserByEmailPort;
-    @Mock private LoadClientApplicationByClientIdPort loadClientApplicationByClientIdPort;
-    @Mock private PasswordHashingPort passwordHashingPort;
-    @Mock private JwtTokenProviderPort jwtTokenProviderPort;
-    @Mock private RefreshTokenStorePort refreshTokenStorePort;
-    @Mock private PublishAuthEventPort publishAuthEventPort;
-    @Mock private SaveAuthUserPort saveAuthUserPort;
+    @Mock
+    private LoadAuthUserByEmailPort loadAuthUserByEmailPort;
+
+    @Mock
+    private LoadClientApplicationByClientIdPort loadClientApplicationByClientIdPort;
+
+    @Mock
+    private PasswordHashingPort passwordHashingPort;
+
+    @Mock
+    private JwtTokenProviderPort jwtTokenProviderPort;
+
+    @Mock
+    private RefreshTokenStorePort refreshTokenStorePort;
+
+    @Mock
+    private PublishAuthEventPort publishAuthEventPort;
+
+    @Mock
+    private SaveAuthUserPort saveAuthUserPort;
 
     private AuthService service() {
         JwtProperties props = mock(JwtProperties.class);
-        when(props.getAccessTokenTtlSeconds()).thenReturn(900L);
-        when(props.getRefreshTokenTtlSeconds()).thenReturn(3600L);
+
+        when(props.getAccessTokenTtlSeconds())
+                .thenReturn(900L);
+
+        when(props.getRefreshTokenTtlSeconds())
+                .thenReturn(3600L);
+
         return new AuthService(
                 loadAuthUserByEmailPort,
                 loadClientApplicationByClientIdPort,
@@ -72,47 +96,115 @@ class AuthServiceSecurityTest {
     }
 
     private AuthenticateUserUseCase.AuthenticationCommand command() {
-        AuthenticateUserUseCase.AuthenticationCommand cmd = mock(AuthenticateUserUseCase.AuthenticationCommand.class);
-        when(cmd.clientId()).thenReturn("c1");
-        when(cmd.username()).thenReturn("u@e.com");
-        when(cmd.password()).thenReturn("p");
+        AuthenticateUserUseCase.AuthenticationCommand cmd =
+                mock(AuthenticateUserUseCase.AuthenticationCommand.class);
+
+        when(cmd.clientId())
+                .thenReturn("c1");
+
+        when(cmd.username())
+                .thenReturn("u@e.com");
+
+        when(cmd.password())
+                .thenReturn("p");
+
         return cmd;
     }
 
     private ClientApplication validClient() {
-        ClientApplication client = mock(ClientApplication.class);
-        when(client.clientId()).thenReturn("c1");
-        when(client.isActive()).thenReturn(true);
-        when(client.supportsGrant(GrantType.PASSWORD)).thenReturn(true);
-        when(client.clientType()).thenReturn(ClientType.CONFIDENTIAL);
+        ClientApplication client =
+                mock(ClientApplication.class);
+
+        when(client.clientId())
+                .thenReturn("c1");
+
+        when(client.isActive())
+                .thenReturn(true);
+
+        when(client.supportsGrant(GrantType.PASSWORD))
+                .thenReturn(true);
+
+        when(client.clientType())
+                .thenReturn(ClientType.CONFIDENTIAL);
+
         return client;
     }
 
-    private AuthUser userWith(AuthUserStatus status, boolean emailVerified) {
+    private AuthUser userWith(
+            AuthUserStatus status,
+            boolean emailVerified
+    ) {
         AuthUser user = mock(AuthUser.class);
-        PasswordHash ph = mock(PasswordHash.class);
-        when(user.passwordHash()).thenReturn(ph);
-        AuthUserId idVo = mock(AuthUserId.class);
-        lenient().when(idVo.value()).thenReturn(UUID.fromString("11111111-2222-3333-4444-555555555555"));
-        lenient().when(user.id()).thenReturn(idVo);
-        lenient().when(user.status()).thenReturn(status);
-        lenient().when(user.isEmailVerified()).thenReturn(emailVerified);
+        PasswordHash passwordHash = mock(PasswordHash.class);
+
+        when(user.passwordHash())
+                .thenReturn(passwordHash);
+
+        AuthUserId id = mock(AuthUserId.class);
+
+        lenient()
+                .when(id.value())
+                .thenReturn(
+                        UUID.fromString(
+                                "11111111-2222-3333-4444-555555555555"
+                        )
+                );
+
+        lenient()
+                .when(user.id())
+                .thenReturn(id);
+
+        lenient()
+                .when(user.status())
+                .thenReturn(status);
+
+        lenient()
+                .when(user.isEmailVerified())
+                .thenReturn(emailVerified);
+
         return user;
     }
 
     @Test
     void authenticate_shouldPersistFailedLogin_whenPasswordWrong() {
-        AuthService s = service();
-        AuthenticateUserUseCase.AuthenticationCommand cmd = command();
+        AuthService service = service();
+
+        AuthenticateUserUseCase.AuthenticationCommand command =
+                command();
 
         ClientApplication client = validClient();
-        when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
-        AuthUser user = userWith(AuthUserStatus.ACTIVE, true);
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
-        when(passwordHashingPort.matches("p", user.passwordHash())).thenReturn(false);
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.authenticate(cmd));
-        assertEquals(AuthErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());
+        when(
+                loadClientApplicationByClientIdPort.loadByClientId("c1")
+        ).thenReturn(Optional.of(client));
+
+        AuthUser user = userWith(
+                AuthUserStatus.ACTIVE,
+                true
+        );
+
+        when(
+                loadAuthUserByEmailPort.loadByEmail(
+                        any(EmailAddress.class)
+                )
+        ).thenReturn(Optional.of(user));
+
+        when(
+                passwordHashingPort.matches(
+                        "p",
+                        user.passwordHash()
+                )
+        ).thenReturn(false);
+
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.authenticate(command)
+        );
+
+        assertEquals(
+                AuthErrorCode.INVALID_CREDENTIALS,
+                exception.getErrorCode()
+        );
 
         // Regra crítica: tentativa falha registrada E persistida (para o lock funcionar).
         verify(user).registerFailedLogin(5);
@@ -121,26 +213,70 @@ class AuthServiceSecurityTest {
 
     @Test
     void authenticate_shouldPersistSuccessfulLogin_andResetAttempts_whenOk() {
-        AuthService s = service();
-        AuthenticateUserUseCase.AuthenticationCommand cmd = command();
-        when(cmd.scope()).thenReturn(null);
-        when(cmd.ipAddress()).thenReturn("1.1.1.1");
+        AuthService service = service();
+
+        AuthenticateUserUseCase.AuthenticationCommand command =
+                command();
+
+        when(command.scope())
+                .thenReturn(null);
+
+        when(command.ipAddress())
+                .thenReturn("1.1.1.1");
 
         ClientApplication client = validClient();
-        when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
-        AuthUser user = userWith(AuthUserStatus.ACTIVE, true);
-        when(user.email()).thenReturn(new EmailAddress("u@e.com"));
-        when(user.fullName()).thenReturn("U E");
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
-        when(passwordHashingPort.matches("p", user.passwordHash())).thenReturn(true);
 
-        JwtToken access = mock(JwtToken.class);
-        JwtToken refresh = mock(JwtToken.class);
-        when(refresh.value()).thenReturn("refresh.jwt");
-        when(jwtTokenProviderPort.generateAccessToken(anyString(), anyMap(), eq(900L))).thenReturn(access);
-        when(jwtTokenProviderPort.generateRefreshToken(anyString(), anyMap(), eq(3600L))).thenReturn(refresh);
+        when(
+                loadClientApplicationByClientIdPort.loadByClientId("c1")
+        ).thenReturn(Optional.of(client));
 
-        s.authenticate(cmd);
+        AuthUser user = userWith(
+                AuthUserStatus.ACTIVE,
+                true
+        );
+
+        when(user.email())
+                .thenReturn(new EmailAddress("u@e.com"));
+
+        when(user.fullName())
+                .thenReturn("U E");
+
+        when(
+                loadAuthUserByEmailPort.loadByEmail(
+                        any(EmailAddress.class)
+                )
+        ).thenReturn(Optional.of(user));
+
+        when(
+                passwordHashingPort.matches(
+                        "p",
+                        user.passwordHash()
+                )
+        ).thenReturn(true);
+
+        JwtToken accessToken = mock(JwtToken.class);
+        JwtToken refreshToken = mock(JwtToken.class);
+
+        when(refreshToken.value())
+                .thenReturn("refresh.jwt");
+
+        when(
+                jwtTokenProviderPort.generateAccessToken(
+                        anyString(),
+                        anyMap(),
+                        eq(900L)
+                )
+        ).thenReturn(accessToken);
+
+        when(
+                jwtTokenProviderPort.generateRefreshToken(
+                        anyString(),
+                        anyMap(),
+                        eq(3600L)
+                )
+        ).thenReturn(refreshToken);
+
+        service.authenticate(command);
 
         verify(user).registerSuccessfulLogin();
         verify(saveAuthUserPort).save(user);
@@ -148,81 +284,201 @@ class AuthServiceSecurityTest {
 
     @Test
     void authenticate_shouldBlockPendingEmailConfirmation() {
-        assertBlocked(AuthUserStatus.PENDING_EMAIL_CONFIRMATION, true, AuthErrorCode.EMAIL_NOT_VERIFIED);
+        assertBlocked(
+                AuthUserStatus.PENDING_EMAIL_CONFIRMATION,
+                true,
+                AuthErrorCode.EMAIL_NOT_VERIFIED
+        );
     }
 
     @Test
     void authenticate_shouldBlockActiveButUnverifiedEmail() {
-        assertBlocked(AuthUserStatus.ACTIVE, false, AuthErrorCode.EMAIL_NOT_VERIFIED);
+        assertBlocked(
+                AuthUserStatus.ACTIVE,
+                false,
+                AuthErrorCode.EMAIL_NOT_VERIFIED
+        );
     }
 
     @Test
     void authenticate_shouldBlockLockedUser() {
-        assertBlocked(AuthUserStatus.LOCKED, true, AuthErrorCode.USER_LOCKED);
+        assertBlocked(
+                AuthUserStatus.LOCKED,
+                true,
+                AuthErrorCode.USER_LOCKED
+        );
     }
 
     @Test
     void authenticate_shouldBlockBlockedUser() {
-        assertBlocked(AuthUserStatus.BLOCKED, true, AuthErrorCode.USER_BLOCKED);
+        assertBlocked(
+                AuthUserStatus.BLOCKED,
+                true,
+                AuthErrorCode.USER_BLOCKED
+        );
     }
 
     @Test
     void authenticate_shouldBlockDeletedUser() {
-        assertBlocked(AuthUserStatus.DELETED, true, AuthErrorCode.USER_BLOCKED);
+        assertBlocked(
+                AuthUserStatus.DELETED,
+                true,
+                AuthErrorCode.USER_BLOCKED
+        );
     }
 
-    private void assertBlocked(AuthUserStatus status, boolean emailVerified, AuthErrorCode expected) {
-        AuthService s = service();
-        AuthenticateUserUseCase.AuthenticationCommand cmd = command();
+    private void assertBlocked(
+            AuthUserStatus status,
+            boolean emailVerified,
+            AuthErrorCode expected
+    ) {
+        AuthService service = service();
+
+        AuthenticateUserUseCase.AuthenticationCommand command =
+                command();
 
         ClientApplication client = validClient();
-        when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
-        AuthUser user = userWith(status, emailVerified);
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
-        when(passwordHashingPort.matches("p", user.passwordHash())).thenReturn(true);
 
-        AuthException ex = assertThrows(AuthException.class, () -> s.authenticate(cmd));
-        assertEquals(expected, ex.getErrorCode());
+        when(
+                loadClientApplicationByClientIdPort.loadByClientId("c1")
+        ).thenReturn(Optional.of(client));
+
+        AuthUser user = userWith(status, emailVerified);
+
+        when(
+                loadAuthUserByEmailPort.loadByEmail(
+                        any(EmailAddress.class)
+                )
+        ).thenReturn(Optional.of(user));
+
+        when(
+                passwordHashingPort.matches(
+                        "p",
+                        user.passwordHash()
+                )
+        ).thenReturn(true);
+
+        AuthException exception = assertThrows(
+                AuthException.class,
+                () -> service.authenticate(command)
+        );
+
+        assertEquals(
+                expected,
+                exception.getErrorCode()
+        );
 
         // Não emite tokens nem marca login bem-sucedido para conta inválida.
         verify(user, never()).registerSuccessfulLogin();
-        verifyNoInteractions(jwtTokenProviderPort, refreshTokenStorePort, publishAuthEventPort);
+
+        verifyNoInteractions(
+                jwtTokenProviderPort,
+                refreshTokenStorePort,
+                publishAuthEventPort
+        );
     }
 
     @Test
     void authenticate_shouldEmitRolesAndPermissionsClaims() {
-        AuthService s = service();
-        AuthenticateUserUseCase.AuthenticationCommand cmd = command();
-        when(cmd.scope()).thenReturn(null);
-        when(cmd.ipAddress()).thenReturn("1.1.1.1");
+        AuthService service = service();
+
+        AuthenticateUserUseCase.AuthenticationCommand command =
+                command();
+
+        when(command.scope())
+                .thenReturn(null);
+
+        when(command.ipAddress())
+                .thenReturn("1.1.1.1");
 
         ClientApplication client = validClient();
-        when(loadClientApplicationByClientIdPort.loadByClientId("c1")).thenReturn(Optional.of(client));
 
-        AuthUser user = userWith(AuthUserStatus.ACTIVE, true);
-        when(user.email()).thenReturn(new EmailAddress("u@e.com"));
-        when(user.fullName()).thenReturn("U E");
-        Role admin = new Role("ROLE_ADMIN", null, Set.of(new Permission("auth:user:admin", null, "auth")));
-        when(user.roles()).thenReturn(Set.of(admin));
-        when(user.directPermissions()).thenReturn(Set.of());
-        when(loadAuthUserByEmailPort.loadByEmail(any(EmailAddress.class))).thenReturn(Optional.of(user));
-        when(passwordHashingPort.matches("p", user.passwordHash())).thenReturn(true);
+        when(
+                loadClientApplicationByClientIdPort.loadByClientId("c1")
+        ).thenReturn(Optional.of(client));
 
-        JwtToken access = mock(JwtToken.class);
-        JwtToken refresh = mock(JwtToken.class);
-        when(refresh.value()).thenReturn("refresh.jwt");
+        AuthUser user = userWith(
+                AuthUserStatus.ACTIVE,
+                true
+        );
+
+        when(user.email())
+                .thenReturn(new EmailAddress("u@e.com"));
+
+        when(user.fullName())
+                .thenReturn("U E");
+
+        Role admin = new Role(
+                "ROLE_ADMIN",
+                null,
+                Set.of(
+                        new Permission(
+                                "auth:user:admin",
+                                null,
+                                "auth"
+                        )
+                )
+        );
+
+        when(user.roles())
+                .thenReturn(Set.of(admin));
+
+        when(user.directPermissions())
+                .thenReturn(Set.of());
+
+        when(
+                loadAuthUserByEmailPort.loadByEmail(
+                        any(EmailAddress.class)
+                )
+        ).thenReturn(Optional.of(user));
+
+        when(
+                passwordHashingPort.matches(
+                        "p",
+                        user.passwordHash()
+                )
+        ).thenReturn(true);
+
+        JwtToken accessToken = mock(JwtToken.class);
+        JwtToken refreshToken = mock(JwtToken.class);
+
+        when(refreshToken.value())
+                .thenReturn("refresh.jwt");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> claimsCaptor =
-                (ArgumentCaptor<Map<String, Object>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(Map.class);
+                (ArgumentCaptor<Map<String, Object>>)
+                        (ArgumentCaptor<?>)
+                                ArgumentCaptor.forClass(Map.class);
 
-        when(jwtTokenProviderPort.generateAccessToken(anyString(), claimsCaptor.capture(), eq(900L))).thenReturn(access);
-        when(jwtTokenProviderPort.generateRefreshToken(anyString(), anyMap(), eq(3600L))).thenReturn(refresh);
+        when(
+                jwtTokenProviderPort.generateAccessToken(
+                        anyString(),
+                        claimsCaptor.capture(),
+                        eq(900L)
+                )
+        ).thenReturn(accessToken);
 
-        s.authenticate(cmd);
+        when(
+                jwtTokenProviderPort.generateRefreshToken(
+                        anyString(),
+                        anyMap(),
+                        eq(3600L)
+                )
+        ).thenReturn(refreshToken);
+
+        service.authenticate(command);
 
         Map<String, Object> claims = claimsCaptor.getValue();
-        assertEquals(List.of("ROLE_ADMIN"), claims.get("roles"));
-        assertEquals(List.of("auth:user:admin"), claims.get("permissions"));
+
+        assertEquals(
+                List.of("ROLE_ADMIN"),
+                claims.get("roles")
+        );
+
+        assertEquals(
+                List.of("auth:user:admin"),
+                claims.get("permissions")
+        );
     }
 }

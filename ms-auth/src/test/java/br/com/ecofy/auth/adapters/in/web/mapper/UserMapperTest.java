@@ -1,5 +1,12 @@
 package br.com.ecofy.auth.adapters.in.web.mapper;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import br.com.ecofy.auth.adapters.in.web.dto.response.UserResponse;
 import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.Permission;
@@ -8,17 +15,17 @@ import br.com.ecofy.auth.core.domain.enums.AuthUserStatus;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
-import org.junit.jupiter.api.Test;
-
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
-
+@DisplayName("Testes unitários do mapeador de usuários")
 class UserMapperTest {
 
     private static final UUID USER_UUID =
@@ -34,8 +41,14 @@ class UserMapperTest {
             Instant.parse("2026-01-03T10:00:00Z");
 
     @Test
-    void shouldMapAuthUserToUserResponse() {
-        Permission directPermission = new Permission("transactions:read", "Ler transações", "billing");
+    @DisplayName("Deve converter o usuário preenchido para a resposta correspondente")
+    void toResponse_usuarioPreenchido_deveConverterTodosOsCampos() {
+        // Arrange
+        Permission directPermission = new Permission(
+                "transactions:read",
+                "Ler transações",
+                "billing"
+        );
 
         Role userRole = new Role(
                 "ROLE_USER",
@@ -60,8 +73,10 @@ class UserMapperTest {
                 0
         );
 
+        // Act
         UserResponse response = UserMapper.toResponse(user);
 
+        // Assert
         assertEquals(USER_UUID.toString(), response.id());
         assertEquals("matheus@ecofy.com", response.email());
         assertEquals("Matheus Lemes", response.fullName());
@@ -75,7 +90,9 @@ class UserMapperTest {
     }
 
     @Test
-    void shouldReturnUnmodifiableRolesAndPermissionsInUserResponse() {
+    @DisplayName("Deve retornar papéis e permissões imutáveis ao converter o usuário")
+    void toResponse_usuarioComPapeisEPermissoes_deveRetornarConjuntosImutaveis() {
+        // Arrange
         AuthUser user = authUser(
                 "Matheus",
                 "Lemes",
@@ -83,13 +100,14 @@ class UserMapperTest {
                 Set.of(new Permission("users:create", "Criar usuários", "auth"))
         );
 
+        // Act
         UserResponse response = UserMapper.toResponse(user);
 
+        // Assert
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> response.roles().add("ROLE_OTHER")
         );
-
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> response.permissions().add("users:delete")
@@ -97,7 +115,9 @@ class UserMapperTest {
     }
 
     @Test
-    void shouldMapAuthUserWithEmptyRolesAndPermissions() {
+    @DisplayName("Deve retornar conjuntos vazios quando o usuário não possuir papéis ou permissões")
+    void toResponse_usuarioSemPapeisEPermissoes_deveRetornarConjuntosVazios() {
+        // Arrange
         AuthUser user = authUser(
                 "Matheus",
                 "Lemes",
@@ -105,40 +125,64 @@ class UserMapperTest {
                 Set.of()
         );
 
+        // Act
         UserResponse response = UserMapper.toResponse(user);
 
+        // Assert
+        assertNotNull(response.roles());
+        assertNotNull(response.permissions());
         assertTrue(response.roles().isEmpty());
         assertTrue(response.permissions().isEmpty());
     }
 
     @Test
-    void shouldThrowExceptionWhenUserIsNull() {
+    @DisplayName("Deve lançar exceção quando o usuário informado for nulo")
+    void toResponse_usuarioNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthUser user = null;
+
+        // Act
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> UserMapper.toResponse(null)
+                () -> UserMapper.toResponse(user)
         );
 
+        // Assert
         assertEquals("user must not be null", exception.getMessage());
     }
 
     @Test
-    void shouldReturnEmptyListWhenUsersIsNull() {
-        List<UserResponse> responses = UserMapper.toResponseList(null);
+    @DisplayName("Deve retornar lista vazia quando a lista de usuários for nula")
+    void toResponseList_listaNula_deveRetornarListaVazia() {
+        // Arrange
+        List<AuthUser> users = null;
 
+        // Act
+        List<UserResponse> responses = UserMapper.toResponseList(users);
+
+        // Assert
         assertNotNull(responses);
         assertTrue(responses.isEmpty());
     }
 
     @Test
-    void shouldReturnEmptyListWhenUsersIsEmpty() {
-        List<UserResponse> responses = UserMapper.toResponseList(List.of());
+    @DisplayName("Deve retornar lista vazia quando não houver usuários")
+    void toResponseList_listaVazia_deveRetornarListaVazia() {
+        // Arrange
+        List<AuthUser> users = List.of();
 
+        // Act
+        List<UserResponse> responses = UserMapper.toResponseList(users);
+
+        // Assert
         assertNotNull(responses);
         assertTrue(responses.isEmpty());
     }
 
     @Test
-    void shouldMapUserListFilteringNullValues() {
+    @DisplayName("Deve converter a lista de usuários ignorando elementos nulos")
+    void toResponseList_listaComElementoNulo_deveConverterUsuariosValidos() {
+        // Arrange
         AuthUser firstUser = authUser(
                 "Matheus",
                 "Lemes",
@@ -147,7 +191,9 @@ class UserMapperTest {
         );
 
         AuthUser secondUser = new AuthUser(
-                new AuthUserId(UUID.fromString("22222222-2222-2222-2222-222222222222")),
+                new AuthUserId(UUID.fromString(
+                        "22222222-2222-2222-2222-222222222222"
+                )),
                 new EmailAddress("OUTRO@ECOFY.COM"),
                 new PasswordHash("hashed-password"),
                 AuthUserStatus.PENDING_EMAIL_CONFIRMATION,
@@ -163,31 +209,49 @@ class UserMapperTest {
                 0
         );
 
-        List<UserResponse> responses = UserMapper.toResponseList(
-                Arrays.asList(firstUser, null, secondUser)
-        );
+        List<AuthUser> users = Arrays.asList(firstUser, null, secondUser);
 
+        // Act
+        List<UserResponse> responses = UserMapper.toResponseList(users);
+
+        // Assert
         assertEquals(2, responses.size());
 
-        assertEquals(USER_UUID.toString(), responses.get(0).id());
-        assertEquals("matheus@ecofy.com", responses.get(0).email());
-        assertEquals("Matheus Lemes", responses.get(0).fullName());
-        assertEquals(AuthUserStatus.ACTIVE.name(), responses.get(0).status());
-        assertTrue(responses.get(0).emailVerified());
-        assertEquals(Set.of("ROLE_USER"), responses.get(0).roles());
-        assertEquals(Set.of("profile:read"), responses.get(0).permissions());
+        UserResponse firstResponse = responses.get(0);
+        assertEquals(USER_UUID.toString(), firstResponse.id());
+        assertEquals("matheus@ecofy.com", firstResponse.email());
+        assertEquals("Matheus Lemes", firstResponse.fullName());
+        assertEquals(AuthUserStatus.ACTIVE.name(), firstResponse.status());
+        assertTrue(firstResponse.emailVerified());
+        assertEquals(Set.of("ROLE_USER"), firstResponse.roles());
+        assertEquals(Set.of("profile:read"), firstResponse.permissions());
+        assertEquals(CREATED_AT, firstResponse.createdAt());
+        assertEquals(UPDATED_AT, firstResponse.updatedAt());
+        assertEquals(LAST_LOGIN_AT, firstResponse.lastLoginAt());
 
-        assertEquals("22222222-2222-2222-2222-222222222222", responses.get(1).id());
-        assertEquals("outro@ecofy.com", responses.get(1).email());
-        assertEquals("Outro Usuário", responses.get(1).fullName());
-        assertEquals(AuthUserStatus.PENDING_EMAIL_CONFIRMATION.name(), responses.get(1).status());
-        assertFalse(responses.get(1).emailVerified());
-        assertEquals(Set.of("ROLE_PENDING"), responses.get(1).roles());
-        assertTrue(responses.get(1).permissions().isEmpty());
-        assertNull(responses.get(1).lastLoginAt());
+        UserResponse secondResponse = responses.get(1);
+        assertEquals(
+                "22222222-2222-2222-2222-222222222222",
+                secondResponse.id()
+        );
+        assertEquals("outro@ecofy.com", secondResponse.email());
+        assertEquals("Outro Usuário", secondResponse.fullName());
+        assertEquals(
+                AuthUserStatus.PENDING_EMAIL_CONFIRMATION.name(),
+                secondResponse.status()
+        );
+        assertFalse(secondResponse.emailVerified());
+        assertEquals(Set.of("ROLE_PENDING"), secondResponse.roles());
+        assertTrue(secondResponse.permissions().isEmpty());
+        assertEquals(CREATED_AT, secondResponse.createdAt());
+        assertEquals(UPDATED_AT, secondResponse.updatedAt());
+        assertNull(secondResponse.lastLoginAt());
     }
+
     @Test
-    void shouldReturnUnmodifiableResponseList() {
+    @DisplayName("Deve retornar uma lista imutável após converter os usuários")
+    void toResponseList_listaValida_deveRetornarListaImutavel() {
+        // Arrange
         AuthUser user = authUser(
                 "Matheus",
                 "Lemes",
@@ -195,10 +259,12 @@ class UserMapperTest {
                 Set.of()
         );
 
-        List<UserResponse> responses = UserMapper.toResponseList(List.of(user));
+        // Act
+        List<UserResponse> responses =
+                UserMapper.toResponseList(List.of(user));
 
+        // Assert
         assertEquals(1, responses.size());
-
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> responses.add(UserMapper.toResponse(user))
@@ -206,19 +272,28 @@ class UserMapperTest {
     }
 
     @Test
-    void shouldInstantiatePrivateConstructorForCoverage() throws Exception {
-        Constructor<UserMapper> constructor = UserMapper.class.getDeclaredConstructor();
-        constructor.setAccessible(true);
+    @DisplayName("Deve manter o construtor privado da classe utilitária")
+    void constructor_classeUtilitaria_deveSerPrivadoEExecutavelPorReflexao()
+            throws Exception {
+        // Arrange
+        Constructor<UserMapper> constructor =
+                UserMapper.class.getDeclaredConstructor();
 
+        // Act
+        constructor.setAccessible(true);
         UserMapper instance = constructor.newInstance();
 
+        // Assert
+        assertTrue(Modifier.isPrivate(constructor.getModifiers()));
         assertNotNull(instance);
     }
 
-    private static AuthUser authUser(String firstName,
-                                     String lastName,
-                                     Set<Role> roles,
-                                     Set<Permission> directPermissions) {
+    private static AuthUser authUser(
+            String firstName,
+            String lastName,
+            Set<Role> roles,
+            Set<Permission> directPermissions
+    ) {
         return new AuthUser(
                 new AuthUserId(USER_UUID),
                 new EmailAddress("MATHEUS@ECOFY.COM"),

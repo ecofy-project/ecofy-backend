@@ -3,631 +3,1125 @@ package br.com.ecofy.auth.adapters.out.jwt;
 import br.com.ecofy.auth.config.JwtProperties;
 import br.com.ecofy.auth.core.domain.JwtToken;
 import br.com.ecofy.auth.core.domain.enums.TokenType;
-import com.nimbusds.jose.*;
+import br.com.ecofy.auth.core.domain.keys.ActiveSigningKey;
+import br.com.ecofy.auth.core.domain.keys.SigningKeyMetadata;
+import br.com.ecofy.auth.core.domain.keys.VerificationKey;
+import br.com.ecofy.auth.core.port.out.SigningKeyProviderPort;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.ResourceLoader;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import java.lang.reflect.*;
+import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do adaptador Nimbus de tokens JWT")
 class JwtNimbusTokenProviderAdapterTest {
 
-    @Test
-    @DisplayName("constructor: jwtProperties null -> NPE com mensagem")
-    void constructor_jwtPropertiesNull_throwsNpe() {
-        assertThatThrownBy(() -> new JwtNimbusTokenProviderAdapter(null, mock(ResourceLoader.class)))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("jwtProperties must not be null");
+    private static final String ACTIVE_KID = "active-key";
+    private static final String RETIRING_KID = "retiring-key";
+    private static final String ISSUER = "https://auth.ecofy.com";
+    private static final String AUDIENCE = "ecofy-api";
+    private static final String SUBJECT = "21f71895-45a1-4509-a2a9-a96a79c27257";
+
+    private JwtProperties jwtProperties;
+    private SigningKeyProviderPort signingKeyProvider;
+    private KeyPair activeKeyPair;
+    private ActiveSigningKey activeSigningKey;
+    private VerificationKey activeVerificationKey;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        jwtProperties = mock(JwtProperties.class);
+        signingKeyProvider = mock(SigningKeyProviderPort.class);
+        activeKeyPair = generateRsaKeyPair();
+
+        SigningKeyMetadata metadata = new SigningKeyMetadata(
+                ACTIVE_KID,
+                "RS256",
+                SigningKeyMetadata.Status.ACTIVE,
+                Instant.now(),
+                null,
+                null
+        );
+
+        activeSigningKey = new ActiveSigningKey(
+                metadata,
+                (RSAPrivateKey) activeKeyPair.getPrivate(),
+                (RSAPublicKey) activeKeyPair.getPublic()
+        );
+
+        activeVerificationKey = new VerificationKey(
+                metadata,
+                (RSAPublicKey) activeKeyPair.getPublic()
+        );
+
+        when(jwtProperties.getIssuer()).thenReturn(ISSUER);
+        when(jwtProperties.getAudience()).thenReturn(AUDIENCE);
+        when(signingKeyProvider.activeKey()).thenReturn(activeSigningKey);
+        when(signingKeyProvider.verificationKeys())
+                .thenReturn(List.of(activeVerificationKey));
     }
 
     @Test
-    @DisplayName("constructor: privateKeyLocation null -> NPE com mensagem")
-    void constructor_privateKeyLocationNull_throwsNpe() {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn(null);
+    @DisplayName("Deve rejeitar propriedades JWT nulas ao construir o adaptador")
+    void constructor_jwtPropertiesNulo_deveLancarNullPointerException() {
+        // Arrange
+        JwtProperties nullProperties = null;
 
-        assertThatThrownBy(() -> new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class)))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("private key location must not be null");
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new JwtNimbusTokenProviderAdapter(
+                        nullProperties,
+                        signingKeyProvider
+                )
+        );
+
+        // Assert
+        assertEquals(
+                "jwtProperties must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    @DisplayName("constructor: publicKeyLocation null -> NPE com mensagem")
-    void constructor_publicKeyLocationNull_throwsNpe() {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:priv");
-        when(p.getPublicKeyLocation()).thenReturn(null);
+    @DisplayName("Deve rejeitar o provedor de chaves nulo ao construir o adaptador")
+    void constructor_signingKeyProviderNulo_deveLancarNullPointerException() {
+        // Arrange
+        SigningKeyProviderPort nullProvider = null;
 
-        assertThatThrownBy(() -> new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class)))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("public key location must not be null");
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new JwtNimbusTokenProviderAdapter(
+                        jwtProperties,
+                        nullProvider
+                )
+        );
+
+        // Assert
+        assertEquals(
+                "signingKeyProvider must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    @DisplayName("generateAccessToken: inclui issuer/audience/sub/typ/iat/nbf/exp + claims custom")
-    void generateAccessToken_success_withClaims() throws Exception {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 5));
+    @DisplayName("Deve construir o adaptador com emissor configurado")
+    void constructor_issuerValido_deveCriarDecoderComValidadorDeEmissor() {
+        // Arrange
+        when(jwtProperties.getIssuer()).thenReturn(ISSUER);
 
+        // Act
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Assert
+        assertNotNull(adapter.jwtDecoder());
+    }
+
+    @Test
+    @DisplayName("Deve construir o adaptador sem validador de emissor quando o valor for nulo")
+    void constructor_issuerNulo_deveCriarDecoderSemValidadorDeEmissor() {
+        // Arrange
+        when(jwtProperties.getIssuer()).thenReturn(null);
+
+        // Act
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Assert
+        assertNotNull(adapter.jwtDecoder());
+    }
+
+    @Test
+    @DisplayName("Deve construir o adaptador sem validador de emissor quando o valor estiver em branco")
+    void constructor_issuerEmBranco_deveCriarDecoderSemValidadorDeEmissor() {
+        // Arrange
+        when(jwtProperties.getIssuer()).thenReturn("   ");
+
+        // Act
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Assert
+        assertNotNull(adapter.jwtDecoder());
+    }
+
+    @Test
+    @DisplayName("Deve gerar token de acesso assinado com as claims obrigatórias e personalizadas")
+    void generateAccessToken_dadosValidos_deveGerarTokenDeAcessoAssinado()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        Map<String, Object> customClaims = new HashMap<>();
+        customClaims.put("email", "usuario@ecofy.com");
+        customClaims.put("role", "USER");
+
+        // Act
+        JwtToken result = adapter.generateAccessToken(
+                SUBJECT,
+                customClaims,
+                300
+        );
+
+        SignedJWT signedJWT = parse(result);
+        JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
+
+        // Assert
+        assertAll(
+                () -> assertNotNull(result),
+                () -> assertEquals(
+                        JWSAlgorithm.RS256,
+                        signedJWT.getHeader().getAlgorithm()
+                ),
+                () -> assertEquals(
+                        JOSEObjectType.JWT,
+                        signedJWT.getHeader().getType()
+                ),
+                () -> assertEquals(
+                        ACTIVE_KID,
+                        signedJWT.getHeader().getKeyID()
+                ),
+                () -> assertEquals(SUBJECT, claims.getSubject()),
+                () -> assertEquals(ISSUER, claims.getIssuer()),
+                () -> assertEquals(
+                        List.of(AUDIENCE),
+                        claims.getAudience()
+                ),
+                () -> assertEquals(
+                        TokenType.ACCESS.name(),
+                        claims.getStringClaim("typ")
+                ),
+                () -> assertEquals(
+                        SUBJECT,
+                        claims.getStringClaim("authUserId")
+                ),
+                () -> assertEquals(
+                        "usuario@ecofy.com",
+                        claims.getStringClaim("email")
+                ),
+                () -> assertEquals(
+                        "USER",
+                        claims.getStringClaim("role")
+                ),
+                () -> assertNotNull(claims.getJWTID()),
+                () -> assertNotNull(claims.getIssueTime()),
+                () -> assertNotNull(claims.getNotBeforeTime()),
+                () -> assertNotNull(claims.getExpirationTime()),
+                () -> assertEquals(
+                        claims.getIssueTime().toInstant().plusSeconds(300),
+                        claims.getExpirationTime().toInstant()
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve gerar token de acesso sem claims personalizadas quando o mapa for nulo")
+    void generateAccessToken_claimsNulas_deveGerarTokenSemClaimsPersonalizadas()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        JwtToken result = adapter.generateAccessToken(
+                SUBJECT,
+                null,
+                300
+        );
+
+        JWTClaimsSet claims = parse(result).getJWTClaimsSet();
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        TokenType.ACCESS.name(),
+                        claims.getStringClaim("typ")
+                ),
+                () -> assertEquals(
+                        SUBJECT,
+                        claims.getStringClaim("authUserId")
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar assunto nulo ao gerar token de acesso")
+    void generateAccessToken_subjectNulo_deveLancarNullPointerException() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.generateAccessToken(
+                        null,
+                        Map.of(),
+                        300
+                )
+        );
+
+        // Assert
+        assertEquals(
+                "subject must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve gerar token de atualização sem adicionar a claim authUserId")
+    void generateRefreshToken_dadosValidos_deveGerarTokenDeAtualizacao()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        Map<String, Object> customClaims = Map.of(
+                "sessionId",
+                "session-123"
+        );
+
+        // Act
+        JwtToken result = adapter.generateRefreshToken(
+                SUBJECT,
+                customClaims,
+                600
+        );
+
+        JWTClaimsSet claims = parse(result).getJWTClaimsSet();
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        TokenType.REFRESH.name(),
+                        claims.getStringClaim("typ")
+                ),
+                () -> assertEquals(
+                        "session-123",
+                        claims.getStringClaim("sessionId")
+                ),
+                () -> assertNull(claims.getClaim("authUserId")),
+                () -> assertEquals(
+                        claims.getIssueTime().toInstant().plusSeconds(600),
+                        claims.getExpirationTime().toInstant()
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve gerar token expirado quando o tempo de vida informado for negativo")
+    void generateRefreshToken_ttlNegativo_deveGerarTokenJaExpirado()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        JwtToken result = adapter.generateRefreshToken(
+                SUBJECT,
+                Map.of(),
+                -1
+        );
+
+        SignedJWT signedJWT = parse(result);
+
+        // Assert
+        assertAll(
+                () -> assertTrue(
+                        signedJWT.getJWTClaimsSet()
+                                .getExpirationTime()
+                                .before(signedJWT.getJWTClaimsSet().getIssueTime())
+                ),
+                () -> assertFalse(adapter.isValid(serializedToken(result)))
+        );
+    }
+
+    @Test
+    @DisplayName("Deve adicionar o propósito de confirmação de e-mail quando ele não estiver presente")
+    void generateVerificationToken_semPurpose_deveAdicionarPurposeDeConfirmacao()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
         Map<String, Object> claims = new HashMap<>();
-        claims.put("role", "USER");
 
-        JwtToken t = a.generateAccessToken("sub-1", claims, 60);
+        // Act
+        JwtToken result = adapter.generateVerificationToken(
+                SUBJECT,
+                claims,
+                300
+        );
 
-        assertThat(t.type()).isEqualTo(TokenType.ACCESS);
-        assertThat(t.value()).isNotBlank();
-        assertThat(t.expiresAt()).isAfter(Instant.now());
+        JWTClaimsSet tokenClaims = parse(result).getJWTClaimsSet();
 
-        SignedJWT parsed = SignedJWT.parse(t.value());
-        JWTClaimsSet cs = parsed.getJWTClaimsSet();
-
-        assertThat(cs.getSubject()).isEqualTo("sub-1");
-        assertThat(cs.getIssuer()).isEqualTo("iss");
-        assertThat(cs.getAudience()).containsExactly("aud");
-        assertThat(cs.getClaim("typ")).isEqualTo("ACCESS");
-        assertThat(cs.getClaim("role")).isEqualTo("USER");
-
-        assertThat(cs.getIssueTime()).isNotNull();
-        assertThat(cs.getNotBeforeTime()).isNotNull();
-        assertThat(cs.getExpirationTime()).isNotNull();
-        assertThat(cs.getNotBeforeTime()).isBeforeOrEqualTo(cs.getIssueTime());
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "EMAIL_VERIFICATION",
+                        claims.get("purpose")
+                ),
+                () -> assertEquals(
+                        "EMAIL_VERIFICATION",
+                        tokenClaims.getStringClaim("purpose")
+                ),
+                () -> assertEquals(
+                        TokenType.VERIFICATION.name(),
+                        tokenClaims.getStringClaim("typ")
+                ),
+                () -> assertNull(tokenClaims.getClaim("authUserId"))
+        );
     }
 
     @Test
-    @DisplayName("generateRefreshToken: claims null e typ=REFRESH")
-    void generateRefreshToken_success_nullClaims() throws Exception {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-
-        JwtToken t = a.generateRefreshToken("sub-r", null, 60);
-
-        SignedJWT parsed = SignedJWT.parse(t.value());
-        assertThat(parsed.getJWTClaimsSet().getClaim("typ")).isEqualTo("REFRESH");
-        assertThat(t.type()).isEqualTo(TokenType.REFRESH);
-    }
-
-    @Test
-    @DisplayName("generateVerificationToken: adiciona purpose se ausente (putIfAbsent) e typ=VERIFICATION")
-    void generateVerificationToken_addsPurposeIfAbsent() throws Exception {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-
+    @DisplayName("Deve preservar o propósito existente ao gerar token de confirmação")
+    void generateVerificationToken_purposeExistente_devePreservarValorInformado()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
         Map<String, Object> claims = new HashMap<>();
-        claims.put("x", 1);
+        claims.put("purpose", "CUSTOM_PURPOSE");
 
-        JwtToken t = a.generateVerificationToken("sub-v", claims, 60);
+        // Act
+        JwtToken result = adapter.generateVerificationToken(
+                SUBJECT,
+                claims,
+                300
+        );
 
-        SignedJWT parsed = SignedJWT.parse(t.value());
-        JWTClaimsSet cs = parsed.getJWTClaimsSet();
-
-        assertThat(t.type()).isEqualTo(TokenType.VERIFICATION);
-        assertThat(cs.getClaim("typ")).isEqualTo("VERIFICATION");
-        assertThat(cs.getClaim("purpose")).isEqualTo("EMAIL_VERIFICATION");
-
-        Object x = cs.getClaim("x");
-        assertThat(x).isInstanceOfAny(Integer.class, Long.class);
-        assertThat(((Number) x).longValue()).isEqualTo(1L);
+        // Assert
+        assertEquals(
+                "CUSTOM_PURPOSE",
+                parse(result).getJWTClaimsSet().getStringClaim("purpose")
+        );
     }
 
     @Test
-    @DisplayName("generateVerificationToken: mantém purpose existente")
-    void generateVerificationToken_keepsExistingPurpose() throws Exception {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
+    @DisplayName("Deve gerar token de confirmação sem propósito quando as claims forem nulas")
+    void generateVerificationToken_claimsNulas_deveGerarTokenSemPurpose()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
+        // Act
+        JwtToken result = adapter.generateVerificationToken(
+                SUBJECT,
+                null,
+                300
+        );
+
+        JWTClaimsSet claims = parse(result).getJWTClaimsSet();
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        TokenType.VERIFICATION.name(),
+                        claims.getStringClaim("typ")
+                ),
+                () -> assertNull(claims.getClaim("purpose"))
+        );
+    }
+
+    @Test
+    @DisplayName("Deve adicionar o propósito de redefinição de senha quando ele não estiver presente")
+    void generatePasswordResetToken_semPurpose_deveAdicionarPurposeDeRedefinicao()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
         Map<String, Object> claims = new HashMap<>();
-        claims.put("purpose", "CUSTOM");
 
-        JwtToken t = a.generateVerificationToken("sub-v2", claims, 60);
+        // Act
+        JwtToken result = adapter.generatePasswordResetToken(
+                SUBJECT,
+                claims,
+                300
+        );
 
-        SignedJWT parsed = SignedJWT.parse(t.value());
-        assertThat(parsed.getJWTClaimsSet().getClaim("purpose")).isEqualTo("CUSTOM");
+        JWTClaimsSet tokenClaims = parse(result).getJWTClaimsSet();
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "PASSWORD_RESET",
+                        claims.get("purpose")
+                ),
+                () -> assertEquals(
+                        "PASSWORD_RESET",
+                        tokenClaims.getStringClaim("purpose")
+                ),
+                () -> assertEquals(
+                        TokenType.PASSWORD_RESET.name(),
+                        tokenClaims.getStringClaim("typ")
+                ),
+                () -> assertNull(tokenClaims.getClaim("authUserId"))
+        );
     }
 
     @Test
-    @DisplayName("generatePasswordResetToken: adiciona purpose se ausente e typ=PASSWORD_RESET")
-    void generatePasswordResetToken_addsPurposeIfAbsent() throws Exception {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-
+    @DisplayName("Deve preservar o propósito existente ao gerar token de redefinição de senha")
+    void generatePasswordResetToken_purposeExistente_devePreservarValorInformado()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
         Map<String, Object> claims = new HashMap<>();
-        claims.put("channel", "EMAIL");
+        claims.put("purpose", "CUSTOM_RESET");
 
-        JwtToken t = a.generatePasswordResetToken("sub-pr", claims, 60);
+        // Act
+        JwtToken result = adapter.generatePasswordResetToken(
+                SUBJECT,
+                claims,
+                300
+        );
 
-        SignedJWT parsed = SignedJWT.parse(t.value());
-        JWTClaimsSet cs = parsed.getJWTClaimsSet();
-
-        assertThat(t.type()).isEqualTo(TokenType.PASSWORD_RESET);
-        assertThat(cs.getClaim("typ")).isEqualTo("PASSWORD_RESET");
-        assertThat(cs.getClaim("purpose")).isEqualTo("PASSWORD_RESET");
-        assertThat(cs.getClaim("channel")).isEqualTo("EMAIL");
+        // Assert
+        assertEquals(
+                "CUSTOM_RESET",
+                parse(result).getJWTClaimsSet().getStringClaim("purpose")
+        );
     }
 
     @Test
-    @DisplayName("generateAccessToken: subject null -> NPE")
-    void generateAccessToken_subjectNull_throwsNpe() {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
+    @DisplayName("Deve gerar token de redefinição sem propósito quando as claims forem nulas")
+    void generatePasswordResetToken_claimsNulas_deveGerarTokenSemPurpose()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        JwtToken result = adapter.generatePasswordResetToken(
+                SUBJECT,
+                null,
+                300
+        );
 
-        assertThatThrownBy(() -> a.generateAccessToken(null, Map.of(), 60))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("subject must not be null");
+        JWTClaimsSet claims = parse(result).getJWTClaimsSet();
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        TokenType.PASSWORD_RESET.name(),
+                        claims.getStringClaim("typ")
+                ),
+                () -> assertNull(claims.getClaim("purpose"))
+        );
     }
 
     @Test
-    @DisplayName("generateToken: JOSEException ao assinar -> IllegalStateException(Error signing JWT)")
-    void generateToken_signerThrowsJoseException_rethrowsIllegalState() throws Exception {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
+    @DisplayName("Deve rejeitar tipo de token nulo durante a geração")
+    void generateToken_tipoNulo_deveLancarNullPointerException() throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        Method method = JwtNimbusTokenProviderAdapter.class.getDeclaredMethod(
+                "generateToken",
+                String.class,
+                Map.class,
+                long.class,
+                TokenType.class
+        );
+        method.setAccessible(true);
 
-        JWSSigner badSigner = mock(JWSSigner.class);
-        when(badSigner.supportedJWSAlgorithms()).thenReturn(java.util.Set.of(JWSAlgorithm.RS256));
-        doThrow(new JOSEException("boom")).when(badSigner).sign(any(JWSHeader.class), any(byte[].class));
+        // Act
+        InvocationTargetException exception = assertThrows(
+                InvocationTargetException.class,
+                () -> method.invoke(
+                        adapter,
+                        SUBJECT,
+                        Map.of(),
+                        300L,
+                        null
+                )
+        );
 
-        setField(a, "signer", badSigner);
-
-        assertThatThrownBy(() -> a.generateAccessToken("sub", new HashMap<>(), 60))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Error signing JWT")
-                .hasCauseInstanceOf(JOSEException.class);
+        // Assert
+        assertAll(
+                () -> assertInstanceOf(
+                        NullPointerException.class,
+                        exception.getCause()
+                ),
+                () -> assertEquals(
+                        "type must not be null",
+                        exception.getCause().getMessage()
+                )
+        );
     }
 
     @Test
-    @DisplayName("isValid: token válido (exp futura) -> true")
-    void isValid_validToken_returnsTrue() {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-        JwtToken t = a.generateAccessToken("sub", new HashMap<>(), 60);
+    @DisplayName("Deve lançar exceção quando ocorrer erro ao assinar o token")
+    void generateAccessToken_falhaNaAssinatura_deveLancarIllegalStateException()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        JOSEException cause = new JOSEException("Falha ao assinar");
+        JWSSigner failingSigner = mock(JWSSigner.class);
 
-        assertThat(a.isValid(t.value())).isTrue();
+        when(failingSigner.supportedJWSAlgorithms())
+                .thenReturn(Set.of(JWSAlgorithm.RS256));
+        when(failingSigner.sign(any(JWSHeader.class), any(byte[].class)))
+                .thenThrow(cause);
+
+        setPrivateField(adapter, "signer", failingSigner);
+
+        // Act
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> adapter.generateAccessToken(
+                        SUBJECT,
+                        Map.of(),
+                        300
+                )
+        );
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "Error signing JWT",
+                        exception.getMessage()
+                ),
+                () -> assertSame(cause, exception.getCause())
+        );
     }
 
     @Test
-    @DisplayName("isValid: token expirado (exp no passado) -> false")
-    void isValid_expiredToken_returnsFalse() throws Exception {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
+    @DisplayName("Deve considerar válido um token com data de expiração futura")
+    void isValid_tokenNaoExpirado_deveRetornarTrue() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        JwtToken token = adapter.generateAccessToken(
+                SUBJECT,
+                Map.of(),
+                300
+        );
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        boolean result = adapter.isValid(serializedToken(token));
 
-        RSAPrivateKey pk = (RSAPrivateKey) getField(a, "privateKey");
-        JWSHeader header = (JWSHeader) getField(a, "jwsHeader");
-
-        JWTClaimsSet cs = new JWTClaimsSet.Builder()
-                .subject("sub-exp")
-                .issuer("iss")
-                .audience("aud")
-                .issueTime(Date.from(Instant.now().minusSeconds(120)))
-                .expirationTime(Date.from(Instant.now().minusSeconds(60)))
-                .claim("typ", "ACCESS")
-                .build();
-
-        String raw = signRawJwt(pk, header, cs);
-
-        assertThat(a.isValid(raw)).isFalse();
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    @DisplayName("isValid: typ inválido não quebra e ainda valida expiração")
-    void isValid_invalidTyp_doesNotFail() throws Exception {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
+    @DisplayName("Deve considerar inválido um token com data de expiração passada")
+    void isValid_tokenExpirado_deveRetornarFalse() throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        String token = createSignedToken(
+                activeKeyPair,
+                ACTIVE_KID,
+                ISSUER,
+                Date.from(Instant.now().minusSeconds(300))
+        );
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        boolean result = adapter.isValid(token);
 
-        RSAPrivateKey pk = (RSAPrivateKey) getField(a, "privateKey");
-        JWSHeader header = (JWSHeader) getField(a, "jwsHeader");
-
-        JWTClaimsSet cs = new JWTClaimsSet.Builder()
-                .subject("sub")
-                .issuer("iss")
-                .audience("aud")
-                .issueTime(new Date())
-                .expirationTime(Date.from(Instant.now().plusSeconds(60)))
-                .claim("typ", "NOT_A_REAL_TYPE")
-                .build();
-
-        String raw = signRawJwt(pk, header, cs);
-
-        assertThat(a.isValid(raw)).isTrue();
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    @DisplayName("isValid: token inválido (parse error) -> false")
-    void isValid_invalidToken_returnsFalse() {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
+    @DisplayName("Deve considerar inválido um token sem data de expiração")
+    void isValid_tokenSemExpiracao_deveRetornarFalse() throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        String token = createSignedToken(
+                activeKeyPair,
+                ACTIVE_KID,
+                ISSUER,
+                null
+        );
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        boolean result = adapter.isValid(token);
 
-        assertThat(a.isValid("not-a-jwt")).isFalse();
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    @DisplayName("parseClaims: sucesso retorna mapa com typ + custom claims")
-    void parseClaims_success() {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
+    @DisplayName("Deve considerar inválido um conteúdo que não represente um JWT")
+    void isValid_tokenMalformado_deveRetornarFalse() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("x", "y");
+        // Act
+        boolean result = adapter.isValid("token-invalido");
 
-        JwtToken t = a.generateAccessToken("sub", claims, 60);
-
-        Map<String, Object> parsed = a.parseClaims(t.value());
-
-        assertThat(parsed).containsEntry("typ", "ACCESS");
-        assertThat(parsed).containsEntry("x", "y");
-        assertThat(parsed).containsKey("sub");
-        assertThat(parsed).containsKey("iss");
-        assertThat(parsed).containsKey("aud");
-        assertThat(parsed).containsKey("exp");
-        assertThat(parsed).containsKey("iat");
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    @DisplayName("parseClaims: token inválido -> IllegalArgumentException('Invalid JWT')")
-    void parseClaims_invalidToken_throwsIllegalArgumentException() {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
+    @DisplayName("Deve considerar inválido um token nulo")
+    void isValid_tokenNulo_deveRetornarFalse() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        boolean result = adapter.isValid(null);
 
-        assertThatThrownBy(() -> a.parseClaims("invalid.jwt.value"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Invalid JWT");
+        // Assert
+        assertFalse(result);
     }
 
     @Test
-    @DisplayName("parseClaims: token sem typ -> resolveTokenType retorna null e não quebra")
-    void parseClaims_missingTyp_doesNotFail() throws Exception {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
+    @DisplayName("Deve extrair todas as claims de um token sintaticamente válido")
+    void parseClaims_tokenValido_deveRetornarClaims() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        JwtToken token = adapter.generateAccessToken(
+                SUBJECT,
+                Map.of("email", "usuario@ecofy.com"),
+                300
+        );
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        Map<String, Object> result = adapter.parseClaims(
+                serializedToken(token)
+        );
 
-        RSAPrivateKey pk = (RSAPrivateKey) getField(a, "privateKey");
-        JWSHeader header = (JWSHeader) getField(a, "jwsHeader");
-
-        JWTClaimsSet cs = new JWTClaimsSet.Builder()
-                .subject("sub-no-typ")
-                .issuer("iss")
-                .audience("aud")
-                .issueTime(new Date())
-                .expirationTime(Date.from(Instant.now().plusSeconds(60)))
-                .claim("x", 1)
-                .build();
-
-        String raw = signRawJwt(pk, header, cs);
-
-        Map<String, Object> parsed = a.parseClaims(raw);
-
-        assertThat(parsed.get("x")).isIn(1, 1L);
-        assertThat(parsed).doesNotContainKey("typ");
+        // Assert
+        assertAll(
+                () -> assertEquals(SUBJECT, result.get("sub")),
+                () -> assertEquals("usuario@ecofy.com", result.get("email")),
+                () -> assertEquals(TokenType.ACCESS.name(), result.get("typ")),
+                () -> assertEquals(SUBJECT, result.get("authUserId"))
+        );
     }
 
     @Test
-    @DisplayName("toRsaJwk: RSAKey com kid e alg RS256")
-    void toRsaJwk_success() throws JOSEException {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-xyz");
+    @DisplayName("Deve lançar exceção ao tentar extrair claims de um token malformado")
+    void parseClaims_tokenMalformado_deveLancarIllegalArgumentException() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> adapter.parseClaims("token-invalido")
+        );
 
-        RSAKey jwk = a.toRsaJwk();
-
-        assertThat(jwk.getKeyID()).isEqualTo("kid-xyz");
-        assertThat(jwk.getAlgorithm()).isEqualTo(JWSAlgorithm.RS256);
-        assertThat(jwk.toRSAPublicKey()).isNotNull();
+        // Assert
+        assertAll(
+                () -> assertEquals("Invalid JWT", exception.getMessage()),
+                () -> assertNotNull(exception.getCause())
+        );
     }
 
     @Test
-    @DisplayName("loadPrivateKey: KeyPairGenerator.getInstance falha -> IllegalStateException")
-    void loadPrivateKey_keyPairGeneratorFails_throwsIllegalState() {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
+    @DisplayName("Deve verificar a assinatura e retornar uma cópia mutável das claims")
+    void verifyAndParseClaims_tokenValido_deveRetornarCopiaMutavelDasClaims() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        JwtToken token = adapter.generateAccessToken(
+                SUBJECT,
+                Map.of("role", "USER"),
+                300
+        );
 
-        try (MockedStatic<KeyPairGenerator> mocked = mockStatic(KeyPairGenerator.class)) {
-            mocked.when(() -> KeyPairGenerator.getInstance("RSA"))
-                    .thenThrow(new NoSuchAlgorithmException("no rsa"));
+        // Act
+        Map<String, Object> result = adapter.verifyAndParseClaims(
+                serializedToken(token)
+        );
+        result.put("novaClaim", "novoValor");
 
-            assertThatThrownBy(() -> new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class)))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("Could not generate in-memory DEV private key")
-                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
-        }
+        // Assert
+        assertAll(
+                () -> assertInstanceOf(HashMap.class, result),
+                () -> assertEquals(SUBJECT, result.get("sub")),
+                () -> assertEquals("USER", result.get("role")),
+                () -> assertEquals("novoValor", result.get("novaClaim"))
+        );
     }
 
     @Test
-    @DisplayName("loadPublicKey: devPublicKey null e KeyPairGenerator.getInstance falha -> IllegalStateException")
-    void loadPublicKey_keyPairGeneratorFails_whenDevKeyNull_throwsIllegalState() {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-ok");
+    @DisplayName("Deve rejeitar token assinado por uma chave não reconhecida")
+    void verifyAndParseClaims_assinaturaDesconhecida_deveLancarIllegalArgumentException()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        KeyPair unknownKeyPair = generateRsaKeyPair();
+        String token = createSignedToken(
+                unknownKeyPair,
+                "unknown-key",
+                ISSUER,
+                Date.from(Instant.now().plusSeconds(300))
+        );
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> adapter.verifyAndParseClaims(token)
+        );
 
-        setField(a, "devPublicKey", null);
-
-        try (MockedStatic<KeyPairGenerator> mocked = mockStatic(KeyPairGenerator.class)) {
-            mocked.when(() -> KeyPairGenerator.getInstance("RSA"))
-                    .thenThrow(new NoSuchAlgorithmException("no rsa"));
-
-            assertThatThrownBy(() ->
-                    invokePrivate(
-                            a,
-                            "loadPublicKey",
-                            new Class<?>[]{ResourceLoader.class, String.class},
-                            new Object[]{mock(ResourceLoader.class), "classpath:any"}
-                    )
-            )
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("Could not generate in-memory DEV public key")
-                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
-        }
+        // Assert
+        assertAll(
+                () -> assertEquals("Invalid token", exception.getMessage()),
+                () -> assertNotNull(exception.getCause())
+        );
     }
 
     @Test
-    @DisplayName("generateVerificationToken: claims null não adiciona purpose; com claims adiciona via putIfAbsent; não sobrescreve se já existir")
-    void generateVerificationToken_putIfAbsentPurpose_branchCoverage() throws Exception {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
-        when(p.getIssuer()).thenReturn("iss");
-        when(p.getAudience()).thenReturn("aud");
-        when(p.getClockSkewSeconds()).thenReturn(0L);
+    @DisplayName("Deve rejeitar token emitido por um emissor diferente do configurado")
+    void verifyAndParseClaims_issuerDiferente_deveLancarIllegalArgumentException() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        when(jwtProperties.getIssuer()).thenReturn(
+                "https://outro-emissor.ecofy.com"
+        );
 
-        JwtToken t1 = a.generateVerificationToken("sub-null", null, 60);
-        JWTClaimsSet cs1 = SignedJWT.parse(t1.value()).getJWTClaimsSet();
-        assertThat(cs1.getClaim("purpose")).isNull();
+        JwtToken token = adapter.generateAccessToken(
+                SUBJECT,
+                Map.of(),
+                300
+        );
 
-        Map<String, Object> claims2 = new HashMap<>();
-        JwtToken t2 = a.generateVerificationToken("sub-absent", claims2, 60);
+        // Act
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> adapter.verifyAndParseClaims(
+                        serializedToken(token)
+                )
+        );
 
-        assertThat(claims2.get("purpose")).isEqualTo("EMAIL_VERIFICATION");
-        JWTClaimsSet cs2 = SignedJWT.parse(t2.value()).getJWTClaimsSet();
-        assertThat(cs2.getClaim("purpose")).isEqualTo("EMAIL_VERIFICATION");
-
-        Map<String, Object> claims3 = new HashMap<>();
-        claims3.put("purpose", "CUSTOM_PURPOSE");
-        JwtToken t3 = a.generateVerificationToken("sub-present", claims3, 60);
-
-        assertThat(claims3.get("purpose")).isEqualTo("CUSTOM_PURPOSE");
-        JWTClaimsSet cs3 = SignedJWT.parse(t3.value()).getJWTClaimsSet();
-        assertThat(cs3.getClaim("purpose")).isEqualTo("CUSTOM_PURPOSE");
+        // Assert
+        assertAll(
+                () -> assertEquals("Invalid token", exception.getMessage()),
+                () -> assertNotNull(exception.getCause())
+        );
     }
 
     @Test
-    @DisplayName("loadPublicKey: cobre branches (location null, devPublicKey != null, devPublicKey == null success, devPublicKey == null exception)")
-    void loadPublicKey_fullCoverage_singleTest() throws Exception {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn("classpath:any");
-        when(p.getPublicKeyLocation()).thenReturn("classpath:any");
-        when(p.getKeyId()).thenReturn("kid-1");
+    @DisplayName("Deve rejeitar token expirado durante a validação criptográfica")
+    void verifyAndParseClaims_tokenExpirado_deveLancarIllegalArgumentException()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+        String token = createSignedToken(
+                activeKeyPair,
+                ACTIVE_KID,
+                ISSUER,
+                Date.from(Instant.now().minusSeconds(300))
+        );
 
-        JwtNimbusTokenProviderAdapter a = new JwtNimbusTokenProviderAdapter(p, mock(ResourceLoader.class));
+        // Act
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> adapter.verifyAndParseClaims(token)
+        );
 
-        Method m = JwtNimbusTokenProviderAdapter.class.getDeclaredMethod("loadPublicKey", ResourceLoader.class, String.class);
-        m.setAccessible(true);
+        // Assert
+        assertAll(
+                () -> assertEquals("Invalid token", exception.getMessage()),
+                () -> assertNotNull(exception.getCause())
+        );
+    }
 
-        assertThatThrownBy(() -> {
-            try {
-                m.invoke(a, mock(ResourceLoader.class), null);
-            } catch (Exception e) {
-                throw e.getCause() != null ? e.getCause() : e;
-            }
-        }).isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("public key location must not be null");
+    @Test
+    @DisplayName("Deve rejeitar conteúdo malformado durante a validação do token")
+    void verifyAndParseClaims_tokenMalformado_deveLancarIllegalArgumentException() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        Field f = JwtNimbusTokenProviderAdapter.class.getDeclaredField("devPublicKey");
-        f.setAccessible(true);
+        // Act
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> adapter.verifyAndParseClaims("token-invalido")
+        );
 
-        RSAPublicKey already = (RSAPublicKey) f.get(a);
-        assertThat(already).isNotNull();
+        // Assert
+        assertAll(
+                () -> assertEquals("Invalid token", exception.getMessage()),
+                () -> assertNotNull(exception.getCause())
+        );
+    }
 
-        RSAPublicKey r1 = (RSAPublicKey) m.invoke(a, mock(ResourceLoader.class), "classpath:any");
-        assertThat(r1).isSameAs(already);
+    @Test
+    @DisplayName("Deve rejeitar token nulo antes de executar a validação")
+    void verifyAndParseClaims_tokenNulo_deveLancarNullPointerException() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        f.set(a, null);
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.verifyAndParseClaims(null)
+        );
 
-        RSAPublicKey r2 = (RSAPublicKey) m.invoke(a, mock(ResourceLoader.class), "classpath:any");
-        assertThat(r2).isNotNull();
-        assertThat((RSAPublicKey) f.get(a)).isSameAs(r2);
+        // Assert
+        assertEquals(
+                "token must not be null",
+                exception.getMessage()
+        );
+    }
 
-        f.set(a, null);
+    @Test
+    @DisplayName("Deve validar token sem emissor quando nenhum emissor estiver configurado")
+    void verifyAndParseClaims_semIssuerConfigurado_deveRetornarClaims() {
+        // Arrange
+        when(jwtProperties.getIssuer()).thenReturn(null);
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
 
-        try (MockedStatic<KeyPairGenerator> mocked = mockStatic(KeyPairGenerator.class)) {
-            mocked.when(() -> KeyPairGenerator.getInstance("RSA"))
-                    .thenThrow(new NoSuchAlgorithmException("no rsa"));
+        JwtToken token = adapter.generateAccessToken(
+                SUBJECT,
+                Map.of(),
+                300
+        );
 
-            assertThatThrownBy(() -> {
-                try {
-                    m.invoke(a, mock(ResourceLoader.class), "classpath:any");
-                } catch (Exception e) {
-                    throw e.getCause() != null ? e.getCause() : e;
+        // Act
+        Map<String, Object> result = adapter.verifyAndParseClaims(
+                serializedToken(token)
+        );
+
+        // Assert
+        assertEquals(SUBJECT, result.get("sub"));
+    }
+
+    @Test
+    @DisplayName("Deve retornar as chaves públicas de verificação no formato JWKS")
+    void currentPublicJwks_chavesDisponiveis_deveRetornarJwksPublicos()
+            throws Exception {
+        // Arrange
+        KeyPair retiringKeyPair = generateRsaKeyPair();
+        VerificationKey retiringKey = createRetiringVerificationKey(
+                retiringKeyPair
+        );
+
+        when(signingKeyProvider.verificationKeys()).thenReturn(
+                List.of(activeVerificationKey, retiringKey)
+        );
+
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        List<Map<String, Object>> result = adapter.currentPublicJwks();
+
+        // Assert
+        assertAll(
+                () -> assertEquals(2, result.size()),
+                () -> assertEquals(ACTIVE_KID, result.get(0).get("kid")),
+                () -> assertEquals(RETIRING_KID, result.get(1).get("kid")),
+                () -> assertEquals("RSA", result.get(0).get("kty")),
+                () -> assertEquals("RS256", result.get(0).get("alg")),
+                () -> assertEquals("sig", result.get(0).get("use")),
+                () -> assertNotNull(result.get(0).get("n")),
+                () -> assertNotNull(result.get(0).get("e")),
+                () -> assertFalse(result.get(0).containsKey("d")),
+                () -> assertFalse(result.get(1).containsKey("d"))
+        );
+    }
+
+    @Test
+    @DisplayName("Deve retornar lista vazia quando não houver chaves públicas de verificação")
+    void currentPublicJwks_semChavesDeVerificacao_deveRetornarListaVazia() {
+        // Arrange
+        when(signingKeyProvider.verificationKeys()).thenReturn(List.of());
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        List<Map<String, Object>> result = adapter.currentPublicJwks();
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Deve retornar sempre a mesma instância do decoder configurado")
+    void jwtDecoder_adaptadorInicializado_deveRetornarMesmaInstancia() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        NimbusJwtDecoder firstResult = adapter.jwtDecoder();
+        NimbusJwtDecoder secondResult = adapter.jwtDecoder();
+
+        // Assert
+        assertAll(
+                () -> assertNotNull(firstResult),
+                () -> assertSame(firstResult, secondResult)
+        );
+    }
+
+    @Test
+    @DisplayName("Deve converter a chave ativa para uma JWK pública RSA")
+    void toRsaJwk_chaveAtivaDisponivel_deveRetornarJwkPublica() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        RSAKey result = adapter.toRsaJwk();
+
+        // Assert
+        assertAll(
+                () -> assertEquals(ACTIVE_KID, result.getKeyID()),
+                () -> assertEquals(JWSAlgorithm.RS256, result.getAlgorithm()),
+                () -> assertEquals(KeyUse.SIGNATURE, result.getKeyUse()),
+                () -> assertEquals(
+                        ((RSAPublicKey) activeKeyPair.getPublic()).getModulus(),
+                        result.toRSAPublicKey().getModulus()
+                ),
+                () -> assertFalse(result.isPrivate())
+        );
+    }
+
+    @Test
+    @DisplayName("Deve gerar identificadores JWT diferentes para tokens distintos")
+    void generateAccessToken_geracoesConsecutivas_deveGerarJwtIdsDiferentes()
+            throws Exception {
+        // Arrange
+        JwtNimbusTokenProviderAdapter adapter = createAdapter();
+
+        // Act
+        JwtToken firstToken = adapter.generateAccessToken(
+                SUBJECT,
+                Map.of(),
+                300
+        );
+        JwtToken secondToken = adapter.generateAccessToken(
+                SUBJECT,
+                Map.of(),
+                300
+        );
+
+        String firstJwtId = parse(firstToken)
+                .getJWTClaimsSet()
+                .getJWTID();
+        String secondJwtId = parse(secondToken)
+                .getJWTClaimsSet()
+                .getJWTID();
+
+        // Assert
+        assertNotEquals(firstJwtId, secondJwtId);
+    }
+
+    private JwtNimbusTokenProviderAdapter createAdapter() {
+        return new JwtNimbusTokenProviderAdapter(
+                jwtProperties,
+                signingKeyProvider
+        );
+    }
+
+    private VerificationKey createRetiringVerificationKey(KeyPair keyPair) {
+        SigningKeyMetadata metadata = new SigningKeyMetadata(
+                RETIRING_KID,
+                "RS256",
+                SigningKeyMetadata.Status.RETIRING,
+                null,
+                Instant.now(),
+                Instant.now().plusSeconds(3600)
+        );
+
+        return new VerificationKey(
+                metadata,
+                (RSAPublicKey) keyPair.getPublic()
+        );
+    }
+
+    private static KeyPair generateRsaKeyPair() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        return generator.generateKeyPair();
+    }
+
+    private static SignedJWT parse(JwtToken token) throws Exception {
+        return SignedJWT.parse(serializedToken(token));
+    }
+
+    private static String serializedToken(JwtToken token) {
+        try {
+            for (Field field : JwtToken.class.getDeclaredFields()) {
+                if (field.getType() == String.class
+                        && !Modifier.isStatic(field.getModifiers())) {
+                    field.setAccessible(true);
+                    return (String) field.get(token);
                 }
-            }).isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("Could not generate in-memory DEV public key")
-                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
-        }
-    }
-
-    @Test
-    @DisplayName("verifyAndParseClaims: token válido (mesma chave) -> retorna claims")
-    void verifyAndParseClaims_validToken_returnsClaims() {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("roles", java.util.List.of("ROLE_USER"));
-
-        JwtToken t = a.generateAccessToken("sub-1", claims, 60);
-
-        Map<String, Object> parsed = a.verifyAndParseClaims(t.value());
-
-        assertThat(parsed).containsKey("sub");
-        assertThat(parsed.get("sub")).isEqualTo("sub-1");
-    }
-
-    @Test
-    @DisplayName("verifyAndParseClaims: assinatura inválida (chave diferente) -> IllegalArgumentException")
-    void verifyAndParseClaims_invalidSignature_throws() {
-        JwtNimbusTokenProviderAdapter signer = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-        JwtNimbusTokenProviderAdapter otherKey = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-
-        JwtToken t = signer.generateAccessToken("sub-1", new HashMap<>(), 60);
-
-        // 'otherKey' tem outro par RSA em memória -> assinatura não confere.
-        assertThatThrownBy(() -> otherKey.verifyAndParseClaims(t.value()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Invalid token");
-    }
-
-    @Test
-    @DisplayName("verifyAndParseClaims: token expirado -> IllegalArgumentException")
-    void verifyAndParseClaims_expiredToken_throws() throws Exception {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-1", "iss", "aud", 0));
-
-        RSAPrivateKey pk = (RSAPrivateKey) getField(a, "privateKey");
-        JWSHeader header = (JWSHeader) getField(a, "jwsHeader");
-
-        JWTClaimsSet cs = new JWTClaimsSet.Builder()
-                .subject("sub-exp")
-                .issuer("iss")
-                .audience("aud")
-                .issueTime(Date.from(Instant.now().minusSeconds(600)))
-                .expirationTime(Date.from(Instant.now().minusSeconds(300)))
-                .claim("typ", "ACCESS")
-                .build();
-
-        String raw = signRawJwt(pk, header, cs);
-
-        assertThatThrownBy(() -> a.verifyAndParseClaims(raw))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Invalid token");
-    }
-
-    @Test
-    @DisplayName("currentPublicJwks: expõe material público RSA completo (kty, kid, alg, use, n, e)")
-    void currentPublicJwks_exposesFullRsaPublicMaterial() {
-        JwtNimbusTokenProviderAdapter a = adapter(propsForTokenFlow("kid-abc", "iss", "aud", 0));
-
-        java.util.List<Map<String, Object>> jwks = a.currentPublicJwks();
-
-        assertThat(jwks).hasSize(1);
-        Map<String, Object> jwk = jwks.get(0);
-
-        assertThat(jwk).containsEntry("kty", "RSA");
-        assertThat(jwk).containsEntry("kid", "kid-abc");
-        assertThat(jwk).containsEntry("alg", "RS256");
-        assertThat(jwk).containsEntry("use", "sig");
-        assertThat(jwk).containsKey("n");
-        assertThat(jwk).containsKey("e");
-        // Nunca expor material privado no JWKS.
-        assertThat(jwk).doesNotContainKey("d");
-    }
-
-    // heapers
-
-    private JwtNimbusTokenProviderAdapter adapter(JwtProperties props) {
-        return new JwtNimbusTokenProviderAdapter(props, mock(ResourceLoader.class));
-    }
-
-    private JwtProperties propsMinimalForConstructor(String privateLoc, String publicLoc, String keyId) {
-        JwtProperties p = mock(JwtProperties.class);
-        when(p.getPrivateKeyLocation()).thenReturn(privateLoc);
-        when(p.getPublicKeyLocation()).thenReturn(publicLoc);
-        when(p.getKeyId()).thenReturn(keyId);
-        return p;
-    }
-
-    private JwtProperties propsForTokenFlow(String keyId, String issuer, String audience, long skewSeconds) {
-        // lenient: alguns testes (ex.: currentPublicJwks / verifyAndParseClaims) não geram token,
-        // então nem todos os stubs de claims são exercidos — não é stubbing desnecessário real.
-        JwtProperties p = mock(JwtProperties.class);
-        lenient().when(p.getPrivateKeyLocation()).thenReturn("classpath:any-private");
-        lenient().when(p.getPublicKeyLocation()).thenReturn("classpath:any-public");
-        lenient().when(p.getKeyId()).thenReturn(keyId);
-        lenient().when(p.getIssuer()).thenReturn(issuer);
-        lenient().when(p.getAudience()).thenReturn(audience);
-        lenient().when(p.getClockSkewSeconds()).thenReturn(skewSeconds);
-        return p;
-    }
-
-    private static Object getField(Object target, String name) {
-        try {
-            Field f = target.getClass().getDeclaredField(name);
-            f.setAccessible(true);
-            return f.get(target);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void setField(Object target, String name, Object value) {
-        try {
-            Field f = target.getClass().getDeclaredField(name);
-            f.setAccessible(true);
-            try {
-                Field modifiers = Field.class.getDeclaredField("modifiers");
-                modifiers.setAccessible(true);
-                modifiers.setInt(f, f.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
-            } catch (Exception ignored) {
             }
-            f.set(target, value);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+
+            throw new IllegalStateException(
+                    "JwtToken não possui campo de token do tipo String"
+            );
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(
+                    "Não foi possível obter o valor serializado do token",
+                    e
+            );
         }
     }
 
-    private static Object invokePrivate(Object target, String methodName, Class<?>[] types, Object[] args) {
-        try {
-            Method m = target.getClass().getDeclaredMethod(methodName, types);
-            m.setAccessible(true);
-            return m.invoke(target, args);
-        } catch (Exception e) {
-            Throwable t = e.getCause() != null ? e.getCause() : e;
-            if (t instanceof RuntimeException re) throw re;
-            if (t instanceof Error err) throw err;
-            throw new RuntimeException(t);
+    private static String createSignedToken(
+            KeyPair keyPair,
+            String kid,
+            String issuer,
+            Date expiration
+    ) throws Exception {
+        Instant now = Instant.now();
+
+        JWTClaimsSet.Builder claimsBuilder = new JWTClaimsSet.Builder()
+                .subject(SUBJECT)
+                .issuer(issuer)
+                .audience(AUDIENCE)
+                .issueTime(Date.from(now))
+                .notBeforeTime(Date.from(now.minusSeconds(1)))
+                .jwtID("jwt-" + now.toEpochMilli());
+
+        if (expiration != null) {
+            claimsBuilder.expirationTime(expiration);
         }
+
+        SignedJWT signedJWT = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .keyID(kid)
+                        .type(JOSEObjectType.JWT)
+                        .build(),
+                claimsBuilder.build()
+        );
+
+        signedJWT.sign(
+                new RSASSASigner(
+                        (RSAPrivateKey) keyPair.getPrivate()
+                )
+        );
+
+        return signedJWT.serialize();
     }
 
-    private static String signRawJwt(RSAPrivateKey privateKey, JWSHeader header, JWTClaimsSet claims) throws JOSEException {
-        SignedJWT jwt = new SignedJWT(header, claims);
-        jwt.sign(new RSASSASigner(privateKey));
-        return jwt.serialize();
+    private static void setPrivateField(
+            Object target,
+            String fieldName,
+            Object value
+    ) throws Exception {
+        Field field = JwtNimbusTokenProviderAdapter.class.getDeclaredField(
+                fieldName
+        );
+        field.setAccessible(true);
+        field.set(target, value);
     }
 }

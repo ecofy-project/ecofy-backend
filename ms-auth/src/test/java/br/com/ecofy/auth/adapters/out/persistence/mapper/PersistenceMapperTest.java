@@ -1,7 +1,17 @@
 package br.com.ecofy.auth.adapters.out.persistence.mapper;
 
-import br.com.ecofy.auth.adapters.out.persistence.entity.*;
-import br.com.ecofy.auth.core.domain.*;
+import br.com.ecofy.auth.adapters.out.persistence.entity.AuthUserEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.ClientApplicationEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.JwkKeyEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.PermissionEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.RefreshTokenEntity;
+import br.com.ecofy.auth.adapters.out.persistence.entity.RoleEntity;
+import br.com.ecofy.auth.core.domain.AuthUser;
+import br.com.ecofy.auth.core.domain.ClientApplication;
+import br.com.ecofy.auth.core.domain.JwkKey;
+import br.com.ecofy.auth.core.domain.Permission;
+import br.com.ecofy.auth.core.domain.RefreshToken;
+import br.com.ecofy.auth.core.domain.Role;
 import br.com.ecofy.auth.core.domain.enums.AuthUserStatus;
 import br.com.ecofy.auth.core.domain.enums.ClientType;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
@@ -9,536 +19,953 @@ import br.com.ecofy.auth.core.domain.enums.TokenType;
 import br.com.ecofy.auth.core.domain.valueobject.AuthUserId;
 import br.com.ecofy.auth.core.domain.valueobject.EmailAddress;
 import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Testes unitários do mapeador de persistência")
 class PersistenceMapperTest {
 
+    private static final Instant CREATED_AT =
+            Instant.parse("2026-07-20T10:00:00Z");
+    private static final Instant UPDATED_AT =
+            Instant.parse("2026-07-20T11:00:00Z");
+    private static final Instant LAST_LOGIN_AT =
+            Instant.parse("2026-07-20T12:00:00Z");
+    private static final Instant EXPIRES_AT =
+            Instant.parse("2026-07-21T10:00:00Z");
+
     @Test
-    void constructor_shouldThrowAssertionError() throws Exception {
-        Constructor<PersistenceMapper> c = PersistenceMapper.class.getDeclaredConstructor();
-        c.setAccessible(true);
+    @DisplayName("Deve impedir a instanciação da classe utilitária")
+    void constructor_invocacaoPorReflexao_deveLancarAssertionError()
+            throws Exception {
+        // Arrange
+        Constructor<PersistenceMapper> constructor =
+                PersistenceMapper.class.getDeclaredConstructor();
+        constructor.setAccessible(true);
 
-        AssertionError ex = assertThrows(AssertionError.class, () -> {
-            try {
-                c.newInstance();
-            } catch (InvocationTargetException ite) {
-                Throwable target = ite.getTargetException();
-                if (target instanceof AssertionError ae) throw ae;
-                if (target instanceof RuntimeException re) throw re;
-                throw new RuntimeException(target);
-            }
-        });
+        // Act
+        InvocationTargetException exception = assertThrows(
+                InvocationTargetException.class,
+                constructor::newInstance
+        );
 
-        assertEquals("PersistenceMapper is a utility class and should not be instantiated", ex.getMessage());
+        // Assert
+        AssertionError cause = assertInstanceOf(
+                AssertionError.class,
+                exception.getCause()
+        );
+
+        assertEquals(
+                "PersistenceMapper is a utility class and should not be instantiated",
+                cause.getMessage()
+        );
     }
 
     @Test
-    void toEntity_authUser_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toEntity((AuthUser) null));
-        assertEquals("user must not be null", ex.getMessage());
+    @DisplayName("Deve rejeitar usuário nulo ao converter para entidade")
+    void toEntity_authUserNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthUser user = null;
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toEntity(user)
+        );
+
+        // Assert
+        assertEquals("user must not be null", exception.getMessage());
     }
 
     @Test
-    void toDomain_authUser_shouldRejectNullEntity() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toDomain(null, Set.of(), Set.of()));
-        assertEquals("AuthUserEntity must not be null", ex.getMessage());
+    @DisplayName("Deve converter usuário de domínio para entidade com todos os campos")
+    void toEntity_authUserValido_deveMapearTodosOsCampos() {
+        // Arrange
+        UUID id = UUID.fromString(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        );
+
+        AuthUser user = new AuthUser(
+                new AuthUserId(id),
+                new EmailAddress("usuario@ecofy.com"),
+                new PasswordHash("password-hash"),
+                AuthUserStatus.ACTIVE,
+                true,
+                "Matheus",
+                "Silva",
+                "pt-BR",
+                Set.of(),
+                Set.of(),
+                CREATED_AT,
+                UPDATED_AT,
+                LAST_LOGIN_AT,
+                3
+        );
+
+        // Act
+        AuthUserEntity result = PersistenceMapper.toEntity(user);
+
+        // Assert
+        assertAll(
+                () -> assertEquals(id, result.getId()),
+                () -> assertEquals(
+                        "usuario@ecofy.com",
+                        result.getEmail()
+                ),
+                () -> assertEquals(
+                        "password-hash",
+                        result.getPasswordHash()
+                ),
+                () -> assertEquals(
+                        AuthUserStatus.ACTIVE,
+                        result.getStatus()
+                ),
+                () -> assertTrue(result.isEmailVerified()),
+                () -> assertEquals("Matheus", result.getFirstName()),
+                () -> assertEquals("Silva", result.getLastName()),
+                () -> assertEquals("pt-BR", result.getLocale()),
+                () -> assertEquals(CREATED_AT, result.getCreatedAt()),
+                () -> assertEquals(UPDATED_AT, result.getUpdatedAt()),
+                () -> assertEquals(
+                        LAST_LOGIN_AT,
+                        result.getLastLoginAt()
+                ),
+                () -> assertEquals(
+                        3,
+                        result.getFailedLoginAttempts()
+                )
+        );
     }
 
     @Test
-    void toDomain_role_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toDomain((RoleEntity) null));
-        assertEquals("RoleEntity must not be null", ex.getMessage());
+    @DisplayName("Deve rejeitar entidade de usuário nula ao converter para domínio")
+    void toDomain_authUserEntityNula_deveLancarNullPointerException() {
+        // Arrange
+        AuthUserEntity entity = null;
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toDomain(
+                        entity,
+                        Set.of(),
+                        Set.of()
+                )
+        );
+
+        // Assert
+        assertEquals(
+                "AuthUserEntity must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void toDomain_permission_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toDomain((PermissionEntity) null));
-        assertEquals("PermissionEntity must not be null", ex.getMessage());
+    @DisplayName("Deve converter relacionamentos nulos do usuário em conjuntos vazios")
+    void toDomain_relacionamentosDoUsuarioNulos_deveRetornarConjuntosVazios() {
+        // Arrange
+        UUID id = UUID.fromString(
+                "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        );
+        AuthUserEntity entity = createAuthUserEntity(id);
+
+        // Act
+        AuthUser result = PersistenceMapper.toDomain(
+                entity,
+                null,
+                null
+        );
+
+        // Assert
+        assertAll(
+                () -> assertEquals(id, result.id().value()),
+                () -> assertEquals(
+                        "usuario@ecofy.com",
+                        result.email().value()
+                ),
+                () -> assertEquals(
+                        "password-hash",
+                        result.passwordHash().value()
+                ),
+                () -> assertEquals(
+                        AuthUserStatus.ACTIVE,
+                        result.status()
+                ),
+                () -> assertTrue(result.isEmailVerified()),
+                () -> assertEquals("Matheus", result.firstName()),
+                () -> assertEquals("Silva", result.lastName()),
+                () -> assertEquals("pt-BR", result.locale()),
+                () -> assertEquals(CREATED_AT, result.createdAt()),
+                () -> assertEquals(UPDATED_AT, result.updatedAt()),
+                () -> assertEquals(
+                        LAST_LOGIN_AT,
+                        result.lastLoginAt()
+                ),
+                () -> assertEquals(
+                        2,
+                        result.failedLoginAttempts()
+                ),
+                () -> assertNotNull(result.roles()),
+                () -> assertTrue(result.roles().isEmpty()),
+                () -> assertNotNull(result.directPermissions()),
+                () -> assertTrue(
+                        result.directPermissions().isEmpty()
+                )
+        );
     }
 
     @Test
-    void toDomain_clientApplication_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toDomain((ClientApplicationEntity) null));
-        assertEquals("ClientApplicationEntity must not be null", ex.getMessage());
-    }
+    @DisplayName("Deve filtrar relacionamentos nulos e converter funções e permissões do usuário")
+    void toDomain_relacionamentosComElementosNulos_deveFiltrarEMapearValores() {
+        // Arrange
+        UUID id = UUID.fromString(
+                "cccccccc-cccc-cccc-cccc-cccccccccccc"
+        );
+        AuthUserEntity entity = createAuthUserEntity(id);
 
-    @Test
-    void toEntity_clientApplication_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toEntity((ClientApplication) null));
-        assertEquals("clientApplication must not be null", ex.getMessage());
-    }
+        PermissionEntity rolePermission = createPermissionEntity(
+                "user.read",
+                "Permite consultar usuários",
+                "auth"
+        );
+        PermissionEntity directPermission = createPermissionEntity(
+                "user.write",
+                "Permite alterar usuários",
+                "auth"
+        );
 
-    @Test
-    void toDomain_refreshToken_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toDomain((RefreshTokenEntity) null));
-        assertEquals("RefreshTokenEntity must not be null", ex.getMessage());
-    }
+        Set<PermissionEntity> rolePermissions = new HashSet<>();
+        rolePermissions.add(rolePermission);
+        rolePermissions.add(null);
 
-    @Test
-    void toEntity_refreshToken_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toEntity((RefreshToken) null));
-        assertEquals("refreshToken must not be null", ex.getMessage());
-    }
+        RoleEntity roleEntity = new RoleEntity();
+        roleEntity.setName("ROLE_ADMIN");
+        roleEntity.setDescription("Administrador");
+        roleEntity.setPermissions(rolePermissions);
 
-    @Test
-    void toDomain_jwk_shouldRejectNull() {
-        NullPointerException ex = assertThrows(NullPointerException.class, () -> PersistenceMapper.toDomain((JwkKeyEntity) null));
-        assertEquals("JwkKeyEntity must not be null", ex.getMessage());
-    }
-
-    @Test
-    void toEntity_authUser_shouldMapAllScalarFields() {
-        UUID id = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-        Instant createdAt = Instant.parse("2024-01-01T00:00:00Z");
-        Instant updatedAt = Instant.parse("2024-01-02T00:00:00Z");
-        Instant lastLoginAt = Instant.parse("2024-01-03T00:00:00Z");
-
-        AuthUser user = mock(AuthUser.class);
-
-        AuthUserId authUserId = mock(AuthUserId.class);
-        when(authUserId.value()).thenReturn(id);
-
-        EmailAddress email = mock(EmailAddress.class);
-        when(email.value()).thenReturn("u@ecofy.com");
-
-        PasswordHash ph = mock(PasswordHash.class);
-        when(ph.value()).thenReturn("hash");
-
-        when(user.id()).thenReturn(authUserId);
-        when(user.email()).thenReturn(email);
-        when(user.passwordHash()).thenReturn(ph);
-        when(user.status()).thenReturn(AuthUserStatus.ACTIVE);
-        when(user.isEmailVerified()).thenReturn(true);
-        when(user.firstName()).thenReturn("Matheus");
-        when(user.lastName()).thenReturn("Silva");
-        when(user.locale()).thenReturn("pt-BR");
-        when(user.createdAt()).thenReturn(createdAt);
-        when(user.updatedAt()).thenReturn(updatedAt);
-        when(user.lastLoginAt()).thenReturn(lastLoginAt);
-        when(user.failedLoginAttempts()).thenReturn(3);
-
-        AuthUserEntity e = PersistenceMapper.toEntity(user);
-
-        assertEquals(id, e.getId());
-        assertEquals("u@ecofy.com", e.getEmail());
-        assertEquals("hash", e.getPasswordHash());
-        assertEquals(AuthUserStatus.ACTIVE, e.getStatus());
-        assertTrue(e.isEmailVerified());
-        assertEquals("Matheus", e.getFirstName());
-        assertEquals("Silva", e.getLastName());
-        assertEquals("pt-BR", e.getLocale());
-        assertEquals(createdAt, e.getCreatedAt());
-        assertEquals(updatedAt, e.getUpdatedAt());
-        assertEquals(lastLoginAt, e.getLastLoginAt());
-        assertEquals(3, e.getFailedLoginAttempts());
-    }
-
-    @Test
-    void toDomain_authUser_shouldHandleNullRoleAndPermSets_asEmpty_andMapScalars() {
-        UUID id = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-
-        AuthUserEntity e = new AuthUserEntity();
-        e.setId(id);
-        e.setEmail("x@ecofy.com");
-        e.setPasswordHash("ph");
-        e.setStatus(AuthUserStatus.ACTIVE);
-        e.setEmailVerified(false);
-        e.setFirstName("A");
-        e.setLastName("B");
-        e.setLocale("pt-BR");
-        e.setCreatedAt(Instant.parse("2024-02-01T00:00:00Z"));
-        e.setUpdatedAt(Instant.parse("2024-02-02T00:00:00Z"));
-        e.setLastLoginAt(null);
-        e.setFailedLoginAttempts(0);
-
-        AuthUser d = PersistenceMapper.toDomain(e, null, null);
-
-        Object idVo = callNoArg(d, "id");
-        Object uuid = callNoArg(idVo, "value");
-        assertEquals(id, uuid);
-
-        Object emailVo = callNoArg(d, "email");
-        Object emailValue = callNoArg(emailVo, "value");
-        assertEquals("x@ecofy.com", emailValue);
-
-        Object phVo = callNoArg(d, "passwordHash");
-        Object phValue = callNoArg(phVo, "value");
-        assertEquals("ph", phValue);
-
-        assertEquals(AuthUserStatus.ACTIVE, callNoArg(d, "status"));
-        assertEquals(false, callNoArg(d, "isEmailVerified"));
-        assertEquals("A", callNoArg(d, "firstName"));
-        assertEquals("B", callNoArg(d, "lastName"));
-        assertEquals("pt-BR", callNoArg(d, "locale"));
-        assertEquals(e.getCreatedAt(), callNoArg(d, "createdAt"));
-        assertEquals(e.getUpdatedAt(), callNoArg(d, "updatedAt"));
-        assertNull(callNoArg(d, "lastLoginAt"));
-        assertEquals(0, callNoArg(d, "failedLoginAttempts"));
-
-        Set<?> roles = (Set<?>) callAnyNoArg(d, "roles", "getRoles", "authorities", "getAuthorities");
-        assertNotNull(roles);
-        assertTrue(roles.isEmpty());
-
-        Set<?> perms = extractPermissionsFromAuthUser(d);
-        assertNotNull(perms);
-        assertTrue(perms.isEmpty());
-    }
-
-
-    @Test
-    void toDomain_authUser_shouldFilterNulls_andReturnUnmodifiableSets_forRolesAndPermissions() {
-        UUID id = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
-
-        PermissionEntity p1 = new PermissionEntity();
-        p1.setName("perm.read");
-        p1.setDescription("Read");
-        p1.setDomain("auth");
-
-        PermissionEntity p2 = new PermissionEntity();
-        p2.setName("perm.write");
-        p2.setDescription("Write");
-        p2.setDomain("auth");
-
-        Set<PermissionEntity> rolePerms = new java.util.HashSet<>();
-        rolePerms.add(p1);
-        rolePerms.add(null);
-        rolePerms.add(p2);
-
-        RoleEntity r1 = new RoleEntity();
-        r1.setName("ROLE_ADMIN");
-        r1.setDescription("Admin");
-        r1.setPermissions(rolePerms);
-
-        AuthUserEntity e = new AuthUserEntity();
-        e.setId(id);
-        e.setEmail("y@ecofy.com");
-        e.setPasswordHash("ph2");
-        e.setStatus(AuthUserStatus.ACTIVE);
-        e.setEmailVerified(true);
-        e.setFirstName("C");
-        e.setLastName("D");
-        e.setLocale("pt-BR");
-        e.setCreatedAt(Instant.parse("2024-03-01T00:00:00Z"));
-        e.setUpdatedAt(Instant.parse("2024-03-02T00:00:00Z"));
-        e.setLastLoginAt(Instant.parse("2024-03-03T00:00:00Z"));
-        e.setFailedLoginAttempts(1);
-
-        Set<RoleEntity> roleEntities = new java.util.HashSet<>();
-        roleEntities.add(r1);
+        Set<RoleEntity> roleEntities = new HashSet<>();
+        roleEntities.add(roleEntity);
         roleEntities.add(null);
 
-        Set<PermissionEntity> permEntities = new java.util.HashSet<>();
-        permEntities.add(p2);
-        permEntities.add(null);
+        Set<PermissionEntity> permissionEntities = new HashSet<>();
+        permissionEntities.add(directPermission);
+        permissionEntities.add(null);
 
-        AuthUser d = PersistenceMapper.toDomain(e, roleEntities, permEntities);
+        // Act
+        AuthUser result = PersistenceMapper.toDomain(
+                entity,
+                roleEntities,
+                permissionEntities
+        );
 
-        Set<?> roles = (Set<?>) callAnyNoArg(d, "roles", "authorities");
-        assertEquals(1, roles.size());
-        assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) roles).add(new Object()));
+        // Assert
+        assertAll(
+                () -> assertEquals(1, result.roles().size()),
+                () -> assertEquals(
+                        1,
+                        result.directPermissions().size()
+                ),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> result.roles().add(
+                                new Role(
+                                        "ROLE_USER",
+                                        "Usuário",
+                                        Set.of()
+                                )
+                        )
+                ),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> result.directPermissions().add(
+                                new Permission(
+                                        "other",
+                                        "Outra",
+                                        "auth"
+                                )
+                        )
+                )
+        );
 
-        Set<?> perms = extractPermissionsFromAuthUser(d);
-        assertNotNull(perms);
-        assertFalse(perms.isEmpty());
+        Role mappedRole = result.roles().iterator().next();
+        Permission mappedRolePermission =
+                mappedRole.permissions().iterator().next();
+        Permission mappedDirectPermission =
+                result.directPermissions().iterator().next();
 
-        assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) perms).add(new Object()));
+        assertAll(
+                () -> assertEquals(
+                        "ROLE_ADMIN",
+                        mappedRole.name()
+                ),
+                () -> assertEquals(
+                        "Administrador",
+                        mappedRole.description()
+                ),
+                () -> assertEquals(
+                        1,
+                        mappedRole.permissions().size()
+                ),
+                () -> assertEquals(
+                        "user.read",
+                        mappedRolePermission.name()
+                ),
+                () -> assertEquals(
+                        "Permite consultar usuários",
+                        mappedRolePermission.description()
+                ),
+                () -> assertEquals(
+                        "auth",
+                        mappedRolePermission.domain()
+                ),
+                () -> assertEquals(
+                        "user.write",
+                        mappedDirectPermission.name()
+                ),
+                () -> assertEquals(
+                        "Permite alterar usuários",
+                        mappedDirectPermission.description()
+                ),
+                () -> assertEquals(
+                        "auth",
+                        mappedDirectPermission.domain()
+                )
+        );
     }
 
     @Test
-    void toDomain_role_shouldHandleNullPermissions_asEmpty_andReturnUnmodifiableSet() {
-        RoleEntity r = new RoleEntity();
-        r.setName("ROLE_USER");
-        r.setDescription("User");
-        r.setPermissions(null);
+    @DisplayName("Deve rejeitar entidade de função nula ao converter para domínio")
+    void toDomain_roleEntityNula_deveLancarNullPointerException() {
+        // Arrange
+        RoleEntity entity = null;
 
-        Role d = PersistenceMapper.toDomain(r);
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toDomain(entity)
+        );
 
-        assertEquals("ROLE_USER", callAnyNoArg(d, "name", "getName"));
-        assertEquals("User", callAnyNoArg(d, "description", "getDescription"));
-
-        Set<?> perms = (Set<?>) callAnyNoArg(d, "permissions", "perms", "getPermissions");
-        assertNotNull(perms);
-        assertTrue(perms.isEmpty());
-        assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) perms).add(new Object()));
+        // Assert
+        assertEquals(
+                "RoleEntity must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void toDomain_permission_shouldMapAllFields() {
-        PermissionEntity p = new PermissionEntity();
-        p.setName("perm.x");
-        p.setDescription("DX");
-        p.setDomain("auth");
+    @DisplayName("Deve converter função sem permissões para conjunto vazio")
+    void toDomain_roleSemPermissoes_deveRetornarConjuntoVazio() {
+        // Arrange
+        RoleEntity entity = new RoleEntity();
+        entity.setName("ROLE_USER");
+        entity.setDescription("Usuário");
+        entity.setPermissions(null);
 
-        Permission d = PersistenceMapper.toDomain(p);
+        // Act
+        Role result = PersistenceMapper.toDomain(entity);
 
-        assertEquals("perm.x", callAnyNoArg(d, "name", "getName"));
-        assertEquals("DX", callAnyNoArg(d, "description", "getDescription"));
-        assertEquals("auth", callAnyNoArg(d, "domain", "getDomain"));
+        // Assert
+        assertAll(
+                () -> assertEquals("ROLE_USER", result.name()),
+                () -> assertEquals("Usuário", result.description()),
+                () -> assertNotNull(result.permissions()),
+                () -> assertTrue(result.permissions().isEmpty()),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> result.permissions().add(
+                                new Permission(
+                                        "user.read",
+                                        "Leitura",
+                                        "auth"
+                                )
+                        )
+                )
+        );
     }
 
     @Test
-    void toDomain_clientApplication_shouldSanitizeRedirectUrisAndScopes_whenSetsHaveNullOrBlank() {
-        Set<String> redirectUris = new java.util.HashSet<>();
-        redirectUris.add("  https://a/cb  ");
+    @DisplayName("Deve filtrar permissões nulas ao converter uma função")
+    void toDomain_roleComPermissaoNula_deveFiltrarElementosNulos() {
+        // Arrange
+        PermissionEntity permission = createPermissionEntity(
+                "profile.read",
+                "Permite consultar o perfil",
+                "users"
+        );
+
+        Set<PermissionEntity> permissions = new HashSet<>();
+        permissions.add(permission);
+        permissions.add(null);
+
+        RoleEntity entity = new RoleEntity();
+        entity.setName("ROLE_MANAGER");
+        entity.setDescription("Gerente");
+        entity.setPermissions(permissions);
+
+        // Act
+        Role result = PersistenceMapper.toDomain(entity);
+
+        // Assert
+        Permission mappedPermission =
+                result.permissions().iterator().next();
+
+        assertAll(
+                () -> assertEquals(1, result.permissions().size()),
+                () -> assertEquals(
+                        "profile.read",
+                        mappedPermission.name()
+                ),
+                () -> assertEquals(
+                        "Permite consultar o perfil",
+                        mappedPermission.description()
+                ),
+                () -> assertEquals(
+                        "users",
+                        mappedPermission.domain()
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar entidade de permissão nula ao converter para domínio")
+    void toDomain_permissionEntityNula_deveLancarNullPointerException() {
+        // Arrange
+        PermissionEntity entity = null;
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toDomain(entity)
+        );
+
+        // Assert
+        assertEquals(
+                "PermissionEntity must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve converter entidade de permissão com todos os campos")
+    void toDomain_permissionEntityValida_deveMapearTodosOsCampos() {
+        // Arrange
+        PermissionEntity entity = createPermissionEntity(
+                "budget.read",
+                "Permite consultar orçamentos",
+                "budgeting"
+        );
+
+        // Act
+        Permission result = PersistenceMapper.toDomain(entity);
+
+        // Assert
+        assertAll(
+                () -> assertEquals("budget.read", result.name()),
+                () -> assertEquals(
+                        "Permite consultar orçamentos",
+                        result.description()
+                ),
+                () -> assertEquals("budgeting", result.domain())
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar entidade de aplicação cliente nula ao converter para domínio")
+    void toDomain_clientApplicationEntityNula_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplicationEntity entity = null;
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toDomain(entity)
+        );
+
+        // Assert
+        assertEquals(
+                "ClientApplicationEntity must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve converter conjuntos nulos da aplicação cliente em conjuntos vazios")
+    void toDomain_conjuntosDaAplicacaoNulos_deveRetornarConjuntosVazios() {
+        // Arrange
+        ClientApplicationEntity entity =
+                ClientApplicationEntity.builder()
+                        .id("application-1")
+                        .clientId("client-1")
+                        .clientSecretHash("secret-hash")
+                        .name("Aplicação EcoFy")
+                        .clientType(ClientType.values()[0])
+                        .grantTypes(null)
+                        .redirectUris(null)
+                        .scopes(null)
+                        .firstParty(true)
+                        .active(true)
+                        .createdAt(CREATED_AT)
+                        .updatedAt(UPDATED_AT)
+                        .build();
+
+        // Act
+        ClientApplication result =
+                PersistenceMapper.toDomain(entity);
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "application-1",
+                        result.id()
+                ),
+                () -> assertEquals(
+                        "client-1",
+                        result.clientId()
+                ),
+                () -> assertEquals(
+                        "secret-hash",
+                        result.clientSecretHash()
+                ),
+                () -> assertEquals(
+                        "Aplicação EcoFy",
+                        result.name()
+                ),
+                () -> assertEquals(
+                        ClientType.values()[0],
+                        result.clientType()
+                ),
+                () -> assertNotNull(result.grantTypes()),
+                () -> assertTrue(result.grantTypes().isEmpty()),
+                () -> assertNotNull(result.redirectUris()),
+                () -> assertTrue(result.redirectUris().isEmpty()),
+                () -> assertNotNull(result.scopes()),
+                () -> assertTrue(result.scopes().isEmpty()),
+                () -> assertTrue(result.isFirstParty()),
+                () -> assertTrue(result.isActive()),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.createdAt()
+                ),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        result.updatedAt()
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve filtrar valores nulos e em branco dos conjuntos da aplicação cliente")
+    void toDomain_conjuntosComValoresInvalidos_deveFiltrarENormalizarValores() {
+        // Arrange
+        GrantType grantType = GrantType.values()[0];
+
+        Set<GrantType> grantTypes = new HashSet<>();
+        grantTypes.add(grantType);
+        grantTypes.add(null);
+
+        Set<String> redirectUris = new HashSet<>();
+        redirectUris.add("  https://ecofy.com/callback  ");
+        redirectUris.add("https://app.ecofy.com/callback");
         redirectUris.add("");
         redirectUris.add("   ");
         redirectUris.add(null);
-        redirectUris.add("https://b/cb");
 
-        Set<String> scopes = new java.util.HashSet<>();
+        Set<String> scopes = new HashSet<>();
         scopes.add("  openid  ");
+        scopes.add("profile");
         scopes.add("");
         scopes.add("   ");
         scopes.add(null);
-        scopes.add("profile");
 
-        ClientApplicationEntity e = ClientApplicationEntity.builder()
-                .id("10")
-                .clientId("client-1")
-                .clientSecretHash("secret")
-                .name("App")
-                .clientType(ClientType.values()[0])
-                .grantTypes(null)
-                .redirectUris(redirectUris)
-                .scopes(scopes)
-                .firstParty(true)
-                .active(true)
-                .createdAt(Instant.parse("2024-04-01T00:00:00Z"))
-                .updatedAt(Instant.parse("2024-04-02T00:00:00Z"))
-                .build();
+        ClientApplicationEntity entity =
+                ClientApplicationEntity.builder()
+                        .id("application-2")
+                        .clientId("client-2")
+                        .clientSecretHash("another-secret")
+                        .name("Aplicação externa")
+                        .clientType(ClientType.values()[0])
+                        .grantTypes(grantTypes)
+                        .redirectUris(redirectUris)
+                        .scopes(scopes)
+                        .firstParty(false)
+                        .active(true)
+                        .createdAt(CREATED_AT)
+                        .updatedAt(UPDATED_AT)
+                        .build();
 
-        ClientApplication d = PersistenceMapper.toDomain(e);
+        // Act
+        ClientApplication result =
+                PersistenceMapper.toDomain(entity);
 
-        assertEquals("10", String.valueOf(callAnyNoArg(d, "id", "getId")));
-        assertEquals("client-1", callAnyNoArg(d, "clientId", "getClientId"));
-        assertEquals("secret", callAnyNoArg(d, "clientSecretHash", "getClientSecretHash"));
-        assertEquals("App", callAnyNoArg(d, "name", "getName"));
-        assertEquals(e.getClientType(), callAnyNoArg(d, "clientType", "getClientType"));
-
-        Set<?> mappedRedirectUris = (Set<?>) callAnyNoArg(d, "redirectUris", "getRedirectUris");
-        Set<?> mappedScopes = (Set<?>) callAnyNoArg(d, "scopes", "getScopes");
-        Set<?> grantTypes = (Set<?>) callAnyNoArg(d, "grantTypes", "getGrantTypes");
-
-        assertEquals(Set.of("https://a/cb", "https://b/cb"), mappedRedirectUris);
-        assertEquals(Set.of("openid", "profile"), mappedScopes);
-        assertNotNull(grantTypes);
-        assertTrue(grantTypes.isEmpty());
-
-        assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) mappedRedirectUris).add(new Object()));
-        assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) mappedScopes).add(new Object()));
-        assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) grantTypes).add(new Object()));
-    }
-
-
-    @Test
-    void toEntity_clientApplication_shouldMapAllFields_usingMocks() {
-        ClientApplication d = mock(ClientApplication.class);
-
-        when(d.id()).thenReturn("20");
-        when(d.clientId()).thenReturn("client-2");
-        when(d.clientSecretHash()).thenReturn("sec2");
-        when(d.name()).thenReturn("App2");
-        when(d.clientType()).thenReturn(ClientType.values()[0]);
-        when(d.grantTypes()).thenReturn(Set.of());
-        when(d.redirectUris()).thenReturn(Set.of("https://cb"));
-        when(d.scopes()).thenReturn(Set.of("openid"));
-        when(d.isFirstParty()).thenReturn(false);
-        when(d.isActive()).thenReturn(true);
-        when(d.createdAt()).thenReturn(Instant.parse("2024-05-01T00:00:00Z"));
-        when(d.updatedAt()).thenReturn(Instant.parse("2024-05-02T00:00:00Z"));
-
-        ClientApplicationEntity e = PersistenceMapper.toEntity(d);
-
-        assertEquals("20", e.getId());
-        assertEquals("client-2", e.getClientId());
-        assertEquals("sec2", e.getClientSecretHash());
-        assertEquals("App2", e.getName());
-        assertEquals(d.clientType(), e.getClientType());
-        assertEquals(Set.of(), e.getGrantTypes());
-        assertEquals(Set.of("https://cb"), e.getRedirectUris());
-        assertEquals(Set.of("openid"), e.getScopes());
-        assertFalse(e.isFirstParty());
-        assertTrue(e.isActive());
-        assertEquals(Instant.parse("2024-05-01T00:00:00Z"), e.getCreatedAt());
-        assertEquals(Instant.parse("2024-05-02T00:00:00Z"), e.getUpdatedAt());
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        Set.of(grantType),
+                        result.grantTypes()
+                ),
+                () -> assertEquals(
+                        Set.of(
+                                "https://ecofy.com/callback",
+                                "https://app.ecofy.com/callback"
+                        ),
+                        result.redirectUris()
+                ),
+                () -> assertEquals(
+                        Set.of("openid", "profile"),
+                        result.scopes()
+                ),
+                () -> assertFalse(result.isFirstParty()),
+                () -> assertTrue(result.isActive()),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> result.grantTypes().add(grantType)
+                ),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> result.redirectUris().add(
+                                "https://other.ecofy.com/callback"
+                        )
+                ),
+                () -> assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> result.scopes().add("email")
+                )
+        );
     }
 
     @Test
-    void toDomain_refreshToken_shouldMapAllFields() {
-        UUID id = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
-        UUID userId = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    @DisplayName("Deve rejeitar aplicação cliente nula ao converter para entidade")
+    void toEntity_clientApplicationNula_deveLancarNullPointerException() {
+        // Arrange
+        ClientApplication clientApplication = null;
 
-        RefreshTokenEntity e = RefreshTokenEntity.builder()
-                .id(id)
-                .tokenValue("rt")
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toEntity(clientApplication)
+        );
+
+        // Assert
+        assertEquals(
+                "clientApplication must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve converter aplicação cliente de domínio para entidade com todos os campos")
+    void toEntity_clientApplicationValida_deveMapearTodosOsCampos() {
+        // Arrange
+        GrantType grantType = GrantType.values()[0];
+        ClientType clientType = ClientType.values()[0];
+
+        ClientApplication clientApplication =
+                new ClientApplication(
+                        "application-3",
+                        "client-3",
+                        "secret-hash",
+                        "Aplicação interna",
+                        clientType,
+                        Set.of(grantType),
+                        Set.of("https://ecofy.com/callback"),
+                        Set.of("openid", "profile"),
+                        true,
+                        false,
+                        CREATED_AT,
+                        UPDATED_AT
+                );
+
+        // Act
+        ClientApplicationEntity result =
+                PersistenceMapper.toEntity(clientApplication);
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "application-3",
+                        result.getId()
+                ),
+                () -> assertEquals(
+                        "client-3",
+                        result.getClientId()
+                ),
+                () -> assertEquals(
+                        "secret-hash",
+                        result.getClientSecretHash()
+                ),
+                () -> assertEquals(
+                        "Aplicação interna",
+                        result.getName()
+                ),
+                () -> assertEquals(
+                        clientType,
+                        result.getClientType()
+                ),
+                () -> assertEquals(
+                        Set.of(grantType),
+                        result.getGrantTypes()
+                ),
+                () -> assertEquals(
+                        Set.of("https://ecofy.com/callback"),
+                        result.getRedirectUris()
+                ),
+                () -> assertEquals(
+                        Set.of("openid", "profile"),
+                        result.getScopes()
+                ),
+                () -> assertTrue(result.isFirstParty()),
+                () -> assertFalse(result.isActive()),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.getCreatedAt()
+                ),
+                () -> assertEquals(
+                        UPDATED_AT,
+                        result.getUpdatedAt()
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar entidade de refresh token nula ao converter para domínio")
+    void toDomain_refreshTokenEntityNula_deveLancarNullPointerException() {
+        // Arrange
+        RefreshTokenEntity entity = null;
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toDomain(entity)
+        );
+
+        // Assert
+        assertEquals(
+                "RefreshTokenEntity must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve converter entidade de refresh token com todos os campos")
+    void toDomain_refreshTokenEntityValida_deveMapearTodosOsCampos() {
+        // Arrange
+        UUID tokenId = UUID.fromString(
+                "dddddddd-dddd-dddd-dddd-dddddddddddd"
+        );
+        UUID userId = UUID.fromString(
+                "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+        );
+
+        RefreshTokenEntity entity = RefreshTokenEntity.builder()
+                .id(tokenId)
+                .tokenValue("refresh-token")
                 .userId(userId)
-                .clientId("client-x")
-                .issuedAt(Instant.parse("2024-06-01T00:00:00Z"))
-                .expiresAt(Instant.parse("2024-06-02T00:00:00Z"))
+                .clientId("client-4")
+                .issuedAt(CREATED_AT)
+                .expiresAt(EXPIRES_AT)
                 .revoked(true)
                 .type(TokenType.REFRESH)
                 .build();
 
-        RefreshToken d = PersistenceMapper.toDomain(e);
+        // Act
+        RefreshToken result = PersistenceMapper.toDomain(entity);
 
-        assertEquals(id, callAnyNoArg(d, "id", "getId"));
-        assertEquals("rt", callAnyNoArg(d, "tokenValue", "getTokenValue"));
-        Object userIdVo = callAnyNoArg(d, "userId", "getUserId");
-        assertEquals(userId, callNoArg(userIdVo, "value"));
-        assertEquals("client-x", callAnyNoArg(d, "clientId", "getClientId"));
-        assertEquals(e.getIssuedAt(), callAnyNoArg(d, "issuedAt", "getIssuedAt"));
-        assertEquals(e.getExpiresAt(), callAnyNoArg(d, "expiresAt", "getExpiresAt"));
-        assertEquals(true, callAnyNoArg(d, "isRevoked", "revoked", "getRevoked"));
-        assertEquals(TokenType.REFRESH, callAnyNoArg(d, "type", "getType"));
+        // Assert
+        assertAll(
+                () -> assertEquals(tokenId, result.id()),
+                () -> assertEquals(
+                        "refresh-token",
+                        result.tokenValue()
+                ),
+                () -> assertEquals(
+                        userId,
+                        result.userId().value()
+                ),
+                () -> assertEquals(
+                        "client-4",
+                        result.clientId()
+                ),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.issuedAt()
+                ),
+                () -> assertEquals(
+                        EXPIRES_AT,
+                        result.expiresAt()
+                ),
+                () -> assertTrue(result.isRevoked()),
+                () -> assertEquals(
+                        TokenType.REFRESH,
+                        result.type()
+                )
+        );
     }
 
     @Test
-    void toEntity_refreshToken_shouldMapAllFields_usingMocks() {
-        UUID id = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
-        UUID userId = UUID.fromString("99999999-9999-9999-9999-999999999999");
+    @DisplayName("Deve rejeitar refresh token nulo ao converter para entidade")
+    void toEntity_refreshTokenNulo_deveLancarNullPointerException() {
+        // Arrange
+        RefreshToken refreshToken = null;
 
-        RefreshToken d = mock(RefreshToken.class);
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toEntity(refreshToken)
+        );
 
-        AuthUserId userIdVo = mock(AuthUserId.class);
-        when(userIdVo.value()).thenReturn(userId);
-
-        when(d.id()).thenReturn(id);
-        when(d.tokenValue()).thenReturn("rt2");
-        when(d.userId()).thenReturn(userIdVo);
-        when(d.clientId()).thenReturn("client-y");
-        when(d.issuedAt()).thenReturn(Instant.parse("2024-07-01T00:00:00Z"));
-        when(d.expiresAt()).thenReturn(Instant.parse("2024-07-02T00:00:00Z"));
-        when(d.isRevoked()).thenReturn(false);
-        when(d.type()).thenReturn(TokenType.REFRESH);
-
-        RefreshTokenEntity e = PersistenceMapper.toEntity(d);
-
-        assertEquals(id, e.getId());
-        assertEquals("rt2", e.getTokenValue());
-        assertEquals(userId, e.getUserId());
-        assertEquals("client-y", e.getClientId());
-        assertEquals(d.issuedAt(), e.getIssuedAt());
-        assertEquals(d.expiresAt(), e.getExpiresAt());
-        assertFalse(e.isRevoked());
-        assertEquals(TokenType.REFRESH, e.getType());
+        // Assert
+        assertEquals(
+                "refreshToken must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    void toDomain_jwk_shouldMapAllFields() {
-        JwkKeyEntity e = new JwkKeyEntity();
-        e.setKeyId("kid-1");
-        e.setPublicKeyPem("pem");
-        e.setAlgorithm("RS256");
-        e.setUse("sig");
-        e.setCreatedAt(Instant.parse("2024-08-01T00:00:00Z"));
-        e.setActive(true);
+    @DisplayName("Deve converter refresh token de domínio para entidade com todos os campos")
+    void toEntity_refreshTokenValido_deveMapearTodosOsCampos() {
+        // Arrange
+        UUID tokenId = UUID.fromString(
+                "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        );
+        UUID userId = UUID.fromString(
+                "99999999-9999-9999-9999-999999999999"
+        );
 
-        JwkKey d = PersistenceMapper.toDomain(e);
+        RefreshToken refreshToken = new RefreshToken(
+                tokenId,
+                "refresh-token-value",
+                new AuthUserId(userId),
+                "client-5",
+                CREATED_AT,
+                EXPIRES_AT,
+                false,
+                TokenType.REFRESH
+        );
 
-        assertEquals("kid-1", callAnyNoArg(d, "keyId", "getKeyId"));
-        assertEquals("pem", callAnyNoArg(d, "publicKeyPem", "getPublicKeyPem"));
-        assertEquals("RS256", callAnyNoArg(d, "algorithm", "getAlgorithm"));
-        assertEquals("sig", callAnyNoArg(d, "use", "getUse"));
-        assertEquals(e.getCreatedAt(), callAnyNoArg(d, "createdAt", "getCreatedAt"));
-        assertEquals(true, callAnyNoArg(d, "active", "isActive", "getActive"));
+        // Act
+        RefreshTokenEntity result =
+                PersistenceMapper.toEntity(refreshToken);
+
+        // Assert
+        assertAll(
+                () -> assertEquals(tokenId, result.getId()),
+                () -> assertEquals(
+                        "refresh-token-value",
+                        result.getTokenValue()
+                ),
+                () -> assertEquals(userId, result.getUserId()),
+                () -> assertEquals(
+                        "client-5",
+                        result.getClientId()
+                ),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.getIssuedAt()
+                ),
+                () -> assertEquals(
+                        EXPIRES_AT,
+                        result.getExpiresAt()
+                ),
+                () -> assertFalse(result.isRevoked()),
+                () -> assertEquals(
+                        TokenType.REFRESH,
+                        result.getType()
+                )
+        );
     }
 
     @Test
-    void toDomain_clientApplication_shouldMapGrantTypes_whenNotNull_andFilterNulls_andReturnUnmodifiableSet() {
-        java.util.Set<GrantType> grantTypes = new java.util.HashSet<>();
-        grantTypes.add(GrantType.values()[0]);
-        grantTypes.add(null);
+    @DisplayName("Deve rejeitar entidade de chave JWK nula ao converter para domínio")
+    void toDomain_jwkKeyEntityNula_deveLancarNullPointerException() {
+        // Arrange
+        JwkKeyEntity entity = null;
 
-        ClientApplicationEntity e = ClientApplicationEntity.builder()
-                .id("11")
-                .clientId("client-gt")
-                .clientSecretHash("secret")
-                .name("App")
-                .clientType(ClientType.values()[0])
-                .grantTypes(grantTypes)
-                .redirectUris(null)
-                .scopes(null)
-                .firstParty(false)
-                .active(true)
-                .createdAt(Instant.parse("2024-04-01T00:00:00Z"))
-                .updatedAt(Instant.parse("2024-04-02T00:00:00Z"))
-                .build();
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> PersistenceMapper.toDomain(entity)
+        );
 
-        ClientApplication d = PersistenceMapper.toDomain(e);
-
-        Set<?> mappedGrantTypes = (Set<?>) callAnyNoArg(d, "grantTypes", "getGrantTypes");
-
-        assertNotNull(mappedGrantTypes);
-        assertEquals(1, mappedGrantTypes.size());
-        assertTrue(mappedGrantTypes.contains(GrantType.values()[0]));
-        assertThrows(UnsupportedOperationException.class, () -> ((Set<Object>) mappedGrantTypes).add(new Object()));
+        // Assert
+        assertEquals(
+                "JwkKeyEntity must not be null",
+                exception.getMessage()
+        );
     }
 
-    // heapers
+    @Test
+    @DisplayName("Deve converter entidade de chave JWK com todos os campos")
+    void toDomain_jwkKeyEntityValida_deveMapearTodosOsCampos() {
+        // Arrange
+        JwkKeyEntity entity = new JwkKeyEntity();
+        entity.setKeyId("key-id-1");
+        entity.setPublicKeyPem("public-key-pem");
+        entity.setAlgorithm("RS256");
+        entity.setUse("sig");
+        entity.setCreatedAt(CREATED_AT);
+        entity.setActive(true);
 
-    private static Object callNoArg(Object target, String name) {
-        try {
-            return target.getClass().getMethod(name).invoke(target);
-        } catch (Exception e) {
-            throw new AssertionError("Method not found or not invokable: " + target.getClass().getName() + "." + name, e);
-        }
+        // Act
+        JwkKey result = PersistenceMapper.toDomain(entity);
+
+        // Assert
+        assertAll(
+                () -> assertEquals("key-id-1", result.keyId()),
+                () -> assertEquals(
+                        "public-key-pem",
+                        result.publicKeyPem()
+                ),
+                () -> assertEquals("RS256", result.algorithm()),
+                () -> assertEquals("sig", result.use()),
+                () -> assertEquals(
+                        CREATED_AT,
+                        result.createdAt()
+                ),
+                () -> assertTrue(result.active())
+        );
     }
 
-    private static Object callAnyNoArg(Object target, String... names) {
-        for (String name : names) {
-            try {
-                return target.getClass().getMethod(name).invoke(target);
-            } catch (Exception ignored) {
-            }
-            String cap = Character.toUpperCase(name.charAt(0)) + name.substring(1);
-            for (String alt : new String[]{"get" + cap, "is" + cap}) {
-                try {
-                    return target.getClass().getMethod(alt).invoke(target);
-                } catch (Exception ignored) {
-                }
-            }
-        }
-        throw new AssertionError("No matching no-arg method found on " + target.getClass().getName() + " for: " + String.join(", ", names));
+    private AuthUserEntity createAuthUserEntity(UUID id) {
+        AuthUserEntity entity = new AuthUserEntity();
+        entity.setId(id);
+        entity.setEmail("usuario@ecofy.com");
+        entity.setPasswordHash("password-hash");
+        entity.setStatus(AuthUserStatus.ACTIVE);
+        entity.setEmailVerified(true);
+        entity.setFirstName("Matheus");
+        entity.setLastName("Silva");
+        entity.setLocale("pt-BR");
+        entity.setCreatedAt(CREATED_AT);
+        entity.setUpdatedAt(UPDATED_AT);
+        entity.setLastLoginAt(LAST_LOGIN_AT);
+        entity.setFailedLoginAttempts(2);
+        return entity;
     }
 
-    private static Set<?> extractPermissionsFromAuthUser(AuthUser user) {
-        String[] candidates = {
-                "permissions", "perms", "privileges", "authorities", "grants",
-                "getPermissions", "getPerms", "getPrivileges", "getAuthorities", "getGrants"
-        };
-
-        for (String c : candidates) {
-            try {
-                Object v = user.getClass().getMethod(c).invoke(user);
-                if (v instanceof Set<?> s) return s;
-            } catch (Exception ignored) {
-            }
-        }
-
-        Set<?> roles = (Set<?>) callAnyNoArg(user, "roles", "getRoles", "authorities", "getAuthorities");
-        java.util.Set<Object> aggregated = new java.util.HashSet<>();
-
-        for (Object role : roles) {
-            Set<?> rolePerms = null;
-            try {
-                Object rp = callAnyNoArg(role, "permissions", "perms", "privileges", "getPermissions", "getPerms", "getPrivileges");
-                if (rp instanceof Set<?> s) rolePerms = s;
-            } catch (AssertionError ignored) {
-            }
-            if (rolePerms != null) aggregated.addAll(rolePerms);
-        }
-
-        return java.util.Collections.unmodifiableSet(aggregated);
+    private PermissionEntity createPermissionEntity(
+            String name,
+            String description,
+            String domain
+    ) {
+        PermissionEntity entity = new PermissionEntity();
+        entity.setName(name);
+        entity.setDescription(description);
+        entity.setDomain(domain);
+        return entity;
     }
-
-
 }

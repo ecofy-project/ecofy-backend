@@ -1,147 +1,659 @@
 package br.com.ecofy.auth.adapters.out.messaging;
 
+import br.com.ecofy.auth.adapters.in.web.correlation.CorrelationId;
+import br.com.ecofy.auth.adapters.out.messaging.dto.AuthUserRegisteredMessage;
+import br.com.ecofy.auth.core.domain.AuthUser;
 import br.com.ecofy.auth.core.domain.event.PasswordResetRequestedEvent;
 import br.com.ecofy.auth.core.domain.event.UserAuthenticatedEvent;
 import br.com.ecofy.auth.core.domain.event.UserEmailConfirmedEvent;
 import br.com.ecofy.auth.core.domain.event.UserRegisteredEvent;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.header.Header;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Answers.RETURNS_DEEP_STUBS;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
+@DisplayName("Testes unitários do adaptador Kafka de eventos de autenticação")
 class AuthEventsKafkaAdapterTest {
 
-    @Test
-    @DisplayName("constructor: kafkaTemplate null -> NPE com mensagem")
-    void constructor_kafkaTemplateNull_throwsNpe() {
-        assertThatThrownBy(() -> new AuthEventsKafkaAdapter(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("kafkaTemplate must not be null");
+    private static final String DEFAULT_TOPIC_USER_REGISTERED =
+            "auth.user.registered";
+    private static final String CUSTOM_TOPIC_USER_REGISTERED =
+            "custom.auth.user.registered";
+    private static final String TOPIC_USER_EMAIL_CONFIRMED =
+            "auth.user.email-confirmed";
+    private static final String TOPIC_USER_AUTHENTICATED =
+            "auth.user.authenticated";
+    private static final String TOPIC_PASSWORD_RESET_REQUESTED =
+            "auth.user.password-reset-requested";
+
+    private static final String EVENT_TYPE_USER_REGISTERED =
+            "AUTH_USER_REGISTERED";
+    private static final String CORRELATION_ID = "correlation-id-123";
+    private static final String GENERATED_CORRELATION_ID =
+            "generated-correlation-id-456";
+    private static final String FULL_NAME = "Usuário EcoFy";
+    private static final String EMAIL = "usuario@ecofy.com";
+    private static final String PRODUCER = "ms-auth";
+
+    private KafkaTemplate<String, Object> kafkaTemplate;
+
+    @BeforeEach
+    void setUp() {
+        kafkaTemplate = mock(KafkaTemplate.class);
     }
 
     @Test
-    @DisplayName("publish(UserRegisteredEvent): event null -> NPE")
-    void publish_userRegistered_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
-        assertThatThrownBy(() -> a.publish((UserRegisteredEvent) null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("event must not be null");
+    @DisplayName("Deve rejeitar KafkaTemplate nulo ao construir o adaptador")
+    void constructor_kafkaTemplateNulo_deveLancarNullPointerException() {
+        // Arrange
+        KafkaTemplate<String, Object> nullKafkaTemplate = null;
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new AuthEventsKafkaAdapter(
+                        nullKafkaTemplate,
+                        CUSTOM_TOPIC_USER_REGISTERED
+                )
+        );
+
+        // Assert
+        assertEquals(
+                "kafkaTemplate must not be null",
+                exception.getMessage()
+        );
     }
 
     @Test
-    @DisplayName("publish(UserEmailConfirmedEvent): event null -> NPE")
-    void publish_userEmailConfirmed_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
-        assertThatThrownBy(() -> a.publish((UserEmailConfirmedEvent) null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("event must not be null");
+    @DisplayName("Deve utilizar o tópico configurado ao publicar o registro do usuário")
+    void publish_topicoConfiguradoECorrelationIdAtual_deveEnviarRegistroComHeaders()
+            throws Exception {
+        // Arrange
+        UUID userId = UUID.randomUUID();
+        Instant occurredAt = Instant.parse("2026-07-20T15:00:00Z");
+        UserRegisteredEvent event = mockRegisteredEvent(
+                userId,
+                occurredAt
+        );
+
+        SendResult<String, Object> sendResult = successfulSendResult();
+        CompletableFuture<SendResult<String, Object>> future =
+                CompletableFuture.completedFuture(sendResult);
+
+        doReturn(future)
+                .when(kafkaTemplate)
+                .send(any(ProducerRecord.class));
+
+        AuthEventsKafkaAdapter adapter = new AuthEventsKafkaAdapter(
+                kafkaTemplate,
+                CUSTOM_TOPIC_USER_REGISTERED
+        );
+
+        try (MockedStatic<CorrelationId> correlationId =
+                     mockCorrelationId(CORRELATION_ID, null)) {
+
+            // Act
+            adapter.publish(event);
+
+            // Assert
+            ArgumentCaptor<ProducerRecord<String, Object>> captor =
+                    producerRecordCaptor();
+
+            verify(kafkaTemplate).send(captor.capture());
+
+            ProducerRecord<String, Object> record = captor.getValue();
+            AuthUserRegisteredMessage message = assertInstanceOf(
+                    AuthUserRegisteredMessage.class,
+                    record.value()
+            );
+
+            String eventId = headerValue(record, "eventId");
+
+            assertAll(
+                    () -> assertEquals(
+                            CUSTOM_TOPIC_USER_REGISTERED,
+                            record.topic()
+                    ),
+                    () -> assertEquals(
+                            userId.toString(),
+                            record.key()
+                    ),
+                    () -> assertEquals(
+                            CORRELATION_ID,
+                            headerValue(record, CorrelationId.HEADER)
+                    ),
+                    () -> assertEquals(
+                            EVENT_TYPE_USER_REGISTERED,
+                            headerValue(record, "eventType")
+                    ),
+                    () -> assertEquals(
+                            "1",
+                            headerValue(record, "eventVersion")
+                    ),
+                    () -> assertDoesNotThrow(
+                            () -> UUID.fromString(eventId)
+                    ),
+                    () -> assertMessageValues(
+                            message,
+                            userId,
+                            occurredAt,
+                            eventId,
+                            CORRELATION_ID
+                    )
+            );
+
+            correlationId.verify(CorrelationId::current);
+            correlationId.verify(
+                    CorrelationId::generate,
+                    never()
+            );
+        }
     }
 
     @Test
-    @DisplayName("publish(UserAuthenticatedEvent): event null -> NPE")
-    void publish_userAuthenticated_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
-        assertThatThrownBy(() -> a.publish((UserAuthenticatedEvent) null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("event must not be null");
+    @DisplayName("Deve utilizar o tópico padrão e gerar correlation ID quando a configuração e o contexto forem nulos")
+    void publish_topicoNuloECorrelationIdNulo_deveUsarValoresPadrao()
+            throws Exception {
+        // Arrange
+        UUID userId = UUID.randomUUID();
+        UserRegisteredEvent event = mockRegisteredEvent(
+                userId,
+                Instant.parse("2026-07-20T15:10:00Z")
+        );
+
+        RuntimeException sendFailure =
+                new RuntimeException("Kafka indisponível");
+        CompletableFuture<SendResult<String, Object>> future =
+                CompletableFuture.failedFuture(sendFailure);
+
+        doReturn(future)
+                .when(kafkaTemplate)
+                .send(any(ProducerRecord.class));
+
+        AuthEventsKafkaAdapter adapter = new AuthEventsKafkaAdapter(
+                kafkaTemplate,
+                null
+        );
+
+        try (MockedStatic<CorrelationId> correlationId =
+                     mockCorrelationId(null, GENERATED_CORRELATION_ID)) {
+
+            // Act
+            assertDoesNotThrow(() -> adapter.publish(event));
+
+            // Assert
+            ArgumentCaptor<ProducerRecord<String, Object>> captor =
+                    producerRecordCaptor();
+
+            verify(kafkaTemplate).send(captor.capture());
+
+            ProducerRecord<String, Object> record = captor.getValue();
+
+            assertAll(
+                    () -> assertEquals(
+                            DEFAULT_TOPIC_USER_REGISTERED,
+                            record.topic()
+                    ),
+                    () -> assertEquals(
+                            userId.toString(),
+                            record.key()
+                    ),
+                    () -> assertEquals(
+                            GENERATED_CORRELATION_ID,
+                            headerValue(record, CorrelationId.HEADER)
+                    ),
+                    () -> assertTrue(future.isCompletedExceptionally())
+            );
+
+            correlationId.verify(CorrelationId::current);
+            correlationId.verify(CorrelationId::generate);
+        }
     }
 
     @Test
-    @DisplayName("publish(PasswordResetRequestedEvent): event null -> NPE")
-    void publish_passwordResetRequested_null_throwsNpe() {
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(mockKafkaTemplate());
-        assertThatThrownBy(() -> a.publish((PasswordResetRequestedEvent) null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("event must not be null");
+    @DisplayName("Deve utilizar o tópico padrão e gerar correlation ID quando os valores estiverem em branco")
+    void publish_topicoEmBrancoECorrelationIdEmBranco_deveUsarValoresPadrao()
+            throws Exception {
+        // Arrange
+        UUID userId = UUID.randomUUID();
+        UserRegisteredEvent event = mockRegisteredEvent(
+                userId,
+                Instant.parse("2026-07-20T15:20:00Z")
+        );
+
+        SendResult<String, Object> sendResult = successfulSendResult();
+        CompletableFuture<SendResult<String, Object>> future =
+                CompletableFuture.completedFuture(sendResult);
+
+        doReturn(future)
+                .when(kafkaTemplate)
+                .send(any(ProducerRecord.class));
+
+        AuthEventsKafkaAdapter adapter = new AuthEventsKafkaAdapter(
+                kafkaTemplate,
+                "   "
+        );
+
+        try (MockedStatic<CorrelationId> correlationId =
+                     mockCorrelationId("   ", GENERATED_CORRELATION_ID)) {
+
+            // Act
+            adapter.publish(event);
+
+            // Assert
+            ArgumentCaptor<ProducerRecord<String, Object>> captor =
+                    producerRecordCaptor();
+
+            verify(kafkaTemplate).send(captor.capture());
+
+            ProducerRecord<String, Object> record = captor.getValue();
+
+            assertAll(
+                    () -> assertEquals(
+                            DEFAULT_TOPIC_USER_REGISTERED,
+                            record.topic()
+                    ),
+                    () -> assertEquals(
+                            GENERATED_CORRELATION_ID,
+                            headerValue(record, CorrelationId.HEADER)
+                    )
+            );
+
+            correlationId.verify(CorrelationId::current);
+            correlationId.verify(CorrelationId::generate);
+        }
     }
 
     @Test
-    @DisplayName("publish: envia para tópicos corretos com key = userId")
-    void publish_allEvents_successPath() {
-        KafkaTemplate<String, Object> kt = mockKafkaTemplate();
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(kt);
+    @DisplayName("Deve rejeitar evento de registro nulo sem enviar mensagem ao Kafka")
+    void publish_userRegisteredEventNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthEventsKafkaAdapter adapter = createAdapter();
 
-        UUID id = UUID.fromString("11111111-2222-3333-4444-555555555555");
-        String key = id.toString();
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.publish((UserRegisteredEvent) null)
+        );
 
-        UserRegisteredEvent e1 = mock(UserRegisteredEvent.class, RETURNS_DEEP_STUBS);
-        when(e1.user().id().value()).thenReturn(id);
-
-        UserEmailConfirmedEvent e2 = mock(UserEmailConfirmedEvent.class, RETURNS_DEEP_STUBS);
-        when(e2.user().id().value()).thenReturn(id);
-
-        UserAuthenticatedEvent e3 = mock(UserAuthenticatedEvent.class, RETURNS_DEEP_STUBS);
-        when(e3.user().id().value()).thenReturn(id);
-
-        PasswordResetRequestedEvent e4 = mock(PasswordResetRequestedEvent.class, RETURNS_DEEP_STUBS);
-        when(e4.user().id().value()).thenReturn(id);
-
-        when(kt.send(eq("auth.user.registered"), eq(key), eq(e1)))
-                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.registered", 0, 10L)));
-        when(kt.send(eq("auth.user.email-confirmed"), eq(key), eq(e2)))
-                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.email-confirmed", 1, 11L)));
-        when(kt.send(eq("auth.user.authenticated"), eq(key), eq(e3)))
-                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.authenticated", 2, 12L)));
-        when(kt.send(eq("auth.user.password-reset-requested"), eq(key), eq(e4)))
-                .thenReturn(CompletableFuture.completedFuture(sendResult("auth.user.password-reset-requested", 3, 13L)));
-
-        a.publish(e1);
-        a.publish(e2);
-        a.publish(e3);
-        a.publish(e4);
-
-        verify(kt).send("auth.user.registered", key, e1);
-        verify(kt).send("auth.user.email-confirmed", key, e2);
-        verify(kt).send("auth.user.authenticated", key, e3);
-        verify(kt).send("auth.user.password-reset-requested", key, e4);
-        verifyNoMoreInteractions(kt);
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "event must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(kafkaTemplate)
+        );
     }
 
     @Test
-    @DisplayName("publish: callback com exception não lança")
-    void publish_whenFutureCompletesExceptionally_doesNotThrow() {
-        KafkaTemplate<String, Object> kt = mockKafkaTemplate();
-        AuthEventsKafkaAdapter a = new AuthEventsKafkaAdapter(kt);
+    @DisplayName("Deve publicar a confirmação de e-mail utilizando o identificador do usuário como chave")
+    void publish_userEmailConfirmedEventValido_deveEnviarEventoComSucesso() {
+        // Arrange
+        UUID userId = UUID.randomUUID();
+        UserEmailConfirmedEvent event =
+                mock(UserEmailConfirmedEvent.class);
 
-        UUID id = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
-        String key = id.toString();
+        AuthUser user = mockAuthUser(userId);
+        when(event.user()).thenReturn(user);
 
-        UserRegisteredEvent e = mock(UserRegisteredEvent.class, RETURNS_DEEP_STUBS);
-        when(e.user().id().value()).thenReturn(id);
+        RecordMetadata metadata = mock(RecordMetadata.class);
+        SendResult<String, Object> sendResult = mock(SendResult.class);
 
-        CompletableFuture<SendResult<String, Object>> f = new CompletableFuture<>();
-        when(kt.send("auth.user.registered", key, e)).thenReturn(f);
+        when(metadata.partition()).thenReturn(2);
+        when(metadata.offset()).thenReturn(15L);
+        when(sendResult.getRecordMetadata()).thenReturn(metadata);
+        when(
+                kafkaTemplate.send(
+                        TOPIC_USER_EMAIL_CONFIRMED,
+                        userId.toString(),
+                        event
+                )
+        ).thenReturn(CompletableFuture.completedFuture(sendResult));
 
-        assertThatCode(() -> a.publish(e)).doesNotThrowAnyException();
+        AuthEventsKafkaAdapter adapter = createAdapter();
 
-        f.completeExceptionally(new RuntimeException("boom"));
+        // Act
+        adapter.publish(event);
 
-        verify(kt).send("auth.user.registered", key, e);
-        verifyNoMoreInteractions(kt);
+        // Assert
+        assertAll(
+                () -> verify(kafkaTemplate).send(
+                        TOPIC_USER_EMAIL_CONFIRMED,
+                        userId.toString(),
+                        event
+                ),
+                () -> verify(sendResult).getRecordMetadata(),
+                () -> verify(metadata).partition(),
+                () -> verify(metadata).offset()
+        );
     }
 
-    // heapers
+    @Test
+    @DisplayName("Deve rejeitar evento de confirmação de e-mail nulo sem enviar mensagem ao Kafka")
+    void publish_userEmailConfirmedEventNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthEventsKafkaAdapter adapter = createAdapter();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.publish((UserEmailConfirmedEvent) null)
+        );
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "event must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(kafkaTemplate)
+        );
+    }
+
+    @Test
+    @DisplayName("Deve registrar a falha assíncrona ao publicar a autenticação do usuário")
+    void publish_userAuthenticatedEventComFalha_deveConcluirSemPropagarExcecao() {
+        // Arrange
+        UUID userId = UUID.randomUUID();
+        UserAuthenticatedEvent event =
+                mock(UserAuthenticatedEvent.class);
+
+        AuthUser user = mockAuthUser(userId);
+        when(event.user()).thenReturn(user);
+
+        RuntimeException sendFailure =
+                new RuntimeException("Falha ao publicar autenticação");
+        CompletableFuture<SendResult<String, Object>> future =
+                CompletableFuture.failedFuture(sendFailure);
+
+        when(
+                kafkaTemplate.send(
+                        TOPIC_USER_AUTHENTICATED,
+                        userId.toString(),
+                        event
+                )
+        ).thenReturn(future);
+
+        AuthEventsKafkaAdapter adapter = createAdapter();
+
+        // Act
+        assertDoesNotThrow(() -> adapter.publish(event));
+
+        // Assert
+        assertAll(
+                () -> verify(kafkaTemplate).send(
+                        TOPIC_USER_AUTHENTICATED,
+                        userId.toString(),
+                        event
+                ),
+                () -> assertTrue(future.isCompletedExceptionally())
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar evento de autenticação nulo sem enviar mensagem ao Kafka")
+    void publish_userAuthenticatedEventNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthEventsKafkaAdapter adapter = createAdapter();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.publish((UserAuthenticatedEvent) null)
+        );
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "event must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(kafkaTemplate)
+        );
+    }
+
+    @Test
+    @DisplayName("Deve publicar a solicitação de redefinição de senha utilizando o identificador do usuário como chave")
+    void publish_passwordResetRequestedEventValido_deveEnviarEventoComSucesso() {
+        // Arrange
+        UUID userId = UUID.randomUUID();
+        PasswordResetRequestedEvent event =
+                mock(PasswordResetRequestedEvent.class);
+
+        AuthUser user = mockAuthUser(userId);
+        when(event.user()).thenReturn(user);
+
+        RecordMetadata metadata = mock(RecordMetadata.class);
+        SendResult<String, Object> sendResult = mock(SendResult.class);
+
+        when(metadata.partition()).thenReturn(4);
+        when(metadata.offset()).thenReturn(25L);
+        when(sendResult.getRecordMetadata()).thenReturn(metadata);
+        when(
+                kafkaTemplate.send(
+                        TOPIC_PASSWORD_RESET_REQUESTED,
+                        userId.toString(),
+                        event
+                )
+        ).thenReturn(CompletableFuture.completedFuture(sendResult));
+
+        AuthEventsKafkaAdapter adapter = createAdapter();
+
+        // Act
+        adapter.publish(event);
+
+        // Assert
+        assertAll(
+                () -> verify(kafkaTemplate).send(
+                        TOPIC_PASSWORD_RESET_REQUESTED,
+                        userId.toString(),
+                        event
+                ),
+                () -> verify(sendResult).getRecordMetadata(),
+                () -> verify(metadata).partition(),
+                () -> verify(metadata).offset()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar evento de redefinição de senha nulo sem enviar mensagem ao Kafka")
+    void publish_passwordResetRequestedEventNulo_deveLancarNullPointerException() {
+        // Arrange
+        AuthEventsKafkaAdapter adapter = createAdapter();
+
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> adapter.publish(
+                        (PasswordResetRequestedEvent) null
+                )
+        );
+
+        // Assert
+        assertAll(
+                () -> assertEquals(
+                        "event must not be null",
+                        exception.getMessage()
+                ),
+                () -> verifyNoInteractions(kafkaTemplate)
+        );
+    }
+
+    private AuthEventsKafkaAdapter createAdapter() {
+        return new AuthEventsKafkaAdapter(
+                kafkaTemplate,
+                CUSTOM_TOPIC_USER_REGISTERED
+        );
+    }
+
+    private UserRegisteredEvent mockRegisteredEvent(
+            UUID userId,
+            Instant occurredAt
+    ) {
+        UserRegisteredEvent event = mock(UserRegisteredEvent.class);
+        AuthUser user = mockAuthUser(userId);
+
+        when(event.user()).thenReturn(user);
+        when(event.occurredAt()).thenReturn(occurredAt);
+
+        return event;
+    }
+
+    private AuthUser mockAuthUser(UUID userId) {
+        AuthUser user = mock(
+                AuthUser.class,
+                RETURNS_DEEP_STUBS
+        );
+
+        when(user.id().value()).thenReturn(userId);
+        when(user.fullName()).thenReturn(FULL_NAME);
+        when(user.email().value()).thenReturn(EMAIL);
+
+        return user;
+    }
+
+    private SendResult<String, Object> successfulSendResult() {
+        RecordMetadata metadata = mock(RecordMetadata.class);
+        SendResult<String, Object> sendResult = mock(SendResult.class);
+
+        when(metadata.partition()).thenReturn(1);
+        when(metadata.offset()).thenReturn(10L);
+        when(sendResult.getRecordMetadata()).thenReturn(metadata);
+
+        return sendResult;
+    }
+
+    private MockedStatic<CorrelationId> mockCorrelationId(
+            String current,
+            String generated
+    ) {
+        MockedStatic<CorrelationId> correlationId =
+                mockStaticCorrelationId();
+
+        correlationId.when(CorrelationId::current)
+                .thenReturn(current);
+
+        if (generated != null) {
+            correlationId.when(CorrelationId::generate)
+                    .thenReturn(generated);
+        }
+
+        return correlationId;
+    }
+
+    private MockedStatic<CorrelationId> mockStaticCorrelationId() {
+        return org.mockito.Mockito.mockStatic(CorrelationId.class);
+    }
 
     @SuppressWarnings("unchecked")
-    private static KafkaTemplate<String, Object> mockKafkaTemplate() {
-        return (KafkaTemplate<String, Object>) mock(KafkaTemplate.class);
+    private ArgumentCaptor<ProducerRecord<String, Object>>
+    producerRecordCaptor() {
+        return ArgumentCaptor.forClass(
+                (Class<ProducerRecord<String, Object>>) (Class<?>)
+                        ProducerRecord.class
+        );
     }
 
-    private static SendResult<String, Object> sendResult(String topic, int partition, long offset) {
-        ProducerRecord<String, Object> pr = new ProducerRecord<>(topic, partition, "k", "v");
-        RecordMetadata md = new RecordMetadata(new TopicPartition(topic, partition), 0, 0, offset, 0, 0);
-        return new SendResult<>(pr, md);
+    private String headerValue(
+            ProducerRecord<String, Object> record,
+            String headerName
+    ) {
+        Header header = record.headers().lastHeader(headerName);
+
+        assertNotNull(
+                header,
+                "O header " + headerName + " deve existir"
+        );
+
+        return new String(
+                header.value(),
+                StandardCharsets.UTF_8
+        );
+    }
+
+    private void assertMessageValues(
+            AuthUserRegisteredMessage message,
+            UUID userId,
+            Instant occurredAt,
+            String eventId,
+            String correlationId
+    ) throws Exception {
+        List<Object> messageValues = instanceFieldValues(message);
+
+        assertAll(
+                () -> assertTrue(
+                        messageValues.contains(userId.toString())
+                ),
+                () -> assertTrue(messageValues.contains(FULL_NAME)),
+                () -> assertTrue(messageValues.contains(EMAIL))
+        );
+
+        AuthUserRegisteredMessage.EventMetadata metadata =
+                messageValues.stream()
+                        .filter(
+                                AuthUserRegisteredMessage.EventMetadata.class
+                                        ::isInstance
+                        )
+                        .map(
+                                AuthUserRegisteredMessage.EventMetadata.class
+                                        ::cast
+                        )
+                        .findFirst()
+                        .orElseThrow();
+
+        List<Object> metadataValues = instanceFieldValues(metadata);
+
+        assertAll(
+                () -> assertTrue(metadataValues.contains(eventId)),
+                () -> assertTrue(metadataValues.contains(occurredAt)),
+                () -> assertTrue(metadataValues.contains(correlationId)),
+                () -> assertTrue(metadataValues.contains(PRODUCER))
+        );
+    }
+
+    private List<Object> instanceFieldValues(Object target)
+            throws IllegalAccessException {
+        List<Object> values = new ArrayList<>();
+
+        for (Field field : target.getClass().getDeclaredFields()) {
+            if (!Modifier.isStatic(field.getModifiers())) {
+                field.setAccessible(true);
+                values.add(field.get(target));
+            }
+        }
+
+        return values;
     }
 }

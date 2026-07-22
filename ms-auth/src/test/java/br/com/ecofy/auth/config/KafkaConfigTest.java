@@ -2,166 +2,204 @@ package br.com.ecofy.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 
-import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@DisplayName("Testes unitários da configuração do Kafka")
 class KafkaConfigTest {
 
-    @Test
-    void authEventProducerFactory_shouldConfigureBootstrapAndKeySerializer_andUseJsonSerializerWithTypeInfoDisabled() throws Exception {
-        KafkaConfig config = new KafkaConfig();
+    private static final String BOOTSTRAP_SERVERS =
+            "localhost:9092";
 
-        String bootstrap = "localhost:9092";
+    @Test
+    @DisplayName("Deve criar a fábrica de produtores com os servidores e serializadores configurados")
+    void authEventProducerFactory_configuracaoValida_deveRetornarFabricaConfigurada() {
+        // Arrange
+        KafkaConfig config = new KafkaConfig();
         ObjectMapper objectMapper = new ObjectMapper();
 
-        ProducerFactory<String, Object> pf = config.authEventProducerFactory(bootstrap, objectMapper);
+        // Act
+        ProducerFactory<String, Object> result =
+                config.authEventProducerFactory(
+                        BOOTSTRAP_SERVERS,
+                        objectMapper
+                );
 
-        assertNotNull(pf);
-        assertInstanceOf(DefaultKafkaProducerFactory.class, pf);
+        // Assert
+        DefaultKafkaProducerFactory<String, Object> factory =
+                assertInstanceOf(
+                        DefaultKafkaProducerFactory.class,
+                        result
+                );
 
-        DefaultKafkaProducerFactory<?, ?> dpf = (DefaultKafkaProducerFactory<?, ?>) pf;
+        Serializer<String> keySerializer =
+                factory.getKeySerializerSupplier().get();
+        Serializer<Object> valueSerializer =
+                factory.getValueSerializerSupplier().get();
 
-        Map<String, Object> props = dpf.getConfigurationProperties();
-        assertEquals(bootstrap, props.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG));
-
-        Serializer<?> keySerializer = extractKeySerializer(dpf);
-        assertNotNull(keySerializer);
-        assertEquals(StringSerializer.class, keySerializer.getClass());
-
-        Serializer<?> valueSerializer = extractValueSerializer(dpf);
-        assertNotNull(valueSerializer);
-
-        String vsClass = valueSerializer.getClass().getName();
-
-        assertTrue(
-                vsClass.equals("org.springframework.kafka.support.serializer.JsonSerializer")
-                        || vsClass.equals("org.springframework.kafka.support.serializer.JacksonJsonSerializer"),
-                "Value serializer deve ser JsonSerializer ou JacksonJsonSerializer, mas foi: " + vsClass
+        assertAll(
+                () -> assertEquals(
+                        BOOTSTRAP_SERVERS,
+                        factory.getConfigurationProperties().get(
+                                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG
+                        )
+                ),
+                () -> assertInstanceOf(
+                        StringSerializer.class,
+                        keySerializer
+                ),
+                () -> assertInstanceOf(
+                        JacksonJsonSerializer.class,
+                        valueSerializer
+                )
         );
-
-        Boolean addTypeInfo = readBooleanGetterIfExists(valueSerializer, "isAddTypeInfo");
-        if (addTypeInfo == null) addTypeInfo = readBooleanGetterIfExists(valueSerializer, "isAddTypeHeaders");
-        if (addTypeInfo == null) addTypeInfo = readBooleanGetterIfExists(valueSerializer, "isAddTypeInformation");
-        if (addTypeInfo == null) addTypeInfo = readBooleanGetterIfExists(valueSerializer, "isAddTypeMapper"); // alguns variants
-
-        Boolean addTypeInfoField = readBooleanFieldViaGetterFallback(valueSerializer, "addTypeInfo");
-        if (addTypeInfo == null) addTypeInfo = addTypeInfoField;
-
-        if (addTypeInfo == null) {
-            Boolean typeHeadersFromConfigs = readBooleanFromConfigsIfExists(valueSerializer, "spring.json.add.type.headers");
-            if (typeHeadersFromConfigs == null) {
-                // fallback: não falha por falta de getter/campo; o essencial já foi validado (tipo do serializer)
-                return;
-            }
-            addTypeInfo = typeHeadersFromConfigs;
-        }
-
-        assertFalse(addTypeInfo, "Type info/type headers devem estar desabilitados");
     }
+
     @Test
-    void authEventKafkaTemplate_shouldSetDefaultTopic() {
+    @DisplayName("Deve serializar a chave como texto e o valor como JSON sem adicionar headers de tipo")
+    void authEventProducerFactory_eventoValido_deveSerializarSemHeadersDeTipo() {
+        // Arrange
         KafkaConfig config = new KafkaConfig();
 
-        ProducerFactory<String, Object> pf = new DefaultKafkaProducerFactory<>(Map.of());
+        DefaultKafkaProducerFactory<String, Object> factory =
+                (DefaultKafkaProducerFactory<String, Object>)
+                        config.authEventProducerFactory(
+                                BOOTSTRAP_SERVERS,
+                                new ObjectMapper()
+                        );
 
-        KafkaTemplate<String, Object> template = config.authEventKafkaTemplate(pf);
+        Serializer<String> keySerializer =
+                factory.getKeySerializerSupplier().get();
+        Serializer<Object> valueSerializer =
+                factory.getValueSerializerSupplier().get();
 
-        assertNotNull(template);
-        assertEquals("auth.events", template.getDefaultTopic());
+        RecordHeaders headers = new RecordHeaders();
+        Map<String, Object> event =
+                Map.of("eventType", "auth.user.registered");
+
+        // Act
+        byte[] serializedKey = keySerializer.serialize(
+                KafkaConfig.AUTH_EVENTS_TOPIC,
+                "user-id"
+        );
+
+        byte[] serializedValue = valueSerializer.serialize(
+                KafkaConfig.AUTH_EVENTS_TOPIC,
+                headers,
+                event
+        );
+
+        // Assert
+        assertAll(
+                () -> assertArrayEquals(
+                        "user-id".getBytes(StandardCharsets.UTF_8),
+                        serializedKey
+                ),
+                () -> assertEquals(
+                        "{\"eventType\":\"auth.user.registered\"}",
+                        new String(
+                                serializedValue,
+                                StandardCharsets.UTF_8
+                        )
+                ),
+                () -> assertFalse(headers.iterator().hasNext())
+        );
     }
 
-    // heapers
+    @Test
+    @DisplayName("Deve criar a fábrica mesmo quando o ObjectMapper informado for nulo")
+    void authEventProducerFactory_objectMapperNulo_deveRetornarFabricaConfigurada() {
+        // Arrange
+        KafkaConfig config = new KafkaConfig();
 
-    @SuppressWarnings("unchecked")
-    private static Serializer<?> extractKeySerializer(DefaultKafkaProducerFactory<?, ?> dpf) {
-        try {
-            var f = DefaultKafkaProducerFactory.class.getDeclaredField("keySerializerSupplier");
-            f.setAccessible(true);
-            Object supplier = f.get(dpf);
-            if (supplier instanceof java.util.function.Supplier<?> s) {
-                Object serializer = s.get();
-                return (Serializer<?>) serializer;
-            }
-        } catch (NoSuchFieldException ignored) {
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        // Act
+        ProducerFactory<String, Object> result =
+                config.authEventProducerFactory(
+                        BOOTSTRAP_SERVERS,
+                        null
+                );
 
-        try {
-            var f2 = DefaultKafkaProducerFactory.class.getDeclaredField("keySerializer");
-            f2.setAccessible(true);
-            return (Serializer<?>) f2.get(dpf);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        // Assert
+        assertNotNull(result);
     }
 
-    @SuppressWarnings("unchecked")
-    private static Boolean readBooleanFromConfigsIfExists(Object serializer, String key) {
-        try {
-            for (String fieldName : java.util.List.of("configs", "config", "configuration", "properties")) {
-                try {
-                    var f = serializer.getClass().getDeclaredField(fieldName);
-                    f.setAccessible(true);
-                    Object v = f.get(serializer);
+    @Test
+    @DisplayName("Deve lançar exceção quando os servidores Kafka forem nulos")
+    void authEventProducerFactory_bootstrapServersNulos_deveLancarNullPointerException() {
+        // Arrange
+        KafkaConfig config = new KafkaConfig();
 
-                    if (v instanceof java.util.Map<?, ?> m) {
-                        Object raw = m.get(key);
-                        if (raw instanceof Boolean b) return b;
-                        if (raw instanceof String s) return Boolean.parseBoolean(s);
-                    }
-                } catch (NoSuchFieldException ignored) {
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
+        // Act
+        // Assert
+        assertThrows(
+                NullPointerException.class,
+                () -> config.authEventProducerFactory(
+                        null,
+                        new ObjectMapper()
+                )
+        );
     }
 
-    private static Serializer<?> extractValueSerializer(DefaultKafkaProducerFactory<?, ?> dpf) throws Exception {
-        for (String name : new String[]{"getValueSerializer", "valueSerializer"}) {
-            try {
-                Method m = dpf.getClass().getMethod(name);
-                Object v = m.invoke(dpf);
-                if (v instanceof Serializer<?> s) return s;
-            } catch (NoSuchMethodException ignored) {
-            }
-        }
+    @Test
+    @DisplayName("Deve criar o template Kafka com a fábrica e o tópico padrão de autenticação")
+    void authEventKafkaTemplate_fabricaValida_deveRetornarTemplateConfigurado() {
+        // Arrange
+        KafkaConfig config = new KafkaConfig();
 
-        for (Method m : dpf.getClass().getMethods()) {
-            if (m.getParameterCount() == 0 && Serializer.class.isAssignableFrom(m.getReturnType())) {
-                Object v = m.invoke(dpf);
-                if (v instanceof Serializer<?> s) return s;
-            }
-        }
+        ProducerFactory<String, Object> producerFactory =
+                config.authEventProducerFactory(
+                        BOOTSTRAP_SERVERS,
+                        new ObjectMapper()
+                );
 
-        throw new AssertionError("Could not extract value serializer from " + dpf.getClass().getName());
+        // Act
+        KafkaTemplate<String, Object> result =
+                config.authEventKafkaTemplate(producerFactory);
+
+        // Assert
+        assertAll(
+                () -> assertNotNull(result),
+                () -> assertSame(
+                        producerFactory,
+                        result.getProducerFactory()
+                ),
+                () -> assertEquals(
+                        KafkaConfig.AUTH_EVENTS_TOPIC,
+                        result.getDefaultTopic()
+                )
+        );
     }
 
-    private static Boolean readBooleanGetterIfExists(Object target, String methodName) {
-        try {
-            Object v = target.getClass().getMethod(methodName).invoke(target);
-            return (v instanceof Boolean b) ? b : null;
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
+    @Test
+    @DisplayName("Deve lançar exceção quando a fábrica de produtores for nula")
+    void authEventKafkaTemplate_fabricaNula_deveLancarIllegalArgumentException() {
+        // Arrange
+        KafkaConfig config = new KafkaConfig();
 
-    private static Boolean readBooleanFieldViaGetterFallback(Object target, String logicalName) {
-        String cap = Character.toUpperCase(logicalName.charAt(0)) + logicalName.substring(1);
-        for (String getter : new String[]{"get" + cap, "is" + cap}) {
-            Boolean v = readBooleanGetterIfExists(target, getter);
-            if (v != null) return v;
-        }
-        return null;
+        // Act
+        // Assert
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> config.authEventKafkaTemplate(null)
+        );
     }
 }

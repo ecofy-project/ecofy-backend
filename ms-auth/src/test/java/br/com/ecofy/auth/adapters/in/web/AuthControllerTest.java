@@ -10,7 +10,9 @@ import br.com.ecofy.auth.core.port.in.AuthenticateUserUseCase;
 import br.com.ecofy.auth.core.port.in.RefreshTokenUseCase;
 import br.com.ecofy.auth.core.port.in.RevokeTokenUseCase;
 import br.com.ecofy.auth.core.port.in.ValidateTokenUseCase;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
@@ -22,13 +24,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários do controlador de autenticação")
 class AuthControllerTest {
 
     @Mock
@@ -47,20 +48,17 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-
         controller = new AuthController(
                 authenticateUserUseCase,
                 refreshTokenUseCase,
                 revokeTokenUseCase,
                 validateTokenUseCase
         );
-
     }
 
-
     @Test
+    @DisplayName("Deve usar X-Forwarded-For e retornar os tokens quando o cabeçalho estiver presente")
     void token_shouldUseXForwardedFor_whenPresentAndReturnTokenResponse() {
-
         // Arrange
         LoginRequest request = new LoginRequest(
                 "client-1",
@@ -91,7 +89,7 @@ class AuthControllerTest {
 
         assertNoStoreHeaders(response.getHeaders());
 
-        // Captura do comando para verificar mapeamento básico
+        // Captura o comando enviado para validar o mapeamento.
         ArgumentCaptor<AuthenticateUserUseCase.AuthenticationCommand> captor =
                 ArgumentCaptor.forClass(AuthenticateUserUseCase.AuthenticationCommand.class);
 
@@ -103,14 +101,11 @@ class AuthControllerTest {
         assertEquals("user-1", cmd.username());
         assertEquals("password-1", cmd.password());
         assertEquals("openid profile", cmd.scope());
-        // Não validamos clientIp aqui porque a estrutura do record/ordem dos campos
-        // não está garantida neste contexto de teste.
-
     }
 
     @Test
+    @DisplayName("Deve usar X-Real-IP quando X-Forwarded-For estiver ausente")
     void token_shouldUseXRealIp_whenXForwardedForIsMissing() {
-
         // Arrange
         LoginRequest request = new LoginRequest(
                 "client-2",
@@ -130,12 +125,12 @@ class AuthControllerTest {
         // Act
         ResponseEntity<TokenResponse> response = controller.token(request, httpRequest);
 
-        // Assert básicos
+        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertNoStoreHeaders(response.getHeaders());
 
-        // Apenas garante que o comando foi construído e passado
+        // Captura o comando enviado para validar o mapeamento.
         ArgumentCaptor<AuthenticateUserUseCase.AuthenticationCommand> captor =
                 ArgumentCaptor.forClass(AuthenticateUserUseCase.AuthenticationCommand.class);
 
@@ -143,12 +138,11 @@ class AuthControllerTest {
         AuthenticateUserUseCase.AuthenticationCommand cmd = captor.getValue();
         assertEquals("client-2", cmd.clientId());
         assertEquals("secret-2", cmd.clientSecret());
-
     }
 
     @Test
+    @DisplayName("Deve usar o endereço remoto quando os cabeçalhos de IP estiverem ausentes")
     void token_shouldUseRemoteAddr_whenNoIpHeadersPresent() {
-
         // Arrange
         LoginRequest request = new LoginRequest(
                 "client-3",
@@ -167,7 +161,7 @@ class AuthControllerTest {
         // Act
         ResponseEntity<TokenResponse> response = controller.token(request, httpRequest);
 
-        // Assert básicos
+        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertNoStoreHeaders(response.getHeaders());
@@ -179,12 +173,11 @@ class AuthControllerTest {
         AuthenticateUserUseCase.AuthenticationCommand cmd = captor.getValue();
         assertEquals("client-3", cmd.clientId());
         assertEquals("secret-3", cmd.clientSecret());
-
     }
 
     @Test
+    @DisplayName("Deve retornar novos tokens e cabeçalhos sem cache durante a renovação")
     void refresh_shouldReturnNewTokenAndNoStoreHeaders() {
-
         // Arrange
         RefreshTokenRequest request = new RefreshTokenRequest(
                 "client-refresh",
@@ -202,7 +195,7 @@ class AuthControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         TokenResponse body = response.getBody();
         assertNotNull(body);
-        assertEquals("Bearer", body.tokenType()); // valor fixo no controller
+        assertEquals("Bearer", body.tokenType());
         assertEquals("new-access-token-123", body.accessToken());
         assertEquals("new-refresh-token-456", body.refreshToken());
         assertEquals(7200L, body.expiresIn());
@@ -218,13 +211,12 @@ class AuthControllerTest {
         assertEquals("client-refresh", cmd.clientId());
         assertEquals("refresh-token-xyz", cmd.refreshToken());
         assertEquals("openid", cmd.scope());
-
     }
 
     @Test
+    @DisplayName("Deve tratar o indicador nulo como refresh token")
     void revoke_shouldTreatNullRefreshFlagAsRefreshToken() {
-
-        // refreshToken == null → isRefresh = true dentro do controller
+        // Arrange
         RevokeTokenRequest request = new RevokeTokenRequest(
                 "token-to-revoke-1",
                 null
@@ -244,14 +236,16 @@ class AuthControllerTest {
         RevokeTokenUseCase.RevokeTokenCommand cmd = captor.getValue();
 
         assertEquals("token-to-revoke-1", cmd.token());
-        assertTrue(cmd.refreshToken(), "Quando refreshToken é null deve considerar como refresh token");
-
+        assertTrue(
+                cmd.refreshToken(),
+                "Quando refreshToken é null deve considerar como refresh token"
+        );
     }
 
     @Test
+    @DisplayName("Deve tratar o indicador falso como access token")
     void revoke_shouldTreatFalseRefreshFlagAsAccessToken() {
-
-        // refreshToken == false → isRefresh = false
+        // Arrange
         RevokeTokenRequest request = new RevokeTokenRequest(
                 "token-to-revoke-2",
                 Boolean.FALSE
@@ -271,13 +265,15 @@ class AuthControllerTest {
         RevokeTokenUseCase.RevokeTokenCommand cmd = captor.getValue();
 
         assertEquals("token-to-revoke-2", cmd.token());
-        assertFalse(cmd.refreshToken(), "Quando refreshToken é false deve ser tratado como access token");
-
+        assertFalse(
+                cmd.refreshToken(),
+                "Quando refreshToken é false deve ser tratado como access token"
+        );
     }
 
     @Test
+    @DisplayName("Deve retornar as claims e os cabeçalhos sem cache quando o token for válido")
     void validate_shouldReturnClaimsAndNoStoreHeaders() {
-
         // Arrange
         ValidateTokenRequest request = new ValidateTokenRequest("valid-token-123");
 
@@ -302,16 +298,14 @@ class AuthControllerTest {
         assertNoStoreHeaders(response.getHeaders());
 
         verify(validateTokenUseCase).validate("valid-token-123");
-
     }
 
-    // heapers
-
     private AuthenticateUserUseCase.AuthenticationResult mockAuthResult() {
-
-        // Deep stubs para poder fazer result.accessToken().value()
         AuthenticateUserUseCase.AuthenticationResult result =
-                mock(AuthenticateUserUseCase.AuthenticationResult.class, Answers.RETURNS_DEEP_STUBS);
+                mock(
+                        AuthenticateUserUseCase.AuthenticationResult.class,
+                        Answers.RETURNS_DEEP_STUBS
+                );
 
         when(result.tokenType()).thenReturn("Bearer");
         when(result.accessToken().value()).thenReturn("access-token-123");
@@ -319,11 +313,9 @@ class AuthControllerTest {
         when(result.expiresInSeconds()).thenReturn(3600L);
 
         return result;
-
     }
 
     private RefreshTokenUseCase.RefreshTokenResult mockRefreshResult() {
-
         RefreshTokenUseCase.RefreshTokenResult result =
                 mock(RefreshTokenUseCase.RefreshTokenResult.class);
 
@@ -332,16 +324,10 @@ class AuthControllerTest {
         when(result.expiresInSeconds()).thenReturn(7200L);
 
         return result;
-
     }
 
     private void assertNoStoreHeaders(HttpHeaders headers) {
-
-        // Só garante que o controller configurou algo em Cache-Control
         assertNotNull(headers.getCacheControl());
-        // E que está usando o header legado para evitar cache
         assertEquals("no-cache", headers.getFirst("Pragma"));
-
     }
-
 }

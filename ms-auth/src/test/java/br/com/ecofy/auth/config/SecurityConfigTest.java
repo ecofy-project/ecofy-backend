@@ -1,302 +1,643 @@
 package br.com.ecofy.auth.config;
 
 import br.com.ecofy.auth.adapters.out.jwt.JwtNimbusTokenProviderAdapter;
-import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.RSAKey;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
-import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
-import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@DisplayName("Testes unitários da configuração de segurança")
 class SecurityConfigTest {
 
-    @Mock
-    private JwtNimbusTokenProviderAdapter jwtNimbusTokenProviderAdapter;
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/actuator/health",
+            "/actuator/info",
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/api/v1/auth/token",
+            "/api/v1/auth/refresh",
+            "/api/v1/auth/validate",
+            "/api/v1/auth/revoke",
+            "/api/v1/auth/register/**",
+            "/api/v1/auth/password/**",
+            "/api/auth/token",
+            "/api/auth/refresh",
+            "/api/auth/validate",
+            "/api/auth/revoke",
+            "/api/register/**",
+            "/api/password/**",
+            "/.well-known/**"
+    };
 
     @Test
-    void passwordEncoder_shouldEncodeAndMatch() {
-        JwtProperties props = new JwtProperties();
-        SecurityConfig config = new SecurityConfig(props, jwtNimbusTokenProviderAdapter);
+    @DisplayName("Deve criar um codificador BCrypt com força doze")
+    void passwordEncoder_configuracaoPadrao_deveCriarBCryptComForcaDoze() {
+        // Arrange
+        SecurityConfig config = new SecurityConfig(
+                mock(JwtProperties.class),
+                mock(JwtNimbusTokenProviderAdapter.class)
+        );
 
-        PasswordEncoder encoder = config.passwordEncoder();
+        String rawPassword = "SenhaSegura@123";
 
-        String raw = "pass-123";
-        String hash = encoder.encode(raw);
+        // Act
+        PasswordEncoder result = config.passwordEncoder();
+        String encodedPassword = result.encode(rawPassword);
 
-        assertNotNull(hash);
-        assertNotEquals(raw, hash);
-        assertTrue(encoder.matches(raw, hash));
-        assertFalse(encoder.matches("wrong", hash));
+        // Assert
+        assertAll(
+                () -> assertInstanceOf(
+                        BCryptPasswordEncoder.class,
+                        result
+                ),
+                () -> assertTrue(
+                        result.matches(
+                                rawPassword,
+                                encodedPassword
+                        )
+                ),
+                () -> assertEquals(
+                        "12",
+                        encodedPassword.split("\\$")[2]
+                )
+        );
     }
 
     @Test
-    void securityFilterChain_shouldConfigureAllDsl_andBuildChain() throws Exception {
-        JwtProperties props = new JwtProperties();
-        SecurityConfig config = new SecurityConfig(props, jwtNimbusTokenProviderAdapter);
+    @DisplayName("Deve configurar todas as regras de segurança e construir a cadeia de filtros")
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void securityFilterChain_configuracaoCompleta_deveConstruirCadeiaDeFiltros()
+            throws Exception {
+        // Arrange
+        JwtProperties jwtProperties =
+                mock(JwtProperties.class);
 
-        JwtDecoder jwtDecoder = mock(JwtDecoder.class);
+        JwtNimbusTokenProviderAdapter tokenProvider =
+                mock(JwtNimbusTokenProviderAdapter.class);
+
+        SecurityConfig config = new SecurityConfig(
+                jwtProperties,
+                tokenProvider
+        );
+
         HttpSecurity http = mock(HttpSecurity.class);
+        JwtDecoder jwtDecoder = mock(JwtDecoder.class);
 
-        DefaultSecurityFilterChain builtChain =
-                new DefaultSecurityFilterChain(org.springframework.security.web.util.matcher.AnyRequestMatcher.INSTANCE, List.of());
+        DefaultSecurityFilterChain expectedChain =
+                mock(DefaultSecurityFilterChain.class);
 
-        when(http.build()).thenReturn(builtChain);
+        CorsConfigurer<HttpSecurity> corsConfigurer =
+                mock(CorsConfigurer.class);
 
-        doAnswer(inv -> {
-            @SuppressWarnings("unchecked")
-            Customizer<CorsConfigurer<HttpSecurity>> customizer = (Customizer<CorsConfigurer<HttpSecurity>>) inv.getArgument(0);
+        CsrfConfigurer<HttpSecurity> csrfConfigurer =
+                mock(CsrfConfigurer.class);
 
-            @SuppressWarnings("unchecked")
-            CorsConfigurer<HttpSecurity> cors = mock(CorsConfigurer.class);
+        AuthorizeHttpRequestsConfigurer<HttpSecurity>
+                .AuthorizationManagerRequestMatcherRegistry
+                authorizationRegistry =
+                mock(
+                        AuthorizeHttpRequestsConfigurer
+                                .AuthorizationManagerRequestMatcherRegistry
+                                .class
+                );
 
-            customizer.customize(cors);
+        AuthorizeHttpRequestsConfigurer<HttpSecurity>
+                .AuthorizedUrl authorizedUrl =
+                mock(
+                        AuthorizeHttpRequestsConfigurer
+                                .AuthorizedUrl
+                                .class
+                );
+
+        OAuth2ResourceServerConfigurer<HttpSecurity>
+                oauth2Configurer =
+                mock(OAuth2ResourceServerConfigurer.class);
+
+        OAuth2ResourceServerConfigurer<HttpSecurity>
+                .JwtConfigurer jwtConfigurer =
+                mock(
+                        OAuth2ResourceServerConfigurer
+                                .JwtConfigurer
+                                .class
+                );
+
+        HeadersConfigurer<HttpSecurity> headersConfigurer =
+                mock(HeadersConfigurer.class);
+
+        HeadersConfigurer<HttpSecurity>
+                .ContentSecurityPolicyConfig
+                contentSecurityPolicyConfig =
+                mock(
+                        HeadersConfigurer
+                                .ContentSecurityPolicyConfig
+                                .class
+                );
+
+        HeadersConfigurer<HttpSecurity>
+                .FrameOptionsConfig frameOptionsConfig =
+                mock(
+                        HeadersConfigurer
+                                .FrameOptionsConfig
+                                .class
+                );
+
+        doAnswer(invocation -> {
+            Customizer<CorsConfigurer<HttpSecurity>> customizer =
+                    invocation.getArgument(0);
+
+            customizer.customize(corsConfigurer);
             return http;
-        }).when(http).cors(any());
+        }).when(http).cors(any(Customizer.class));
 
-        doAnswer(inv -> {
-            @SuppressWarnings("unchecked")
-            Customizer<CsrfConfigurer<HttpSecurity>> customizer = (Customizer<CsrfConfigurer<HttpSecurity>>) inv.getArgument(0);
+        when(csrfConfigurer.disable())
+                .thenReturn(http);
 
-            @SuppressWarnings("unchecked")
-            CsrfConfigurer<HttpSecurity> csrf = mock(CsrfConfigurer.class);
+        doAnswer(invocation -> {
+            Customizer<CsrfConfigurer<HttpSecurity>> customizer =
+                    invocation.getArgument(0);
 
-            when(csrf.disable()).thenReturn(http);
-
-            customizer.customize(csrf);
+            customizer.customize(csrfConfigurer);
             return http;
-        }).when(http).csrf(any());
+        }).when(http).csrf(any(Customizer.class));
 
-        doAnswer(inv -> {
-            @SuppressWarnings("unchecked")
-            Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> customizer =
-                    (Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry>) inv.getArgument(0);
+        when(
+                authorizationRegistry.requestMatchers(
+                        any(String[].class)
+                )
+        ).thenReturn(authorizedUrl);
 
-            @SuppressWarnings("unchecked")
-            AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry registry =
-                    mock(AuthorizeHttpRequestsConfigurer.AuthorizationManagerRequestMatcherRegistry.class);
+        when(authorizedUrl.permitAll())
+                .thenReturn(authorizationRegistry);
 
-            @SuppressWarnings("unchecked")
-            AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizedUrl authorizedUrl =
-                    mock(AuthorizeHttpRequestsConfigurer.AuthorizedUrl.class);
+        when(authorizedUrl.hasRole("ADMIN"))
+                .thenReturn(authorizationRegistry);
 
-            when(registry.requestMatchers(any(String[].class))).thenReturn(authorizedUrl);
-            when(authorizedUrl.permitAll()).thenReturn(registry);
-            when(authorizedUrl.hasRole(anyString())).thenReturn(registry);
-            when(registry.anyRequest()).thenReturn(authorizedUrl);
-            when(authorizedUrl.authenticated()).thenReturn(registry);
+        when(authorizationRegistry.anyRequest())
+                .thenReturn(authorizedUrl);
 
-            customizer.customize(registry);
+        when(authorizedUrl.authenticated())
+                .thenReturn(authorizationRegistry);
+
+        doAnswer(invocation -> {
+            Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>
+                    .AuthorizationManagerRequestMatcherRegistry>
+                    customizer = invocation.getArgument(0);
+
+            customizer.customize(authorizationRegistry);
             return http;
-        }).when(http).authorizeHttpRequests(any());
+        }).when(http).authorizeHttpRequests(
+                any(Customizer.class)
+        );
 
-        doAnswer(inv -> {
-            @SuppressWarnings("unchecked")
-            Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>> customizer =
-                    (Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>>) inv.getArgument(0);
+        when(jwtConfigurer.decoder(jwtDecoder))
+                .thenReturn(jwtConfigurer);
 
-            @SuppressWarnings("unchecked")
-            OAuth2ResourceServerConfigurer<HttpSecurity> oauth2 = mock(OAuth2ResourceServerConfigurer.class);
+        when(
+                jwtConfigurer.jwtAuthenticationConverter(
+                        any(JwtAuthenticationConverter.class)
+                )
+        ).thenReturn(jwtConfigurer);
 
-            doAnswer(jwtInv -> {
-                @SuppressWarnings("unchecked")
-                Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer> jwtCustomizer =
-                        (Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer>) jwtInv.getArgument(0);
+        doAnswer(invocation -> {
+            Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>
+                    .JwtConfigurer> customizer =
+                    invocation.getArgument(0);
 
-                @SuppressWarnings("unchecked")
-                OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer jwtCfg =
-                        mock(OAuth2ResourceServerConfigurer.JwtConfigurer.class);
+            customizer.customize(jwtConfigurer);
+            return oauth2Configurer;
+        }).when(oauth2Configurer).jwt(
+                any(Customizer.class)
+        );
 
-                when(jwtCfg.decoder(any(JwtDecoder.class))).thenReturn(jwtCfg);
-                when(jwtCfg.jwtAuthenticationConverter(any())).thenReturn(jwtCfg);
+        doAnswer(invocation -> {
+            Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>>
+                    customizer = invocation.getArgument(0);
 
-                jwtCustomizer.customize(jwtCfg);
-                return oauth2;
-            }).when(oauth2).jwt(any());
-
-            customizer.customize(oauth2);
+            customizer.customize(oauth2Configurer);
             return http;
-        }).when(http).oauth2ResourceServer(any());
+        }).when(http).oauth2ResourceServer(
+                any(Customizer.class)
+        );
 
-        doAnswer(inv -> {
-            @SuppressWarnings("unchecked")
+        when(
+                contentSecurityPolicyConfig.policyDirectives(
+                        "default-src 'self'"
+                )
+        ).thenReturn(contentSecurityPolicyConfig);
+
+        doAnswer(invocation -> {
+            Customizer<HeadersConfigurer<HttpSecurity>
+                    .ContentSecurityPolicyConfig>
+                    customizer = invocation.getArgument(0);
+
+            customizer.customize(contentSecurityPolicyConfig);
+            return headersConfigurer;
+        }).when(headersConfigurer).contentSecurityPolicy(
+                any(Customizer.class)
+        );
+
+        when(frameOptionsConfig.sameOrigin())
+                .thenReturn(headersConfigurer);
+
+        doAnswer(invocation -> {
+            Customizer<HeadersConfigurer<HttpSecurity>
+                    .FrameOptionsConfig> customizer =
+                    invocation.getArgument(0);
+
+            customizer.customize(frameOptionsConfig);
+            return headersConfigurer;
+        }).when(headersConfigurer).frameOptions(
+                any(Customizer.class)
+        );
+
+        doAnswer(invocation -> {
             Customizer<HeadersConfigurer<HttpSecurity>> customizer =
-                    (Customizer<HeadersConfigurer<HttpSecurity>>) inv.getArgument(0);
+                    invocation.getArgument(0);
 
-            @SuppressWarnings("unchecked")
-            HeadersConfigurer<HttpSecurity> headers = mock(HeadersConfigurer.class);
-
-            doAnswer(cspInv -> {
-                @SuppressWarnings("unchecked")
-                Customizer<HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig> cspCustomizer =
-                        (Customizer<HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig>) cspInv.getArgument(0);
-
-                @SuppressWarnings("unchecked")
-                HeadersConfigurer<HttpSecurity>.ContentSecurityPolicyConfig csp =
-                        mock(HeadersConfigurer.ContentSecurityPolicyConfig.class);
-
-                when(csp.policyDirectives(any())).thenReturn(csp);
-
-                cspCustomizer.customize(csp);
-                return headers;
-            }).when(headers).contentSecurityPolicy(any());
-
-            doAnswer(frameInv -> {
-                @SuppressWarnings("unchecked")
-                Customizer<HeadersConfigurer<HttpSecurity>.FrameOptionsConfig> frameCustomizer =
-                        (Customizer<HeadersConfigurer<HttpSecurity>.FrameOptionsConfig>) frameInv.getArgument(0);
-
-                @SuppressWarnings("unchecked")
-                HeadersConfigurer<HttpSecurity>.FrameOptionsConfig frame =
-                        mock(HeadersConfigurer.FrameOptionsConfig.class);
-
-                when(frame.sameOrigin()).thenReturn(headers);
-
-                frameCustomizer.customize(frame);
-                return headers;
-            }).when(headers).frameOptions(any());
-
-            customizer.customize(headers);
+            customizer.customize(headersConfigurer);
             return http;
-        }).when(http).headers(any());
+        }).when(http).headers(any(Customizer.class));
 
-        SecurityFilterChain chain = config.securityFilterChain(http, jwtDecoder);
+        when(http.build())
+                .thenReturn(expectedChain);
 
-        assertSame(builtChain, chain);
+        // Act
+        SecurityFilterChain result =
+                config.securityFilterChain(
+                        http,
+                        jwtDecoder
+                );
 
-        verify(http).cors(any());
-        verify(http).csrf(any());
-        verify(http).authorizeHttpRequests(any());
-        verify(http).oauth2ResourceServer(any());
-        verify(http).headers(any());
+        // Assert
+        assertSame(expectedChain, result);
+
+        verify(http).cors(any(Customizer.class));
+        verify(csrfConfigurer).disable();
+
+        verify(authorizationRegistry)
+                .requestMatchers(PUBLIC_ENDPOINTS);
+
+        verify(authorizedUrl).permitAll();
+
+        verify(authorizationRegistry)
+                .requestMatchers("/api/admin/**");
+
+        verify(authorizedUrl).hasRole("ADMIN");
+        verify(authorizationRegistry).anyRequest();
+        verify(authorizedUrl).authenticated();
+
+        verify(jwtConfigurer).decoder(jwtDecoder);
+
+        verify(jwtConfigurer)
+                .jwtAuthenticationConverter(
+                        any(JwtAuthenticationConverter.class)
+                );
+
+        verify(contentSecurityPolicyConfig)
+                .policyDirectives("default-src 'self'");
+
+        verify(frameOptionsConfig).sameOrigin();
         verify(http).build();
-        verifyNoMoreInteractions(http);
     }
 
     @Test
-    void jwtDecoder_shouldCreateNimbusJwtDecoder_andSetValidator_whenPublicKeyIsAvailable() throws Exception {
-        JwtProperties props = new JwtProperties();
-        props.setIssuer("https://issuer.test");
+    @DisplayName("Deve converter as funções do token em autoridades sem adicionar prefixo")
+    void jwtAuthenticationConverter_tokenComFuncoes_deveConverterAutoridadesSemPrefixo() {
+        // Arrange
+        SecurityConfig config = new SecurityConfig(
+                mock(JwtProperties.class),
+                mock(JwtNimbusTokenProviderAdapter.class)
+        );
 
-        RSAKey jwk = rsaKey();
-        when(jwtNimbusTokenProviderAdapter.toRsaJwk()).thenReturn(jwk);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .subject("user-id")
+                .claim(
+                        "roles",
+                        List.of(
+                                "ROLE_ADMIN",
+                                "USER_READ"
+                        )
+                )
+                .build();
 
-        SecurityConfig config = new SecurityConfig(props, jwtNimbusTokenProviderAdapter);
+        // Act
+        JwtAuthenticationConverter converter =
+                config.jwtAuthenticationConverter();
 
-        JwtDecoder decoder = config.jwtDecoder();
+        JwtAuthenticationToken authentication =
+                (JwtAuthenticationToken) converter.convert(jwt);
 
-        assertNotNull(decoder);
-        assertInstanceOf(NimbusJwtDecoder.class, decoder);
+        // Assert
+        assertNotNull(authentication);
 
-        verify(jwtNimbusTokenProviderAdapter).toRsaJwk();
-        verifyNoMoreInteractions(jwtNimbusTokenProviderAdapter);
+        List<String> authorities =
+                authentication.getAuthorities()
+                        .stream()
+                        .map(authority -> authority.getAuthority())
+                        .toList();
+
+        assertAll(
+                () -> assertTrue(
+                        authorities.contains("ROLE_ADMIN")
+                ),
+                () -> assertTrue(
+                        authorities.contains("USER_READ")
+                ),
+                () -> assertFalse(
+                        authorities.contains("SCOPE_ROLE_ADMIN")
+                ),
+                () -> assertFalse(
+                        authorities.contains("SCOPE_USER_READ")
+                )
+        );
     }
 
     @Test
-    void jwtDecoder_shouldThrowIllegalStateException_whenPublicKeyExtractionThrowsJoseException() throws Exception {
-        JwtProperties props = new JwtProperties();
+    @DisplayName("Deve configurar origens, métodos e cabeçalhos após remover espaços e valores vazios")
+    void corsConfigurationSource_valoresCsv_deveRegistrarConfiguracaoNormalizada() {
+        // Arrange
+        SecurityConfig config = new SecurityConfig(
+                mock(JwtProperties.class),
+                mock(JwtNimbusTokenProviderAdapter.class)
+        );
 
-        RSAKey rsaKey = mock(RSAKey.class);
-        when(jwtNimbusTokenProviderAdapter.toRsaJwk()).thenReturn(rsaKey);
-        when(rsaKey.toRSAPublicKey()).thenThrow(new JOSEException("boom"));
+        ReflectionTestUtils.setField(
+                config,
+                "corsAllowedOrigins",
+                " https://app.ecofy.com, ,http://localhost:3000 "
+        );
 
-        SecurityConfig config = new SecurityConfig(props, jwtNimbusTokenProviderAdapter);
+        ReflectionTestUtils.setField(
+                config,
+                "corsAllowedMethods",
+                " GET,POST, ,OPTIONS "
+        );
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, config::jwtDecoder);
-        assertEquals("Could not create JwtDecoder from in-memory JWK", ex.getMessage());
-        assertNotNull(ex.getCause());
-        assertEquals("boom", ex.getCause().getMessage());
+        ReflectionTestUtils.setField(
+                config,
+                "corsAllowedHeaders",
+                " Authorization, Content-Type, "
+        );
 
-        verify(jwtNimbusTokenProviderAdapter).toRsaJwk();
-        verify(rsaKey).toRSAPublicKey();
-        verifyNoMoreInteractions(jwtNimbusTokenProviderAdapter, rsaKey);
+        MockHttpServletRequest request =
+                new MockHttpServletRequest(
+                        "GET",
+                        "/api/v1/auth/token"
+                );
+
+        // Act
+        CorsConfigurationSource source =
+                config.corsConfigurationSource();
+
+        CorsConfiguration result =
+                source.getCorsConfiguration(request);
+
+        // Assert
+        assertNotNull(result);
+
+        assertAll(
+                () -> assertEquals(
+                        List.of(
+                                "https://app.ecofy.com",
+                                "http://localhost:3000"
+                        ),
+                        result.getAllowedOrigins()
+                ),
+                () -> assertEquals(
+                        List.of(
+                                "GET",
+                                "POST",
+                                "OPTIONS"
+                        ),
+                        result.getAllowedMethods()
+                ),
+                () -> assertEquals(
+                        List.of(
+                                "Authorization",
+                                "Content-Type"
+                        ),
+                        result.getAllowedHeaders()
+                ),
+                () -> assertEquals(
+                        Boolean.TRUE,
+                        result.getAllowCredentials()
+                ),
+                () -> assertEquals(
+                        3600L,
+                        result.getMaxAge()
+                )
+        );
     }
 
     @Test
-    void jwtValidatorFactory_shouldEnforceIssuer_whenIssuerProvided_andNotEnforceWhenNull() {
-        JwtProperties withIssuer = new JwtProperties();
-        withIssuer.setIssuer("https://issuer.ok");
+    @DisplayName("Deve registrar listas vazias quando os valores do CORS forem nulos, em branco ou vazios")
+    void corsConfigurationSource_valoresAusentes_deveRegistrarListasVazias() {
+        // Arrange
+        SecurityConfig config = new SecurityConfig(
+                mock(JwtProperties.class),
+                mock(JwtNimbusTokenProviderAdapter.class)
+        );
 
-        OAuth2TokenValidator<Jwt> v1 = new SecurityConfig.JwtValidatorFactory(withIssuer).create();
+        ReflectionTestUtils.setField(
+                config,
+                "corsAllowedOrigins",
+                null
+        );
+
+        ReflectionTestUtils.setField(
+                config,
+                "corsAllowedMethods",
+                "   "
+        );
+
+        ReflectionTestUtils.setField(
+                config,
+                "corsAllowedHeaders",
+                ", ,"
+        );
+
+        MockHttpServletRequest request =
+                new MockHttpServletRequest(
+                        "OPTIONS",
+                        "/qualquer-rota"
+                );
+
+        // Act
+        CorsConfigurationSource source =
+                config.corsConfigurationSource();
+
+        CorsConfiguration result =
+                source.getCorsConfiguration(request);
+
+        // Assert
+        assertNotNull(result);
+
+        assertAll(
+                () -> assertNotNull(
+                        result.getAllowedOrigins()
+                ),
+                () -> assertTrue(
+                        result.getAllowedOrigins().isEmpty()
+                ),
+                () -> assertNotNull(
+                        result.getAllowedMethods()
+                ),
+                () -> assertTrue(
+                        result.getAllowedMethods().isEmpty()
+                ),
+                () -> assertNotNull(
+                        result.getAllowedHeaders()
+                ),
+                () -> assertTrue(
+                        result.getAllowedHeaders().isEmpty()
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("Deve retornar o decoder JWT fornecido pelo adaptador de tokens")
+    void jwtDecoder_decoderDisponivel_deveRetornarInstanciaDoAdaptador() {
+        // Arrange
+        JwtNimbusTokenProviderAdapter tokenProvider =
+                mock(JwtNimbusTokenProviderAdapter.class);
+
+        NimbusJwtDecoder expectedDecoder =
+                mock(NimbusJwtDecoder.class);
+
+        when(tokenProvider.jwtDecoder())
+                .thenReturn(expectedDecoder);
+
+        SecurityConfig config = new SecurityConfig(
+                mock(JwtProperties.class),
+                tokenProvider
+        );
+
+        // Act
+        JwtDecoder result = config.jwtDecoder();
+
+        // Assert
+        assertSame(expectedDecoder, result);
+        verify(tokenProvider).jwtDecoder();
+    }
+
+    @Test
+    @DisplayName("Deve validar o emissor e o tempo quando um emissor estiver configurado")
+    void create_emissorConfigurado_deveAplicarValidacaoDeEmissorETempo() {
+        // Arrange
+        String expectedIssuer = "https://auth.ecofy.com";
+
+        JwtProperties properties =
+                mock(JwtProperties.class);
+
+        when(properties.getIssuer())
+                .thenReturn(expectedIssuer);
+
+        SecurityConfig.JwtValidatorFactory factory =
+                new SecurityConfig.JwtValidatorFactory(properties);
 
         Instant now = Instant.now();
 
-        Jwt ok = Jwt.withTokenValue("t")
-                .headers(h -> h.put("alg", "none"))
-                .claims(c -> {
-                    c.put("sub", UUID.randomUUID().toString());
-                    c.put("iss", "https://issuer.ok");
-                })
-                .issuedAt(now.minusSeconds(5))
-                .expiresAt(now.plusSeconds(60))
+        Jwt validJwt = Jwt.withTokenValue("valid-token")
+                .header("alg", "RS256")
+                .issuer(expectedIssuer)
+                .issuedAt(now.minusSeconds(30))
+                .expiresAt(now.plusSeconds(300))
                 .build();
 
-        OAuth2TokenValidatorResult okRes = v1.validate(ok);
-        assertFalse(okRes.hasErrors());
-
-        Jwt bad = Jwt.withTokenValue("t")
-                .headers(h -> h.put("alg", "none"))
-                .claims(c -> {
-                    c.put("sub", UUID.randomUUID().toString());
-                    c.put("iss", "https://issuer.bad");
-                })
-                .issuedAt(now.minusSeconds(5))
-                .expiresAt(now.plusSeconds(60))
+        Jwt invalidIssuerJwt = Jwt.withTokenValue("invalid-token")
+                .header("alg", "RS256")
+                .issuer("https://invalid-issuer.com")
+                .issuedAt(now.minusSeconds(30))
+                .expiresAt(now.plusSeconds(300))
                 .build();
 
-        OAuth2TokenValidatorResult badRes = v1.validate(bad);
-        assertTrue(badRes.hasErrors());
+        // Act
+        OAuth2TokenValidator<Jwt> validator =
+                factory.create();
 
-        JwtProperties noIssuer = new JwtProperties();
-        OAuth2TokenValidator<Jwt> v2 = new SecurityConfig.JwtValidatorFactory(noIssuer).create();
+        OAuth2TokenValidatorResult validResult =
+                validator.validate(validJwt);
 
-        Jwt anyIssuer = Jwt.withTokenValue("t")
-                .headers(h -> h.putAll(Map.of("alg", "none")))
-                .claims(c -> {
-                    c.put("sub", UUID.randomUUID().toString());
-                    c.put("iss", "https://any-issuer");
-                })
-                .issuedAt(now.minusSeconds(5))
-                .expiresAt(now.plusSeconds(60))
-                .build();
+        OAuth2TokenValidatorResult invalidResult =
+                validator.validate(invalidIssuerJwt);
 
-        OAuth2TokenValidatorResult res = v2.validate(anyIssuer);
-        assertFalse(res.hasErrors());
+        // Assert
+        assertAll(
+                () -> assertFalse(validResult.hasErrors()),
+                () -> assertTrue(invalidResult.hasErrors())
+        );
+
+        verify(properties, times(2)).getIssuer();
     }
 
-    // heapers
+    @Test
+    @DisplayName("Deve aplicar somente a validação padrão quando o emissor não estiver configurado")
+    void create_emissorNulo_deveAplicarSomenteValidacaoPadrao() {
+        // Arrange
+        JwtProperties properties =
+                mock(JwtProperties.class);
 
-    private static RSAKey rsaKey() throws Exception {
-        KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
-        gen.initialize(2048);
-        KeyPair kp = gen.generateKeyPair();
-        RSAPublicKey pub = (RSAPublicKey) kp.getPublic();
-        return new RSAKey.Builder(pub).keyID("kid-1").build();
+        when(properties.getIssuer()).thenReturn(null);
+
+        SecurityConfig.JwtValidatorFactory factory =
+                new SecurityConfig.JwtValidatorFactory(
+                        properties
+                );
+
+        Instant now = Instant.now();
+
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .issuedAt(now.minusSeconds(30))
+                .expiresAt(now.plusSeconds(300))
+                .build();
+
+        // Act
+        OAuth2TokenValidator<Jwt> validator =
+                factory.create();
+
+        OAuth2TokenValidatorResult result =
+                validator.validate(jwt);
+
+        // Assert
+        assertFalse(result.hasErrors());
+        verify(properties).getIssuer();
     }
 }

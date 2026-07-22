@@ -1,36 +1,56 @@
 package br.com.ecofy.auth.config;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@DisplayName("Testes unitários da configuração de propriedades")
 class PropertiesConfigTest {
 
     @Test
-    void shouldInstantiatePropertiesConfig() {
+    @DisplayName("Deve criar a configuração de propriedades corretamente")
+    void constructor_novaInstancia_deveCriarConfiguracao() {
+        // Arrange
+        // Act
         PropertiesConfig config = new PropertiesConfig();
 
+        // Assert
         assertNotNull(config);
     }
 
     @Test
-    void shouldBeAnnotatedWithConfiguration() {
-        Configuration annotation = PropertiesConfig.class.getAnnotation(Configuration.class);
+    @DisplayName("Deve registrar todas as classes de propriedades utilizadas pelo serviço")
+    void annotations_configuracaoDeclarada_deveRegistrarTodasAsPropriedades() {
+        // Arrange
+        Class<PropertiesConfig> configClass = PropertiesConfig.class;
 
-        assertNotNull(annotation);
-    }
+        // Act
+        Configuration configuration =
+                configClass.getAnnotation(Configuration.class);
 
-    @Test
-    void shouldEnableUsersMsProperties() {
-        EnableConfigurationProperties annotation =
-                PropertiesConfig.class.getAnnotation(EnableConfigurationProperties.class);
+        EnableConfigurationProperties enableProperties =
+                configClass.getAnnotation(
+                        EnableConfigurationProperties.class
+                );
 
-        assertNotNull(annotation);
-        assertArrayEquals(
-                new Class<?>[]{UsersMsProperties.class},
-                annotation.value()
+        // Assert
+        assertAll(
+                () -> assertNotNull(configuration),
+                () -> assertNotNull(enableProperties),
+                () -> assertArrayEquals(
+                        new Class<?>[]{
+                                UsersMsProperties.class,
+                                RateLimitProperties.class,
+                                BruteForceProperties.class,
+                                KeysProperties.class
+                        },
+                        enableProperties.value()
+                )
         );
     }
 }
