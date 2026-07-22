@@ -5,79 +5,110 @@ import br.com.ecofy.auth.core.application.exception.AuthException;
 import br.com.ecofy.auth.core.domain.ClientApplication;
 import br.com.ecofy.auth.core.domain.enums.ClientType;
 import br.com.ecofy.auth.core.domain.enums.GrantType;
-import br.com.ecofy.auth.core.port.in.RegisterClientApplicationUseCase;
+import br.com.ecofy.auth.core.domain.valueobject.PasswordHash;
+import br.com.ecofy.auth.core.port.in.RegisterClientApplicationUseCase.RegisterClientCommand;
 import br.com.ecofy.auth.core.port.out.PasswordHashingPort;
 import br.com.ecofy.auth.core.port.out.SaveClientApplicationPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.function.Executable;
-import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Testes unitários do serviço de aplicações cliente")
 class ClientApplicationServiceTest {
 
-    private static final String CLIENT_NAME = "EcoFy Web";
-    private static final String REDIRECT_URI =
-            "https://app.ecofy.com/callback";
-    private static final String HASHED_SECRET =
-            "hashed-client-secret";
+    private static final Pattern CLIENT_ID_PATTERN =
+            Pattern.compile("^eco_[A-Za-z0-9_-]{16}$");
+
+    private static final Pattern CLIENT_SECRET_PATTERN =
+            Pattern.compile("^[A-Za-z0-9_-]{43}$");
+
+    private static final Set<String> REDIRECT_URIS =
+            Set.of("https://ecofy.app/callback");
+
+    private static final Set<String> SCOPES =
+            Set.of("openid", "profile");
 
     @Mock
     private SaveClientApplicationPort saveClientApplicationPort;
 
-    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    @Mock
     private PasswordHashingPort passwordHashingPort;
 
+    @Mock
+    private ClientApplication savedClientApplication;
+
     @Test
-    @DisplayName("Deve rejeitar dependências nulas recebidas pelo construtor")
-    void constructor_dependenciasNulas_deveLancarNullPointerException() {
-        // Arrange, Act e Assert
-        assertAll(
-                () -> assertNullDependency(
-                        "saveClientApplicationPort must not be null",
-                        () -> new ClientApplicationService(
-                                null,
-                                passwordHashingPort
-                        )
-                ),
-                () -> assertNullDependency(
-                        "passwordHashingPort must not be null",
-                        () -> new ClientApplicationService(
-                                saveClientApplicationPort,
-                                null
-                        )
+    @DisplayName("Deve criar o serviço quando todas as dependências forem informadas")
+    void constructor_dependenciasValidas_deveCriarServico() {
+        // Act
+        ClientApplicationService service = new ClientApplicationService(
+                saveClientApplicationPort,
+                passwordHashingPort
+        );
+
+        // Assert
+        assertNotNull(service);
+    }
+
+    @Test
+    @DisplayName("Deve lançar NullPointerException quando a porta de persistência for nula")
+    void constructor_portaDePersistenciaNula_deveLancarNullPointerException() {
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new ClientApplicationService(
+                        null,
+                        passwordHashingPort
                 )
         );
 
-        verifyNoInteractions(
-                saveClientApplicationPort,
-                passwordHashingPort
+        // Assert
+        assertEquals(
+                "saveClientApplicationPort must not be null",
+                exception.getMessage()
         );
     }
 
     @Test
-    @DisplayName("Deve rejeitar o comando de registro nulo")
+    @DisplayName("Deve lançar NullPointerException quando a porta de hash de senha for nula")
+    void constructor_portaDeHashNula_deveLancarNullPointerException() {
+        // Act
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> new ClientApplicationService(
+                        saveClientApplicationPort,
+                        null
+                )
+        );
+
+        // Assert
+        assertEquals(
+                "passwordHashingPort must not be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("Deve lançar NullPointerException quando o comando de registro for nulo")
     void register_comandoNulo_deveLancarNullPointerException() {
         // Arrange
         ClientApplicationService service = createService();
@@ -89,197 +120,336 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertEquals(
-                "command must not be null",
-                exception.getMessage()
-        );
-
-        verifyNoInteractions(
-                saveClientApplicationPort,
-                passwordHashingPort
+        assertAll(
+                () -> assertEquals(
+                        "command must not be null",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any()),
+                () -> verify(
+                        passwordHashingPort,
+                        never()
+                ).hash(any())
         );
     }
 
     @Test
     @DisplayName("Deve registrar cliente confidencial com grants padrão e segredo protegido")
-    void register_clienteConfidencialSemGrants_deveAplicarPadroesEGerarSegredo() {
+    void register_clienteConfidencialSemGrants_deveRegistrarComPadroesESegredo() {
         // Arrange
         ClientApplicationService service = createService();
+        RegisterClientCommand command = command(
+                "EcoFy Web",
+                ClientType.CONFIDENTIAL,
+                null,
+                REDIRECT_URIS
+        );
+        PasswordHash passwordHash = new PasswordHash("secret-hash");
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.CONFIDENTIAL,
-                        null,
-                        Set.of(REDIRECT_URI)
-                );
+        when(passwordHashingPort.hash(any()))
+                .thenReturn(passwordHash);
+        when(saveClientApplicationPort.save(any()))
+                .thenReturn(savedClientApplication);
+        when(savedClientApplication.clientId())
+                .thenReturn("saved-client-id");
+        when(savedClientApplication.clientType())
+                .thenReturn(ClientType.CONFIDENTIAL);
+        when(savedClientApplication.isActive())
+                .thenReturn(true);
 
-        prepareSecretHashing();
-        prepareSuccessfulSave();
+        // Act
+        ClientApplication result = service.register(command);
 
+        // Assert
         ArgumentCaptor<String> secretCaptor =
                 ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<ClientApplication> clientCaptor =
+                ArgumentCaptor.forClass(ClientApplication.class);
 
-        // Act
-        ClientApplication result = service.register(command);
-
-        // Assert
-        assertRegisteredClient(
-                result,
-                ClientType.CONFIDENTIAL
+        assertAll(
+                () -> assertSame(savedClientApplication, result),
+                () -> verify(passwordHashingPort).hash(
+                        secretCaptor.capture()
+                ),
+                () -> verify(saveClientApplicationPort).save(
+                        clientCaptor.capture()
+                )
         );
 
-        verify(passwordHashingPort)
-                .hash(secretCaptor.capture());
+        ClientApplication createdClient = clientCaptor.getValue();
 
-        assertGeneratedSecret(secretCaptor.getValue());
-
-        verify(saveClientApplicationPort)
-                .save(result);
+        assertAll(
+                () -> assertTrue(
+                        CLIENT_SECRET_PATTERN.matcher(
+                                secretCaptor.getValue()
+                        ).matches()
+                ),
+                () -> assertEquals(
+                        "EcoFy Web",
+                        createdClient.name()
+                ),
+                () -> assertEquals(
+                        ClientType.CONFIDENTIAL,
+                        createdClient.clientType()
+                ),
+                () -> assertEquals(
+                        Set.of(
+                                GrantType.AUTHORIZATION_CODE,
+                                GrantType.REFRESH_TOKEN,
+                                GrantType.CLIENT_CREDENTIALS
+                        ),
+                        createdClient.grantTypes()
+                ),
+                () -> assertEquals(
+                        REDIRECT_URIS,
+                        createdClient.redirectUris()
+                ),
+                () -> assertEquals(
+                        SCOPES,
+                        createdClient.scopes()
+                ),
+                () -> assertTrue(createdClient.isFirstParty()),
+                () -> assertTrue(
+                        CLIENT_ID_PATTERN.matcher(
+                                createdClient.clientId()
+                        ).matches()
+                ),
+                () -> assertEquals(
+                        "secret-hash",
+                        createdClient.clientSecretHash()
+                )
+        );
     }
 
     @Test
-    @DisplayName("Deve registrar cliente público com grants padrão sem gerar segredo")
-    void register_clientePublicoSemGrants_deveAplicarPadroesSemGerarSegredo() {
+    @DisplayName("Deve registrar cliente público com grants padrão e sem gerar segredo")
+    void register_clientePublicoComGrantsVazios_deveRegistrarSemSegredo() {
         // Arrange
         ClientApplicationService service = createService();
+        RegisterClientCommand command = command(
+                "EcoFy Mobile",
+                ClientType.PUBLIC,
+                Set.of(),
+                REDIRECT_URIS
+        );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.PUBLIC,
-                        Set.of(),
-                        Set.of(REDIRECT_URI)
-                );
-
-        prepareSuccessfulSave();
+        when(saveClientApplicationPort.save(any()))
+                .thenReturn(savedClientApplication);
+        when(savedClientApplication.clientId())
+                .thenReturn("saved-client-id");
+        when(savedClientApplication.clientType())
+                .thenReturn(ClientType.PUBLIC);
+        when(savedClientApplication.isActive())
+                .thenReturn(true);
 
         // Act
         ClientApplication result = service.register(command);
 
         // Assert
-        assertRegisteredClient(
-                result,
-                ClientType.PUBLIC
+        ArgumentCaptor<ClientApplication> clientCaptor =
+                ArgumentCaptor.forClass(ClientApplication.class);
+
+        assertAll(
+                () -> assertSame(savedClientApplication, result),
+                () -> verify(
+                        passwordHashingPort,
+                        never()
+                ).hash(any()),
+                () -> verify(saveClientApplicationPort).save(
+                        clientCaptor.capture()
+                )
         );
 
-        verifyNoInteractions(passwordHashingPort);
+        ClientApplication createdClient = clientCaptor.getValue();
 
-        verify(saveClientApplicationPort)
-                .save(result);
+        assertAll(
+                () -> assertEquals(
+                        Set.of(
+                                GrantType.AUTHORIZATION_CODE,
+                                GrantType.REFRESH_TOKEN
+                        ),
+                        createdClient.grantTypes()
+                ),
+                () -> assertNull(
+                        createdClient.clientSecretHash()
+                )
+        );
     }
 
     @Test
-    @DisplayName("Deve registrar cliente SPA com grants padrão sem gerar segredo")
-    void register_clienteSpaSemGrants_deveAplicarPadroesSemGerarSegredo() {
+    @DisplayName("Deve registrar cliente SPA com grants padrão e sem gerar segredo")
+    void register_clienteSpaSemGrants_deveRegistrarComPadroesESemSegredo() {
         // Arrange
         ClientApplicationService service = createService();
+        RegisterClientCommand command = command(
+                "EcoFy SPA",
+                ClientType.SPA,
+                null,
+                REDIRECT_URIS
+        );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.SPA,
-                        null,
-                        Set.of(REDIRECT_URI)
-                );
-
-        prepareSuccessfulSave();
+        when(saveClientApplicationPort.save(any()))
+                .thenReturn(savedClientApplication);
+        when(savedClientApplication.clientId())
+                .thenReturn("saved-client-id");
+        when(savedClientApplication.clientType())
+                .thenReturn(ClientType.SPA);
+        when(savedClientApplication.isActive())
+                .thenReturn(true);
 
         // Act
         ClientApplication result = service.register(command);
 
         // Assert
-        assertRegisteredClient(
-                result,
-                ClientType.SPA
+        ArgumentCaptor<ClientApplication> clientCaptor =
+                ArgumentCaptor.forClass(ClientApplication.class);
+
+        assertAll(
+                () -> assertSame(savedClientApplication, result),
+                () -> verify(
+                        passwordHashingPort,
+                        never()
+                ).hash(any()),
+                () -> verify(saveClientApplicationPort).save(
+                        clientCaptor.capture()
+                )
         );
 
-        verifyNoInteractions(passwordHashingPort);
+        ClientApplication createdClient = clientCaptor.getValue();
 
-        verify(saveClientApplicationPort)
-                .save(result);
+        assertAll(
+                () -> assertEquals(
+                        Set.of(
+                                GrantType.AUTHORIZATION_CODE,
+                                GrantType.REFRESH_TOKEN
+                        ),
+                        createdClient.grantTypes()
+                ),
+                () -> assertNull(
+                        createdClient.clientSecretHash()
+                )
+        );
     }
 
     @Test
     @DisplayName("Deve registrar cliente máquina a máquina com grant padrão e segredo protegido")
-    void register_clienteM2mSemGrants_deveAplicarClientCredentialsEGerarSegredo() {
+    void register_clienteMaquinaAMaquinaSemGrants_deveRegistrarComGrantPadraoESegredo() {
         // Arrange
         ClientApplicationService service = createService();
+        RegisterClientCommand command = command(
+                "EcoFy Worker",
+                ClientType.MACHINE_TO_MACHINE,
+                null,
+                null
+        );
+        PasswordHash passwordHash =
+                new PasswordHash("m2m-secret-hash");
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.MACHINE_TO_MACHINE,
-                        Set.of(),
-                        Set.of()
-                );
-
-        prepareSecretHashing();
-        prepareSuccessfulSave();
-
-        ArgumentCaptor<String> secretCaptor =
-                ArgumentCaptor.forClass(String.class);
+        when(passwordHashingPort.hash(any()))
+                .thenReturn(passwordHash);
+        when(saveClientApplicationPort.save(any()))
+                .thenReturn(savedClientApplication);
+        when(savedClientApplication.clientId())
+                .thenReturn("saved-client-id");
+        when(savedClientApplication.clientType())
+                .thenReturn(ClientType.MACHINE_TO_MACHINE);
+        when(savedClientApplication.isActive())
+                .thenReturn(true);
 
         // Act
         ClientApplication result = service.register(command);
 
         // Assert
-        assertRegisteredClient(
-                result,
-                ClientType.MACHINE_TO_MACHINE
+        ArgumentCaptor<ClientApplication> clientCaptor =
+                ArgumentCaptor.forClass(ClientApplication.class);
+
+        assertAll(
+                () -> assertSame(savedClientApplication, result),
+                () -> verify(passwordHashingPort).hash(any()),
+                () -> verify(saveClientApplicationPort).save(
+                        clientCaptor.capture()
+                )
         );
 
-        verify(passwordHashingPort)
-                .hash(secretCaptor.capture());
+        ClientApplication createdClient = clientCaptor.getValue();
 
-        assertGeneratedSecret(secretCaptor.getValue());
-
-        verify(saveClientApplicationPort)
-                .save(result);
+        assertAll(
+                () -> assertEquals(
+                        Set.of(GrantType.CLIENT_CREDENTIALS),
+                        createdClient.grantTypes()
+                ),
+                () -> assertTrue(
+                        createdClient.redirectUris().isEmpty()
+                ),
+                () -> assertEquals(
+                        "m2m-secret-hash",
+                        createdClient.clientSecretHash()
+                )
+        );
     }
 
     @Test
-    @DisplayName("Deve registrar cliente confidencial com grant explícito sem exigir redirecionamento")
-    void register_clienteConfidencialComClientCredentials_deveManterGrantInformado() {
+    @DisplayName("Deve preservar os grants explicitamente solicitados para cliente confidencial")
+    void register_clienteConfidencialComGrantsInformados_devePreservarGrants() {
         // Arrange
         ClientApplicationService service = createService();
+        Set<GrantType> requestedGrants =
+                Set.of(GrantType.CLIENT_CREDENTIALS);
+        RegisterClientCommand command = command(
+                "EcoFy Integration",
+                ClientType.CONFIDENTIAL,
+                requestedGrants,
+                null
+        );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.CONFIDENTIAL,
-                        Set.of(GrantType.CLIENT_CREDENTIALS),
-                        Set.of()
-                );
-
-        prepareSecretHashing();
-        prepareSuccessfulSave();
+        when(passwordHashingPort.hash(any()))
+                .thenReturn(new PasswordHash("secret-hash"));
+        when(saveClientApplicationPort.save(any()))
+                .thenReturn(savedClientApplication);
+        when(savedClientApplication.clientId())
+                .thenReturn("saved-client-id");
+        when(savedClientApplication.clientType())
+                .thenReturn(ClientType.CONFIDENTIAL);
+        when(savedClientApplication.isActive())
+                .thenReturn(true);
 
         // Act
         ClientApplication result = service.register(command);
 
         // Assert
-        assertRegisteredClient(
-                result,
-                ClientType.CONFIDENTIAL
+        ArgumentCaptor<ClientApplication> clientCaptor =
+                ArgumentCaptor.forClass(ClientApplication.class);
+
+        assertAll(
+                () -> assertSame(savedClientApplication, result),
+                () -> verify(saveClientApplicationPort).save(
+                        clientCaptor.capture()
+                )
         );
 
-        verify(passwordHashingPort)
-                .hash(anyString());
-
-        verify(saveClientApplicationPort)
-                .save(result);
+        assertEquals(
+                requestedGrants,
+                clientCaptor.getValue().grantTypes()
+        );
     }
 
     @Test
-    @DisplayName("Deve rejeitar cliente máquina a máquina sem grant client credentials")
-    void register_clienteM2mSemClientCredentials_deveLancarGrantNaoPermitido() {
+    @DisplayName("Deve rejeitar cliente máquina a máquina sem o grant de credenciais do cliente")
+    void register_clienteMaquinaAMaquinaSemClientCredentials_deveLancarAuthException() {
         // Arrange
         ClientApplicationService service = createService();
+        RegisterClientCommand command = command(
+                "EcoFy Worker",
+                ClientType.MACHINE_TO_MACHINE,
+                Set.of(GrantType.REFRESH_TOKEN),
+                null
+        );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.MACHINE_TO_MACHINE,
-                        Set.of(GrantType.REFRESH_TOKEN),
-                        Set.of()
-                );
-
-        prepareSecretHashing();
+        when(passwordHashingPort.hash(any()))
+                .thenReturn(new PasswordHash("secret-hash"));
 
         // Act
         AuthException exception = assertThrows(
@@ -288,35 +458,39 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertAuthException(
-                exception,
-                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
-                "M2M client must support CLIENT_CREDENTIALS grant"
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "M2M client must support CLIENT_CREDENTIALS grant",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any())
         );
-
-        verify(passwordHashingPort)
-                .hash(anyString());
-
-        verifyNoInteractions(saveClientApplicationPort);
     }
 
     @Test
-    @DisplayName("Deve rejeitar grant authorization code para cliente máquina a máquina")
-    void register_clienteM2mComAuthorizationCode_deveLancarGrantNaoPermitido() {
+    @DisplayName("Deve rejeitar o grant de código de autorização para cliente máquina a máquina")
+    void register_clienteMaquinaAMaquinaComAuthorizationCode_deveLancarAuthException() {
         // Arrange
         ClientApplicationService service = createService();
+        RegisterClientCommand command = command(
+                "EcoFy Worker",
+                ClientType.MACHINE_TO_MACHINE,
+                Set.of(
+                        GrantType.CLIENT_CREDENTIALS,
+                        GrantType.AUTHORIZATION_CODE
+                ),
+                REDIRECT_URIS
+        );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.MACHINE_TO_MACHINE,
-                        Set.of(
-                                GrantType.CLIENT_CREDENTIALS,
-                                GrantType.AUTHORIZATION_CODE
-                        ),
-                        Set.of(REDIRECT_URI)
-                );
-
-        prepareSecretHashing();
+        when(passwordHashingPort.hash(any()))
+                .thenReturn(new PasswordHash("secret-hash"));
 
         // Act
         AuthException exception = assertThrows(
@@ -325,35 +499,39 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertAuthException(
-                exception,
-                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
-                "M2M client cannot use AUTHORIZATION_CODE grant"
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "M2M client cannot use AUTHORIZATION_CODE grant",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any())
         );
-
-        verify(passwordHashingPort)
-                .hash(anyString());
-
-        verifyNoInteractions(saveClientApplicationPort);
     }
 
     @Test
-    @DisplayName("Deve rejeitar grant password para cliente máquina a máquina")
-    void register_clienteM2mComPassword_deveLancarGrantNaoPermitido() {
+    @DisplayName("Deve rejeitar o grant de senha para cliente máquina a máquina")
+    void register_clienteMaquinaAMaquinaComPassword_deveLancarAuthException() {
         // Arrange
         ClientApplicationService service = createService();
+        RegisterClientCommand command = command(
+                "EcoFy Worker",
+                ClientType.MACHINE_TO_MACHINE,
+                Set.of(
+                        GrantType.CLIENT_CREDENTIALS,
+                        GrantType.PASSWORD
+                ),
+                null
+        );
 
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.MACHINE_TO_MACHINE,
-                        Set.of(
-                                GrantType.CLIENT_CREDENTIALS,
-                                GrantType.PASSWORD
-                        ),
-                        Set.of()
-                );
-
-        prepareSecretHashing();
+        when(passwordHashingPort.hash(any()))
+                .thenReturn(new PasswordHash("secret-hash"));
 
         // Act
         AuthException exception = assertThrows(
@@ -362,30 +540,33 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertAuthException(
-                exception,
-                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
-                "M2M client cannot use PASSWORD grant"
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "M2M client cannot use PASSWORD grant",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any())
         );
-
-        verify(passwordHashingPort)
-                .hash(anyString());
-
-        verifyNoInteractions(saveClientApplicationPort);
     }
 
     @Test
-    @DisplayName("Deve rejeitar grant client credentials para cliente público")
-    void register_clientePublicoComClientCredentials_deveLancarGrantNaoPermitido() {
+    @DisplayName("Deve rejeitar grant de credenciais do cliente para cliente público")
+    void register_clientePublicoComClientCredentials_deveLancarAuthException() {
         // Arrange
         ClientApplicationService service = createService();
-
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.PUBLIC,
-                        Set.of(GrantType.CLIENT_CREDENTIALS),
-                        Set.of()
-                );
+        RegisterClientCommand command = command(
+                "EcoFy Mobile",
+                ClientType.PUBLIC,
+                Set.of(GrantType.CLIENT_CREDENTIALS),
+                null
+        );
 
         // Act
         AuthException exception = assertThrows(
@@ -394,30 +575,37 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertAuthException(
-                exception,
-                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
-                "PUBLIC/SPA clients cannot use CLIENT_CREDENTIALS grant"
-        );
-
-        verifyNoInteractions(
-                passwordHashingPort,
-                saveClientApplicationPort
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "PUBLIC/SPA clients cannot use CLIENT_CREDENTIALS grant",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        passwordHashingPort,
+                        never()
+                ).hash(any()),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any())
         );
     }
 
     @Test
-    @DisplayName("Deve rejeitar grant client credentials para cliente SPA")
-    void register_clienteSpaComClientCredentials_deveLancarGrantNaoPermitido() {
+    @DisplayName("Deve rejeitar grant de credenciais do cliente para aplicação SPA")
+    void register_clienteSpaComClientCredentials_deveLancarAuthException() {
         // Arrange
         ClientApplicationService service = createService();
-
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.SPA,
-                        Set.of(GrantType.CLIENT_CREDENTIALS),
-                        Set.of()
-                );
+        RegisterClientCommand command = command(
+                "EcoFy SPA",
+                ClientType.SPA,
+                Set.of(GrantType.CLIENT_CREDENTIALS),
+                null
+        );
 
         // Act
         AuthException exception = assertThrows(
@@ -426,32 +614,37 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertAuthException(
-                exception,
-                AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
-                "PUBLIC/SPA clients cannot use CLIENT_CREDENTIALS grant"
-        );
-
-        verifyNoInteractions(
-                passwordHashingPort,
-                saveClientApplicationPort
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.CLIENT_NOT_ALLOWED_FOR_GRANT_TYPE,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "PUBLIC/SPA clients cannot use CLIENT_CREDENTIALS grant",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        passwordHashingPort,
+                        never()
+                ).hash(any()),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any())
         );
     }
 
     @Test
-    @DisplayName("Deve rejeitar authorization code quando os redirecionamentos forem nulos")
-    void register_authorizationCodeComRedirectUrisNulas_deveLancarRedirectInvalido() {
+    @DisplayName("Deve rejeitar código de autorização quando os redirecionamentos forem nulos")
+    void register_authorizationCodeComRedirectUrisNulas_deveLancarAuthException() {
         // Arrange
         ClientApplicationService service = createService();
-
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.CONFIDENTIAL,
-                        Set.of(GrantType.AUTHORIZATION_CODE),
-                        null
-                );
-
-        prepareSecretHashing();
+        RegisterClientCommand command = command(
+                "EcoFy Mobile",
+                ClientType.PUBLIC,
+                Set.of(GrantType.AUTHORIZATION_CODE),
+                null
+        );
 
         // Act
         AuthException exception = assertThrows(
@@ -460,30 +653,33 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertAuthException(
-                exception,
-                AuthErrorCode.INVALID_REDIRECT_URI,
-                "AUTHORIZATION_CODE grant requires at least one redirectUri configured"
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.INVALID_REDIRECT_URI,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "AUTHORIZATION_CODE grant requires at least one redirectUri configured",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any())
         );
-
-        verify(passwordHashingPort)
-                .hash(anyString());
-
-        verifyNoInteractions(saveClientApplicationPort);
     }
 
     @Test
-    @DisplayName("Deve rejeitar authorization code quando os redirecionamentos estiverem vazios")
-    void register_authorizationCodeComRedirectUrisVazias_deveLancarRedirectInvalido() {
+    @DisplayName("Deve rejeitar código de autorização quando os redirecionamentos estiverem vazios")
+    void register_authorizationCodeComRedirectUrisVazias_deveLancarAuthException() {
         // Arrange
         ClientApplicationService service = createService();
-
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        ClientType.PUBLIC,
-                        Set.of(GrantType.AUTHORIZATION_CODE),
-                        Set.of()
-                );
+        RegisterClientCommand command = command(
+                "EcoFy Mobile",
+                ClientType.PUBLIC,
+                Set.of(GrantType.AUTHORIZATION_CODE),
+                Set.of()
+        );
 
         // Act
         AuthException exception = assertThrows(
@@ -492,41 +688,19 @@ class ClientApplicationServiceTest {
         );
 
         // Assert
-        assertAuthException(
-                exception,
-                AuthErrorCode.INVALID_REDIRECT_URI,
-                "AUTHORIZATION_CODE grant requires at least one redirectUri configured"
-        );
-
-        verifyNoInteractions(
-                passwordHashingPort,
-                saveClientApplicationPort
-        );
-    }
-
-    @Test
-    @DisplayName("Deve rejeitar o tipo de cliente nulo durante a resolução dos grants")
-    void register_tipoDeClienteNulo_deveLancarNullPointerException() {
-        // Arrange
-        ClientApplicationService service = createService();
-
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                createCommand(
-                        null,
-                        null,
-                        Set.of()
-                );
-
-        // Act
-        assertThrows(
-                NullPointerException.class,
-                () -> service.register(command)
-        );
-
-        // Assert
-        verifyNoInteractions(
-                passwordHashingPort,
-                saveClientApplicationPort
+        assertAll(
+                () -> assertEquals(
+                        AuthErrorCode.INVALID_REDIRECT_URI,
+                        exception.getErrorCode()
+                ),
+                () -> assertEquals(
+                        "AUTHORIZATION_CODE grant requires at least one redirectUri configured",
+                        exception.getMessage()
+                ),
+                () -> verify(
+                        saveClientApplicationPort,
+                        never()
+                ).save(any())
         );
     }
 
@@ -537,112 +711,19 @@ class ClientApplicationServiceTest {
         );
     }
 
-    private RegisterClientApplicationUseCase.RegisterClientCommand createCommand(
+    private RegisterClientCommand command(
+            String name,
             ClientType clientType,
             Set<GrantType> grantTypes,
             Set<String> redirectUris
     ) {
-        RegisterClientApplicationUseCase.RegisterClientCommand command =
-                org.mockito.Mockito.mock(
-                        RegisterClientApplicationUseCase.RegisterClientCommand.class
-                );
-
-        lenient().when(command.name())
-                .thenReturn(CLIENT_NAME);
-
-        lenient().when(command.clientType())
-                .thenReturn(clientType);
-
-        lenient().when(command.grantTypes())
-                .thenReturn(grantTypes);
-
-        lenient().when(command.redirectUris())
-                .thenReturn(redirectUris);
-
-        lenient().when(command.scopes())
-                .thenReturn(Set.of("profile:read"));
-
-        lenient().when(command.firstParty())
-                .thenReturn(true);
-
-        return command;
-    }
-
-    private void prepareSecretHashing() {
-        when(
-                passwordHashingPort.hash(anyString()).value()
-        ).thenReturn(HASHED_SECRET);
-    }
-
-    private void prepareSuccessfulSave() {
-        when(
-                saveClientApplicationPort.save(
-                        any(ClientApplication.class)
-                )
-        ).thenAnswer(invocation -> invocation.getArgument(0));
-    }
-
-    private void assertRegisteredClient(
-            ClientApplication client,
-            ClientType expectedClientType
-    ) {
-        assertAll(
-                () -> assertNotNull(client),
-                () -> assertEquals(
-                        expectedClientType,
-                        client.clientType()
-                ),
-                () -> assertTrue(client.isActive()),
-                () -> assertNotNull(client.clientId()),
-                () -> assertTrue(
-                        client.clientId().matches(
-                                "^eco_[A-Za-z0-9_-]{16}$"
-                        )
-                )
-        );
-    }
-
-    private void assertGeneratedSecret(String secret) {
-        assertAll(
-                () -> assertNotNull(secret),
-                () -> assertEquals(43, secret.length()),
-                () -> assertTrue(
-                        secret.matches(
-                                "^[A-Za-z0-9_-]{43}$"
-                        )
-                )
-        );
-    }
-
-    private void assertAuthException(
-            AuthException exception,
-            AuthErrorCode expectedErrorCode,
-            String expectedMessage
-    ) {
-        assertAll(
-                () -> assertEquals(
-                        expectedErrorCode,
-                        exception.getErrorCode()
-                ),
-                () -> assertEquals(
-                        expectedMessage,
-                        exception.getMessage()
-                )
-        );
-    }
-
-    private void assertNullDependency(
-            String expectedMessage,
-            Executable executable
-    ) {
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                executable
-        );
-
-        assertEquals(
-                expectedMessage,
-                exception.getMessage()
+        return new RegisterClientCommand(
+                name,
+                clientType,
+                grantTypes,
+                redirectUris,
+                SCOPES,
+                true
         );
     }
 }
