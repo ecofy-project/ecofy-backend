@@ -65,6 +65,22 @@ public class BudgetEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // Optimistic locking (ECO-11). @Version também altera o isNew do Spring Data: version null
+    // = novo (insert); version preenchida = existente (merge com checagem de conflito).
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
+    // Construtor de compatibilidade (sem version) — preserva chamadas anteriores ao ECO-11.
+    // version=null mantém a semântica de "entidade nova" (insert) do Spring Data.
+    public BudgetEntity(UUID id, UUID userId, UUID categoryId, BudgetPeriodType periodType,
+                        LocalDate periodStart, LocalDate periodEnd, BigDecimal limitAmount, String currency,
+                        BudgetStatus status, LocalDate archivedAt, String naturalKey,
+                        Instant createdAt, Instant updatedAt) {
+        this(id, userId, categoryId, periodType, periodStart, periodEnd, limitAmount, currency,
+                status, archivedAt, naturalKey, createdAt, updatedAt, null);
+    }
+
     // Inicializa id e timestamps e normaliza campos antes de inserir no banco.
     @PrePersist
     void prePersist() {

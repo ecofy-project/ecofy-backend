@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+// Representa um orçamento e centraliza suas regras de alteração.
 public class Budget {
 
     private final UUID id;
@@ -19,6 +20,9 @@ public class Budget {
     private final Instant createdAt;
     private Instant updatedAt;
 
+    // Controla a versão utilizada na concorrência otimista.
+    private Long version;
+
     public Budget(UUID id,
                   BudgetKey key,
                   BudgetPeriodType periodType,
@@ -26,6 +30,17 @@ public class Budget {
                   BudgetStatus status,
                   Instant createdAt,
                   Instant updatedAt) {
+        this(id, key, periodType, limit, status, createdAt, updatedAt, null);
+    }
+
+    public Budget(UUID id,
+                  BudgetKey key,
+                  BudgetPeriodType periodType,
+                  Money limit,
+                  BudgetStatus status,
+                  Instant createdAt,
+                  Instant updatedAt,
+                  Long version) {
 
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.key = Objects.requireNonNull(key, "key must not be null");
@@ -34,50 +49,51 @@ public class Budget {
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt must not be null");
+        this.version = version;
 
         if (limit.amount().signum() <= 0) {
-            throw new IllegalArgumentException("Budget limit must be > 0");
+            throw new IllegalArgumentException("Budget limit must be greater than zero");
         }
     }
 
-    // Retorna o identificador único do budget.
     public UUID getId() { return id; }
 
-    // Retorna a chave natural do budget (user + category + período).
     public BudgetKey getKey() { return key; }
 
-    // Retorna o tipo de período do budget (mensal/semanal/etc.).
     public BudgetPeriodType getPeriodType() { return periodType; }
 
-    // Retorna o limite monetário configurado para o budget.
     public Money getLimit() { return limit; }
 
-    // Retorna o status atual do budget (ACTIVE/ARCHIVED/etc.).
     public BudgetStatus getStatus() { return status; }
 
-    // Retorna a data/hora de criação do budget.
     public Instant getCreatedAt() { return createdAt; }
 
-    // Retorna a data/hora da última atualização do budget.
     public Instant getUpdatedAt() { return updatedAt; }
 
-    // Atualiza o limite do budget e registra o instante da alteração.
+    // Atualiza o limite monetário e o instante da alteração.
     public void updateLimit(Money newLimit, Instant now) {
         Objects.requireNonNull(newLimit, "newLimit must not be null");
-        if (newLimit.amount().signum() <= 0) throw new IllegalArgumentException("Budget limit must be > 0");
+        if (newLimit.amount().signum() <= 0) throw new IllegalArgumentException("Budget limit must be greater than zero");
         this.limit = newLimit;
         this.updatedAt = Objects.requireNonNull(now);
     }
 
-    // Atualiza o status do budget e registra o instante da alteração.
+    // Atualiza o status e o instante da alteração.
     public void updateStatus(BudgetStatus newStatus, Instant now) {
         this.status = Objects.requireNonNull(newStatus, "newStatus must not be null");
         this.updatedAt = Objects.requireNonNull(now);
     }
 
-    // Indica se o budget está ativo e deve participar de projeções/cálculos.
     public boolean isActive() {
         return this.status == BudgetStatus.ACTIVE;
     }
 
+    public Long getVersion() { return version; }
+
+    // Aplica a versão esperada para detectar conflitos durante a persistência.
+    public void applyExpectedVersion(Long expectedVersion) {
+        if (expectedVersion != null) {
+            this.version = expectedVersion;
+        }
+    }
 }

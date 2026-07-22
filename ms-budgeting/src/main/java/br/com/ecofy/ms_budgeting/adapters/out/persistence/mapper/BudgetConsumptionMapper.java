@@ -12,13 +12,14 @@ import java.util.Currency;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a conversão entre o consumo de orçamento e sua representação persistida.
 public final class BudgetConsumptionMapper {
 
     private static final int SCALE = 2;
 
     private BudgetConsumptionMapper() {}
 
-    // Converte o objeto de domínio (BudgetConsumption) para a entidade JPA (BudgetConsumptionEntity).
+    // Converte o consumo de orçamento em uma entidade persistível.
     public static BudgetConsumptionEntity toEntity(BudgetConsumption d) {
         Objects.requireNonNull(d, "domain must not be null");
         Objects.requireNonNull(d.getConsumed(), "domain.consumed must not be null");
@@ -31,9 +32,6 @@ public final class BudgetConsumptionMapper {
         return BudgetConsumptionEntity.builder()
                 .id(d.getId())
                 .budgetId(d.getBudgetId())
-                // reference_date é NOT NULL no schema (usado p/ retenção/limpeza). Antes não era
-                // preenchido -> todo save quebrava por violação de NOT NULL. Usa period_end como
-                // referência (mesma convenção do backfill da migration V3).
                 .referenceDate(d.getPeriodEnd())
                 .periodStart(d.getPeriodStart())
                 .periodEnd(d.getPeriodEnd())
@@ -45,7 +43,7 @@ public final class BudgetConsumptionMapper {
                 .build();
     }
 
-    // Converte a entidade JPA (BudgetConsumptionEntity) para o objeto de domínio (BudgetConsumption).
+    // Converte a entidade persistida em um consumo de orçamento.
     public static BudgetConsumption toDomain(BudgetConsumptionEntity e) {
         if (e == null) return null;
 
@@ -67,7 +65,7 @@ public final class BudgetConsumptionMapper {
         );
     }
 
-    // Cria um BudgetConsumption inicial (zerado) para um budget/período e moeda informados.
+    // Cria um consumo inicial sem valor para o período informado.
     public static BudgetConsumption newEmpty(
             UUID budgetId,
             java.time.LocalDate periodStart,
@@ -89,31 +87,29 @@ public final class BudgetConsumptionMapper {
         );
     }
 
-    // Converte centavos (long) para Money (BigDecimal) mantendo escala padrão.
     private static Money fromCents(long cents, Currency currency) {
         BigDecimal amount = BigDecimal.valueOf(cents)
                 .movePointLeft(SCALE)
                 .setScale(SCALE, RoundingMode.UNNECESSARY);
+
         return new Money(amount, currency);
     }
 
-    // Converte BigDecimal (valor monetário) para centavos (long) com normalização de escala.
     private static long toCents(BigDecimal amount) {
         BigDecimal scaled = amount.setScale(SCALE, RoundingMode.HALF_UP);
+
         return scaled.movePointRight(SCALE).longValueExact();
     }
 
-    // Valida que um campo obrigatório não é nulo e retorna o próprio valor.
     private static <T> T requireNonNull(T v, String field) {
         return Objects.requireNonNull(v, field + " must not be null");
     }
 
-    // Valida que um campo obrigatório não é blank e retorna o valor trimado.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
+
         return v.trim();
     }
-
 }

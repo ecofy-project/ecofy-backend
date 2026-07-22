@@ -10,10 +10,8 @@ public interface IdempotencyRepository extends JpaRepository<IdempotencyKeyEntit
 
     boolean existsByKey(String key);
 
-    // Busca pela CHAVE textual (coluna idem_key), não pelo PK numérico.
     Optional<IdempotencyKeyEntity> findByKey(String key);
 
-    // Remove pela CHAVE textual (usado ao re-adquirir uma chave expirada).
     long deleteByKey(String key);
 
 }

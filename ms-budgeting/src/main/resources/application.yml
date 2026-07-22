@@ -1,32 +1,34 @@
-# BASE / DEV (default)
 server:
-  port: 8084                  # porta do ms-budgeting
+  port: 8084
   servlet:
-    context-path: /budgeting   # base path do serviço
-  shutdown: graceful           # encerra com segurança
+    context-path: /budgeting
+  shutdown: graceful
   compression:
-    enabled: true              # compressão HTTP
+    enabled: true
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024    # só comprime acima disso
-  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
+    min-response-size: 1024
+  # Confia nos cabeçalhos X-Forwarded-* enviados pelo gateway.
+  forward-headers-strategy: framework
 
 spring:
   application:
-    name: ms-budgeting         # nome do serviço
+    name: ms-budgeting
 
   main:
     allow-bean-definition-overriding: false
     keep-alive: true
     web-application-type: servlet
     threads:
+      # Habilita threads virtuais para as requisições HTTP.
       virtual:
-        enabled: true          # threads virtuais (Java 21+/Boot 4)
+        enabled: true
 
+  # Aponta para o banco local de desenvolvimento.
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5436/ecofy_budgeting} # dev local
+    url: ${DB_URL:jdbc:postgresql://localhost:5436/ecofy_budgeting}
     username: ${DB_USER:ecofy_budgeting}
     password: ${DB_PASS:ecofy_budgeting}
     driver-class-name: org.postgresql.Driver
@@ -37,12 +39,14 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 30000
-      leak-detection-threshold: 0   # 0 desliga
+      # Desliga a detecção de vazamento de conexão.
+      leak-detection-threshold: 0
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate        # não cria tabelas (usa Flyway)
+      # Valida o schema em vez de criá-lo, já que as tabelas vêm do Flyway.
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -53,15 +57,18 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true   # baseline automático (evite em prod)
+    # Cria a baseline automaticamente; evite manter isso ligado em produção.
+    baseline-on-migrate: true
     default-schema: ${DB_SCHEMA:ecofy_budgeting}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
+    # Aponta para o broker local de desenvolvimento.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     client-id: ms-budgeting
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}      # dev (prod usa SSL/SASL_SSL)
+      # Usa conexão sem criptografia em desenvolvimento; produção sobrescreve o protocolo.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
 
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
@@ -79,10 +86,12 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        enable.idempotence: true  # evita duplicar publish
+        # Evita duplicar mensagens em caso de reenvio do producer.
+        enable.idempotence: true
 
     listener:
-      ack-mode: record            # commit por mensagem
+      # Confirma o offset por mensagem processada.
+      ack-mode: record
 
   jackson:
     time-zone: UTC
@@ -95,13 +104,16 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
+          # Aponta para o JWKS local do ms-auth.
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 ecofy:
   budgeting:
-    # Segurança da API por ambiente: dev/test/local liberam /api/budgeting/**; prod exige JWT.
+    # Libera apenas actuator e swagger: as rotas de budgets exigem JWT em todos os
+    # ambientes, porque o dono do recurso é derivado da claim do token.
     security:
-      permit-all: ${BGT_SECURITY_PERMIT_ALL:true}             # dev default: true
+      permit-all: ${BGT_SECURITY_PERMIT_ALL:true}
+      owner-claim: ${BGT_OWNER_CLAIM:sub}
 
     topics:
       categorized-transaction: ${BGT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
@@ -115,16 +127,46 @@ ecofy:
       critical-threshold-pct: ${BGT_ALERT_CRITICAL_PCT:95}
       publish-on-every-update: ${BGT_ALERT_PUBLISH_ON_EVERY_UPDATE:false}
 
-    # Prefixo ÚNICO alinhado ao código (BudgetingSchedulingProperties + @Scheduled placeholders):
-    # antes o YAML usava "schedulers" enquanto o código lia "scheduling" -> config era ignorada.
+    # Espelha a unidade monetária oficial usada pelo domínio.
+    money:
+      scale: ${BGT_MONEY_SCALE:2}
+      rounding-mode: ${BGT_MONEY_ROUNDING:HALF_EVEN}
+      default-currency: ${BGT_DEFAULT_CURRENCY:BRL}
+
+    # Limita o tamanho das páginas, com max-size como teto obrigatório.
+    pagination:
+      default-size: ${BGT_PAGE_DEFAULT_SIZE:20}
+      max-size: ${BGT_PAGE_MAX_SIZE:100}
+
+    kafka:
+      consumer-group: ${KAFKA_CONSUMER_GROUP_ID:ms-budgeting}
+      supported-event-versions: ${BGT_SUPPORTED_EVENT_VERSIONS:1}
+      # Define o campo usado como chave de partição do evento de alerta.
+      partition-key-field: ${BGT_ALERT_PARTITION_KEY:userId}
+
+    # Configura a Transactional Outbox de eventos de alerta.
+    outbox:
+      batch-size: ${BGT_OUTBOX_BATCH_SIZE:100}
+      poll-interval: ${BGT_OUTBOX_POLL_INTERVAL:1s}
+      max-attempts: ${BGT_OUTBOX_MAX_ATTEMPTS:10}
+      initial-backoff: ${BGT_OUTBOX_INITIAL_BACKOFF:1s}
+      backoff-multiplier: ${BGT_OUTBOX_BACKOFF_MULTIPLIER:2}
+      max-backoff: ${BGT_OUTBOX_MAX_BACKOFF:5m}
+      processing-timeout: ${BGT_OUTBOX_PROCESSING_TIMEOUT:5m}
+      published-retention: ${BGT_OUTBOX_RETENTION:7d}
+      cleanup-batch-size: ${BGT_OUTBOX_CLEANUP_BATCH:500}
+      publish-timeout: ${BGT_OUTBOX_PUBLISH_TIMEOUT:10s}
+
+    # Configura as rotinas agendadas de recálculo e limpeza.
     scheduling:
-      enabled: ${BGT_SCHED_ENABLED:true}                       # liga @EnableScheduling (SchedulingConfig)
+      enabled: ${BGT_SCHED_ENABLED:true}
       recalculation-enabled: ${BGT_SCHED_RECALC_ENABLED:true}
       cleanup-enabled: ${BGT_SCHED_CLEANUP_ENABLED:false}
       cleanup-retention-days: ${BGT_CLEANUP_RETENTION_DAYS:90}
       cleanup-cron: ${BGT_CLEANUP_CRON:0 0 3 * * *}
       recalculate-cron: ${BGT_RECALC_CRON:0 0/15 * * * *}
 
+# Expõe os endpoints necessários para saúde e métricas.
 management:
   endpoints:
     web:
@@ -133,11 +175,24 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+      probes:
+        enabled: true
+      # Mantém o health da Outbox fora de liveness e readiness: backlog represado não deve
+      # reiniciar nem despejar o pod, já que reiniciar não restabelece o broker.
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
   health:
     db:
       enabled: true
     kafka:
       enabled: true
+  metrics:
+    # Identifica o serviço nas métricas com uma tag de baixa cardinalidade.
+    tags:
+      application: ${spring.application.name}
 
 springdoc:
   api-docs:
@@ -158,116 +213,3 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
-
-# PROFILE: test
----
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  datasource:
-    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_budgeting_test}
-    username: ${DB_USER_TEST:ecofy_budgeting_test}
-    password: ${DB_PASS_TEST:}   # sem default fraco
-
-  jpa:
-    hibernate:
-      ddl-auto: create-drop       # cria e apaga no fim
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: false
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
-    consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-budgeting-test}
-
-logging:
-  level:
-    root: WARN
-    br.com.ecofy.ms_budgeting: INFO
-
-ecofy:
-  budgeting:
-    security:
-      permit-all: true            # test: facilita testes locais
-    scheduling:
-      enabled: false              # test: não inicia jobs agendados no contexto de testes
-    idempotency:
-      ttl: PT1M
-    alerts:
-      warning-threshold-pct: 80
-      critical-threshold-pct: 95
-      publish-on-every-update: false
-
-
-# PROFILE: prod
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-
-  datasource:
-    url: ${DB_URL}               # sem default local
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    hikari:
-      pool-name: MsBudgetingHikariPool
-      maximum-pool-size: ${DB_POOL_MAX:20}
-      minimum-idle: ${DB_POOL_MIN:5}
-      idle-timeout: 300000
-      max-lifetime: 1800000
-      connection-timeout: 30000
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: true
-    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
-    default-schema: ${DB_SCHEMA:ecofy_budgeting}
-    locations: classpath:db/migration
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
-    properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
-
-logging:
-  level:
-    root: INFO
-    br.com.ecofy.ms_budgeting: INFO
-    org.hibernate.SQL: WARN
-    org.springframework.security: WARN
-    org.springframework.web: WARN
-
-ecofy:
-  budgeting:
-    security:
-      permit-all: ${BGT_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/budgeting/**
-
-    topics:
-      categorized-transaction: ${BGT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
-      budget-alert: ${BGT_TOPIC_BUDGET_ALERT:eco.budget.alert}
-
-    idempotency:
-      ttl: ${BGT_IDEMPOTENCY_TTL:PT24H}
-
-    alerts:
-      warning-threshold-pct: ${BGT_ALERT_WARNING_PCT:80}
-      critical-threshold-pct: ${BGT_ALERT_CRITICAL_PCT:95}
-      publish-on-every-update: ${BGT_ALERT_PUBLISH_ON_EVERY_UPDATE:false}

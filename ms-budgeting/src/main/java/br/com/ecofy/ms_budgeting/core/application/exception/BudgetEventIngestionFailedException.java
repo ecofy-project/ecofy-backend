@@ -9,9 +9,9 @@ public class BudgetEventIngestionFailedException extends BudgetingProcessingExce
     private final UUID transactionId;
 
     public BudgetEventIngestionFailedException(UUID transactionId, String eventId, String correlationId, Throwable cause) {
-        super("Failed to ingest budget transaction event. txId=" + transactionId
-                + " eventId=" + eventId
-                + " correlationId=" + correlationId, cause);
+        super("Failed to ingest budget transaction event for txId: " + transactionId
+                + " (eventId: " + eventId
+                + ", correlationId: " + correlationId + ")", cause);
         this.transactionId = transactionId;
         this.eventId = eventId;
         this.correlationId = correlationId;

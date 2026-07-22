@@ -1,0 +1,45 @@
+# Configura o ambiente de testes automatizados.
+spring:
+  # Aponta para o banco dedicado de testes, sem senha padrão embutida.
+  datasource:
+    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_budgeting_test}
+    username: ${DB_USER_TEST:ecofy_budgeting_test}
+    password: ${DB_PASS_TEST:}
+
+  jpa:
+    hibernate:
+      # Cria o schema no início e o descarta ao fim da execução.
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+
+  # Desliga as migrations, já que o schema é gerado pelo próprio teste.
+  flyway:
+    enabled: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-budgeting-test}
+
+# Reduz o nível dos logs durante os testes.
+logging:
+  level:
+    root: WARN
+    br.com.ecofy.ms_budgeting: INFO
+
+ecofy:
+  budgeting:
+    # Dispensa autenticação para simplificar os testes.
+    security:
+      permit-all: true
+    # Impede que as rotinas agendadas disparem no contexto de testes.
+    scheduling:
+      enabled: false
+    # Encurta o TTL de idempotência para não prender chaves entre cenários.
+    idempotency:
+      ttl: PT1M
+    alerts:
+      warning-threshold-pct: 80
+      critical-threshold-pct: 95
+      publish-on-every-update: false

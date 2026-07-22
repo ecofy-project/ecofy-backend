@@ -13,11 +13,12 @@ import java.util.Objects;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+// Centraliza a remoção de registros históricos de consumo.
 public class DeleteBudgetConsumptionsJpaAdapter implements DeleteBudgetConsumptionsOlderThanPort {
 
     private final BudgetConsumptionJpaRepository repository;
 
-    // Remove consumos com referenceDate <= cutoffDateInclusive e retorna a quantidade deletada.
+    // Remove os consumos registrados até a data limite e retorna a quantidade excluída.
     @Override
     @Transactional
     public long deleteConsumptionsOlderThan(LocalDate cutoffDateInclusive) {
@@ -32,5 +33,4 @@ public class DeleteBudgetConsumptionsJpaAdapter implements DeleteBudgetConsumpti
 
         return deleted;
     }
-
 }

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza as consultas e projeções de leitura dos orçamentos.
 @Slf4j
 @Service
 public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase, GetBudgetOverviewUseCase {
@@ -28,14 +29,13 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
     private final LoadBudgetsPort loadBudgetsPort;
     private final LoadBudgetConsumptionPort loadBudgetConsumptionPort;
 
-    // Injeta os ports de leitura de budgets e de consumo garantindo dependências não nulas.
     public BudgetQueryService(LoadBudgetsPort loadBudgetsPort,
                               LoadBudgetConsumptionPort loadBudgetConsumptionPort) {
         this.loadBudgetsPort = Objects.requireNonNull(loadBudgetsPort, "loadBudgetsPort must not be null");
         this.loadBudgetConsumptionPort = Objects.requireNonNull(loadBudgetConsumptionPort, "loadBudgetConsumptionPort must not be null");
     }
 
-    // Lista budgets de um usuário, validando o userId, consultando o repositório e mapeando entidades para DTOs de resposta.
+    // Consulta os orçamentos do usuário e converte os resultados para a camada de aplicação.
     @Override
     public List<BudgetResult> listByUser(UUID userId) {
         requireNonNull(userId, "userId");
@@ -49,7 +49,22 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 .toList();
     }
 
-    // Busca um budget por id, validando entrada, convertendo para DTO e lançando exceção de não encontrado quando necessário.
+    // Consulta o histórico paginado de orçamentos pertencentes ao usuário.
+    @Override
+    public br.com.ecofy.ms_budgeting.core.port.out.PageResult<BudgetResult> list(ListBudgetsQuery query) {
+        Objects.requireNonNull(query, "query must not be null");
+        requireNonNull(query.ownerId(), "ownerId");
+
+        var page = loadBudgetsPort.findByUserId(
+                query.ownerId(), query.page(), query.size(), query.sortField(), query.ascending());
+
+        return new br.com.ecofy.ms_budgeting.core.port.out.PageResult<>(
+                page.content().stream().map(BudgetQueryService::toResult).toList(),
+                page.page(),
+                page.size(),
+                page.totalElements());
+    }
+
     @Override
     public BudgetResult get(UUID budgetId) {
         requireNonNull(budgetId, "budgetId");
@@ -59,8 +74,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 .orElseThrow(() -> new BudgetNotFoundException(budgetId));
     }
 
-    // Retorna um overview HONESTO do usuário: carrega o consumo real de cada budget no seu período
-    // (antes retornava sempre zeros, o que era enganoso).
+    // Consolida os orçamentos com seus consumos reais por período.
     @Override
     public BudgetOverviewResult overview(UUID userId) {
         requireNonNull(userId, "userId");
@@ -76,7 +90,7 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         return new BudgetOverviewResult(userId, consumptions, List.of());
     }
 
-    // Monta o resumo de consumo de um budget com valores REAIS (consumido + %), carregando o consumo do período.
+    // Calcula o consumo e o percentual utilizado no período do orçamento.
     private BudgetConsumptionResult toConsumption(Budget b) {
         BigDecimal limit = b.getLimit().amount();
         var period = b.getKey().period();
@@ -94,7 +108,6 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
         return new BudgetConsumptionResult(b.getId(), consumed, limit, pct);
     }
 
-    // Converte a entidade Budget em BudgetResult, extraindo chave, período, limite, moeda, status e timestamps.
     private static BudgetResult toResult(Budget b) {
         return new BudgetResult(
                 b.getId(),
@@ -107,14 +120,13 @@ public class BudgetQueryService implements ListBudgetsUseCase, GetBudgetUseCase,
                 b.getLimit().currency().getCurrencyCode(),
                 b.getStatus(),
                 b.getCreatedAt(),
-                b.getUpdatedAt()
+                b.getUpdatedAt(),
+                b.getVersion()
         );
     }
 
-    // Valida campo obrigatório (não nulo) e lança InvalidFieldException com o nome do campo para padronizar erros de entrada.
     private static <T> T requireNonNull(T v, String field) {
         if (v == null) throw InvalidFieldException.required(field);
         return v;
     }
-
 }

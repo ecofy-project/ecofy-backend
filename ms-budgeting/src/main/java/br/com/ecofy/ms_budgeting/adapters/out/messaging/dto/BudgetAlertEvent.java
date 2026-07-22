@@ -4,15 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Evento BUDGET_ALERT publicado em {@code eco.budget.alert} e consumido pelo ms-notification.
- *
- * <p>Correção Dia 6 (item #10 / compatibilidade): a estrutura anterior
- * (eventId, occurredAt, budgetId, consumptionId, severity, message, periodStart, periodEnd)
- * era INCOMPATÍVEL com o consumidor {@code BudgetAlertEventMessage} do ms-notification, que
- * exige {@code userId} (não-nulo) e lê {@code categoryId/limitAmount/consumedAmount/consumedPct}.
- * Os nomes dos campos abaixo espelham exatamente o contrato do ms-notification (tópico inalterado).</p>
- */
+// Representa o evento de alerta de orçamento no formato esperado pelo ms-notification.
 public record BudgetAlertEvent(
 
         UUID userId,
@@ -33,7 +25,7 @@ public record BudgetAlertEvent(
 
 ) {
 
-    /** Metadados espelhando {@code MessageMetadata} do ms-notification (eventId/correlationId/occurredAt/source). */
+    // Transporta os metadados de rastreamento no formato esperado pelo consumidor.
     public record EventMetadata(
 
             String eventId,

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a validação e o processamento dos eventos de transação.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,10 +21,11 @@ public class BudgetEventIngestionService {
     private static final String MDC_CORRELATION_ID = "correlationId";
     private static final String MDC_EVENT_ID = "eventId";
     private static final String MDC_RUN_ID = "runId";
+    private static final String MDC_CAUSATION_ID = "causationId";
 
     private final ProcessTransactionForBudgetUseCase useCase;
 
-    // Orquestra a ingestão do evento de transação: valida campos obrigatórios, configura MDC, loga início/fim e chama o caso de uso.
+    // Orquestra a validação, a correlação de logs e o processamento da transação.
     public void ingest(ProcessTransactionCommand cmd) {
         if (cmd == null) throw InvalidFieldException.required("cmd");
         if (cmd.transactionId() == null) throw InvalidFieldException.required("transactionId");
@@ -40,7 +42,7 @@ public class BudgetEventIngestionService {
         try (var ignored = mdcScope(runId, eventId, correlationId)) {
 
             log.info(
-                    "[BudgetEventIngestionService] - [ingest] -> START txId={} userId={} categoryId={} eventId={} correlationId={} topic={} partition={} offset={}",
+                    "[BudgetEventIngestionService] - [ingest] -> Iniciando processamento do evento txId={} userId={} categoryId={} eventId={} correlationId={} topic={} partition={} offset={}",
                     cmd.transactionId(),
                     cmd.userId(),
                     cmd.categoryId(),
@@ -67,17 +69,20 @@ public class BudgetEventIngestionService {
         }
     }
 
-    // Cria um escopo de logging com MDC para runId/eventId/correlationId e garante a limpeza automática ao final (try-with-resources).
+    // Configura o contexto de correlação e garante sua limpeza após o processamento.
     private static AutoCloseable mdcScope(String runId, String eventId, String correlationId) {
         if (runId != null) MDC.put(MDC_RUN_ID, runId);
-        if (eventId != null) MDC.put(MDC_EVENT_ID, eventId);
+        if (eventId != null) {
+            MDC.put(MDC_EVENT_ID, eventId);
+            MDC.put(MDC_CAUSATION_ID, eventId);
+        }
         if (correlationId != null) MDC.put(MDC_CORRELATION_ID, correlationId);
 
         return () -> {
             MDC.remove(MDC_RUN_ID);
             MDC.remove(MDC_EVENT_ID);
+            MDC.remove(MDC_CAUSATION_ID);
             MDC.remove(MDC_CORRELATION_ID);
         };
     }
-
 }

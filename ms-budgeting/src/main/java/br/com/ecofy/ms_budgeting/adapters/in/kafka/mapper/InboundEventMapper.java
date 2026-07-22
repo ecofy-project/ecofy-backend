@@ -11,13 +11,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Component
+// Converte eventos Kafka de transações categorizadas em comandos de processamento.
 public class InboundEventMapper {
 
     private static final String HDR_EVENT_ID = "event_id";
     private static final String HDR_CORRELATION_ID = "correlation_id";
 
-    // Overload recomendado: o consumer passa apenas (msg, record).
-    // Gera runId e tenta extrair eventId/correlationId dos headers do Kafka.
+    // Converte a mensagem utilizando os identificadores extraídos do registro Kafka.
     public ProcessTransactionCommand toCommand(
             CategorizedTransactionMessage msg,
             ConsumerRecord<String, CategorizedTransactionMessage> record
@@ -29,7 +29,7 @@ public class InboundEventMapper {
         return toCommand(msg, runId, eventId, correlationId, record);
     }
 
-    // Overload completo: permite o consumer passar runId/eventId/correlationId explicitamente.
+    // Converte a mensagem utilizando os identificadores e metadados informados.
     public ProcessTransactionCommand toCommand(
             CategorizedTransactionMessage msg,
             UUID runId,
@@ -41,7 +41,6 @@ public class InboundEventMapper {
         if (runId == null) throw new IllegalArgumentException("runId must not be null");
         if (record == null) throw new IllegalArgumentException("record must not be null");
 
-        // Observação: ajuste os getters abaixo conforme o seu DTO real.
         return new ProcessTransactionCommand(
                 runId,
                 msg.transactionId(),
@@ -75,5 +74,4 @@ public class InboundEventMapper {
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }
-
 }

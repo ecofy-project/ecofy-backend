@@ -5,6 +5,7 @@ import jakarta.validation.constraints.DecimalMin;
 
 import java.math.BigDecimal;
 
+// Representa os dados permitidos para atualização de um orçamento.
 public record UpdateBudgetRequest(
 
         @DecimalMin(value = "0.01")
@@ -12,6 +13,12 @@ public record UpdateBudgetRequest(
 
         String currency,
 
-        BudgetStatus status
+        BudgetStatus status,
 
-) { }
+        Long version
+
+) {
+    public UpdateBudgetRequest(BigDecimal newLimitAmount, String currency, BudgetStatus status) {
+        this(newLimitAmount, currency, status, null);
+    }
+}

@@ -1,7 +1,10 @@
 package br.com.ecofy.ms_budgeting.adapters.in.web.advice;
 
+import br.com.ecofy.ms_budgeting.adapters.correlation.CorrelationContext;
 import br.com.ecofy.ms_budgeting.core.application.exception.BudgetingApplicationException;
 import br.com.ecofy.ms_budgeting.core.application.exception.BudgetingValidationException;
+import br.com.ecofy.ms_budgeting.core.application.exception.PaginationParameterInvalidException;
+import br.com.ecofy.ms_budgeting.core.domain.exception.BudgetAccessForbiddenException;
 import br.com.ecofy.ms_budgeting.core.domain.exception.BudgetAlreadyExistsException;
 import br.com.ecofy.ms_budgeting.core.domain.exception.BudgetNotFoundException;
 import br.com.ecofy.ms_budgeting.core.domain.exception.BusinessValidationException;
@@ -9,6 +12,7 @@ import br.com.ecofy.ms_budgeting.core.domain.exception.IdempotencyViolationExcep
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -19,63 +23,134 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+// Centraliza o tratamento de exceções no contrato padronizado de erros HTTP.
 public class RestExceptionHandler {
 
-    // retorna 400 para exceções de VALIDAÇÃO da aplicação (InvalidFieldException, InvalidCurrencyCodeException,
-    // MissingIdempotencyKeyException, BudgetingValidationException) — antes caíam no fallback 500.
     @ExceptionHandler(BudgetingValidationException.class)
-    ResponseEntity<ApiErrorResponse> handleAppValidation(BudgetingValidationException ex, HttpServletRequest req) {
+        // Converte falhas de validação da aplicação em respostas HTTP 400.
+    ResponseEntity<ApiErrorResponse> handleAppValidation(
+            BudgetingValidationException ex,
+            HttpServletRequest req
+    ) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("code", ex.getCode()));
     }
 
-    // retorna 500 para as demais exceções de aplicação (processamento/ingestão/projeção),
-    // expondo o code padronizado sem stack trace.
     @ExceptionHandler(BudgetingApplicationException.class)
-    ResponseEntity<ApiErrorResponse> handleApplication(BudgetingApplicationException ex, HttpServletRequest req) {
+        // Converte falhas internas da aplicação em respostas HTTP 500.
+    ResponseEntity<ApiErrorResponse> handleApplication(
+            BudgetingApplicationException ex,
+            HttpServletRequest req
+    ) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Processing error", req, Map.of("code", ex.getCode()));
     }
 
-    // retorna 404 quando o budget não existe
     @ExceptionHandler(BudgetNotFoundException.class)
-    ResponseEntity<ApiErrorResponse> handleNotFound(BudgetNotFoundException ex, HttpServletRequest req) {
-        return build(HttpStatus.NOT_FOUND, ex.getMessage(), req, Map.of());
+        // Converte a ausência do orçamento em uma resposta HTTP 404.
+    ResponseEntity<ApiErrorResponse> handleNotFound(
+            BudgetNotFoundException ex,
+            HttpServletRequest req
+    ) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), req, Map.of("code", "BUDGET_NOT_FOUND"));
     }
 
-    // retorna 409 quando já existe um budget para o mesmo contexto
     @ExceptionHandler(BudgetAlreadyExistsException.class)
-    ResponseEntity<ApiErrorResponse> handleConflict(BudgetAlreadyExistsException ex, HttpServletRequest req) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), req, Map.of("reason", "BUDGET_ALREADY_EXISTS"));
+        // Converte conflitos de orçamento existente em respostas HTTP 409.
+    ResponseEntity<ApiErrorResponse> handleConflict(
+            BudgetAlreadyExistsException ex,
+            HttpServletRequest req
+    ) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), req, Map.of("code", "BUDGET_ALREADY_EXISTS"));
     }
 
-    // retorna 409 quando há violação de idempotência (mesma chave/execução duplicada)
     @ExceptionHandler(IdempotencyViolationException.class)
-    ResponseEntity<ApiErrorResponse> handleIdempotency(IdempotencyViolationException ex, HttpServletRequest req) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), req, Map.of("reason", "IDEMPOTENCY_VIOLATION"));
+        // Converte violações de idempotência em respostas HTTP 409.
+    ResponseEntity<ApiErrorResponse> handleIdempotency(
+            IdempotencyViolationException ex,
+            HttpServletRequest req
+    ) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), req, Map.of("code", "DUPLICATE_EVENT"));
     }
 
-    // retorna 400 quando uma regra de negócio é violada
     @ExceptionHandler(BusinessValidationException.class)
-    ResponseEntity<ApiErrorResponse> handleBusiness(BusinessValidationException ex, HttpServletRequest req) {
-        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("reason", "BUSINESS_VALIDATION"));
+        // Converte violações de regras de negócio em respostas HTTP 400.
+    ResponseEntity<ApiErrorResponse> handleBusiness(
+            BusinessValidationException ex,
+            HttpServletRequest req
+    ) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("code", "VALIDATION_ERROR"));
     }
 
-    // retorna 400 quando o payload falha na validação do Bean Validation (@Valid)
+    @ExceptionHandler(BudgetAccessForbiddenException.class)
+        // Converte acessos não autorizados ao orçamento em respostas HTTP 403.
+    ResponseEntity<ApiErrorResponse> handleForbidden(
+            BudgetAccessForbiddenException ex,
+            HttpServletRequest req
+    ) {
+        return build(HttpStatus.FORBIDDEN, "Access denied", req, Map.of("code", "BUDGET_ACCESS_FORBIDDEN"));
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+        // Converte conflitos de atualização concorrente em respostas HTTP 409.
+    ResponseEntity<ApiErrorResponse> handleConcurrentUpdate(
+            ObjectOptimisticLockingFailureException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                "O orçamento foi alterado por outra operação. Atualize os dados e tente novamente.",
+                req,
+                Map.of("code", "BUDGET_CONCURRENT_UPDATE")
+        );
+    }
+
+    @ExceptionHandler(PaginationParameterInvalidException.class)
+        // Converte parâmetros inválidos de paginação em respostas HTTP 400.
+    ResponseEntity<ApiErrorResponse> handlePagination(
+            PaginationParameterInvalidException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage(),
+                req,
+                Map.of("code", "PAGINATION_PARAMETER_INVALID")
+        );
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
+        // Converte falhas de validação do payload em respostas HTTP 400.
+    ResponseEntity<ApiErrorResponse> handleValidation(
+            MethodArgumentNotValidException ex,
+            HttpServletRequest req
+    ) {
         Map<String, Object> details = new LinkedHashMap<>();
         Map<String, String> fields = new LinkedHashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(err -> fields.put(err.getField(), err.getDefaultMessage()));
+
+        ex.getBindingResult()
+                .getFieldErrors()
+                .forEach(error -> fields.put(error.getField(), error.getDefaultMessage()));
+
         details.put("fields", fields);
+        details.put("code", "VALIDATION_ERROR");
+
         return build(HttpStatus.BAD_REQUEST, "Invalid payload", req, details);
     }
 
-    // retorna 500 para erros não tratados (fallback)
     @ExceptionHandler(Exception.class)
-    ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex, HttpServletRequest req) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error", req, Map.of());
+        // Centraliza exceções não tratadas em uma resposta HTTP 500 segura.
+    ResponseEntity<ApiErrorResponse> handleGeneric(
+            Exception ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ocorreu um erro interno ao processar a solicitação.",
+                req,
+                Map.of("code", "INTERNAL_SERVER_ERROR")
+        );
     }
 
-    // monta o corpo padrão de erro e aplica traceId/correlationId quando disponível
+    // Constrói a resposta de erro com os dados de rastreamento disponíveis.
     private ResponseEntity<ApiErrorResponse> build(
             HttpStatus status,
             String message,
@@ -83,7 +158,14 @@ public class RestExceptionHandler {
             Map<String, Object> details
     ) {
         String traceId = req.getHeader("X-Trace-Id");
-        if (!StringUtils.hasText(traceId)) traceId = req.getHeader("X-Correlation-Id");
+
+        if (!StringUtils.hasText(traceId)) {
+            traceId = req.getHeader(CorrelationContext.HEADER);
+        }
+
+        if (!StringUtils.hasText(traceId)) {
+            traceId = CorrelationContext.currentCorrelationId();
+        }
 
         ApiErrorResponse body = new ApiErrorResponse(
                 Instant.now(),
@@ -97,5 +179,4 @@ public class RestExceptionHandler {
 
         return ResponseEntity.status(status).body(body);
     }
-
 }

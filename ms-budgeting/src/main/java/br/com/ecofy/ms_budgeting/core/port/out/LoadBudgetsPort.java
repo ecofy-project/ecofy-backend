@@ -12,11 +12,9 @@ public interface LoadBudgetsPort {
 
     List<Budget> findByUserId(UUID userId);
 
+    PageResult<Budget> findByUserId(UUID ownerId, int page, int size, String sortField, boolean ascending);
+
     boolean existsByNaturalKey(String naturalKey);
 
-    /**
-     * Usado por rotinas batch/scheduler (recalculation/cleanup).
-     * Retorna apenas budgets em estado ACTIVE.
-     */
     List<Budget> findAllActive();
 }

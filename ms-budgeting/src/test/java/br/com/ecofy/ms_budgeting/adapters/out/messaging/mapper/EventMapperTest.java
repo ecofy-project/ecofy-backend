@@ -20,10 +20,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Correção Dia 6 (item #10): o EventMapper agora produz um evento compatível com o
- * BudgetAlertEventMessage do ms-notification (userId/categoryId/limit/consumed/pct/severity + metadata).
- */
+// Verifica que o mapper produz um evento compatível com o contrato do ms-notification.
 class EventMapperTest {
 
     private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");

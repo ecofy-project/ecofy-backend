@@ -18,11 +18,12 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+// Centraliza a persistência e a consulta dos consumos de orçamento.
 public class BudgetConsumptionJpaAdapter implements SaveBudgetConsumptionPort, LoadBudgetConsumptionPort {
 
     private final BudgetConsumptionRepository repository;
 
-    // Persiste um BudgetConsumption no banco via JPA e retorna o domínio reidratado a partir da entidade salva.
+    // Persiste o consumo e retorna o domínio reconstituído.
     @Override
     @Transactional
     public BudgetConsumption save(BudgetConsumption consumption) {
@@ -37,7 +38,7 @@ public class BudgetConsumptionJpaAdapter implements SaveBudgetConsumptionPort, L
         return BudgetConsumptionMapper.toDomain(saved);
     }
 
-    // Busca o consumo de um budget para um período específico (start/end) e retorna Optional se não existir.
+    // Busca o consumo associado ao orçamento no período informado.
     @Override
     @Transactional(readOnly = true)
     public Optional<BudgetConsumption> findByBudgetAndPeriod(UUID budgetId, LocalDate start, LocalDate end) {
@@ -58,7 +59,7 @@ public class BudgetConsumptionJpaAdapter implements SaveBudgetConsumptionPort, L
                 .map(BudgetConsumptionMapper::toDomain);
     }
 
-    // Busca o consumo mais recente (por updatedAt) de um budget específico.
+    // Busca o consumo atualizado mais recentemente para o orçamento.
     @Transactional(readOnly = true)
     public Optional<BudgetConsumption> findLatestByBudgetId(UUID budgetId) {
         Objects.requireNonNull(budgetId, "budgetId must not be null");

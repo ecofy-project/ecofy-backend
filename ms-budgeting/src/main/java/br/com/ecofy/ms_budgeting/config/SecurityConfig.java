@@ -14,12 +14,12 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import java.util.Objects;
 
+// Configura a segurança HTTP e a autenticação JWT do serviço.
 @Configuration
 @EnableMethodSecurity
 @Slf4j
 public class SecurityConfig {
 
-    // Facilita testes locais (dev/test); em prod deve ser false para exigir JWT em /api/budgeting/**.
     private static final String PROP_PERMIT_ALL = "ecofy.budgeting.security.permit-all";
 
     private static final String[] PUBLIC_ENDPOINTS = {
@@ -35,6 +35,7 @@ public class SecurityConfig {
             "/api/budgeting/**"
     };
 
+    // Configura endpoints públicos, autenticação stateless e tratamento de acessos negados.
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, Environment env) throws Exception {
         Objects.requireNonNull(env, "env must not be null");
@@ -50,19 +51,9 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll();
-
-                    if (devPermitAll) {
-                        // DEV/TEST/LOCAL: facilita testes locais dos endpoints de negócio sem token.
-                        auth.requestMatchers(BUDGETING_API_ENDPOINTS).permitAll();
-                    } else {
-                        // PROD: exige JWT em /api/budgeting/**.
-                        auth.requestMatchers(BUDGETING_API_ENDPOINTS).authenticated();
-                    }
-
-                    // Demais endpoints sempre exigem autenticação.
+                    auth.requestMatchers(BUDGETING_API_ENDPOINTS).authenticated();
                     auth.anyRequest().authenticated();
                 })
-                // Resource Server JWT SEMPRE configurado (antes estava comentado -> nenhum JWT era validado).
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())

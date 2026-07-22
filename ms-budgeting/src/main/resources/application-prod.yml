@@ -1,0 +1,68 @@
+# Configura o ambiente de produção.
+spring:
+  # Exige as credenciais do banco por variável de ambiente, sem default local.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+    hikari:
+      pool-name: MsBudgetingHikariPool
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    # Mantém a baseline automática desligada por padrão em produção.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+    default-schema: ${DB_SCHEMA:ecofy_budgeting}
+    locations: classpath:db/migration
+
+  kafka:
+    # Exige o endereço do broker por variável de ambiente, sem default local.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      # Adota conexão autenticada e criptografada como padrão.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Exige o endereço do JWKS por variável de ambiente.
+          jwk-set-uri: ${JWT_JWKS_URI}
+
+# Reduz o nível dos logs em produção.
+logging:
+  level:
+    root: INFO
+    br.com.ecofy.ms_budgeting: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+    org.springframework.web: WARN
+
+ecofy:
+  budgeting:
+    # Exige autenticação em todas as rotas protegidas.
+    security:
+      permit-all: ${BGT_SECURITY_PERMIT_ALL:false}
+
+    topics:
+      categorized-transaction: ${BGT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
+      budget-alert: ${BGT_TOPIC_BUDGET_ALERT:eco.budget.alert}
+
+    idempotency:
+      ttl: ${BGT_IDEMPOTENCY_TTL:PT24H}
+
+    alerts:
+      warning-threshold-pct: ${BGT_ALERT_WARNING_PCT:80}
+      critical-threshold-pct: ${BGT_ALERT_CRITICAL_PCT:95}
+      publish-on-every-update: ${BGT_ALERT_PUBLISH_ON_EVERY_UPDATE:false}

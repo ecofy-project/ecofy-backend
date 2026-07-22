@@ -20,11 +20,12 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+// Centraliza a persistência e a consulta de orçamentos.
 public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
 
     private final BudgetRepository repo;
 
-    // Salva o orçamento (Budget) no banco e retorna o domínio reidratado a partir da entidade persistida.
+    // Persiste o orçamento e retorna o domínio reconstituído.
     @Override
     @Transactional
     public Budget save(Budget budget) {
@@ -54,7 +55,7 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
         }
     }
 
-    // Busca um orçamento pelo id e retorna Optional caso não exista.
+    // Busca o orçamento pelo identificador informado.
     @Override
     @Transactional(readOnly = true)
     public Optional<Budget> findById(UUID id) {
@@ -66,7 +67,7 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
                 .map(BudgetMapper::toDomain);
     }
 
-    // Lista todos os orçamentos associados a um usuário.
+    // Lista os orçamentos pertencentes ao usuário.
     @Override
     @Transactional(readOnly = true)
     public List<Budget> findByUserId(UUID userId) {
@@ -84,7 +85,44 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
                 .toList();
     }
 
-    // Verifica se já existe um orçamento persistido para uma naturalKey específica.
+    // Restringe a ordenação às propriedades permitidas pela API.
+    private static final java.util.Map<String, String> SORT_PROPERTIES = java.util.Map.of(
+            "createdAt", "createdAt",
+            "updatedAt", "updatedAt",
+            "periodStart", "periodStart",
+            "periodEnd", "periodEnd",
+            "status", "status",
+            "categoryId", "categoryId"
+    );
+
+    // Consulta o histórico paginado de orçamentos pertencentes ao usuário.
+    @Override
+    @Transactional(readOnly = true)
+    public br.com.ecofy.ms_budgeting.core.port.out.PageResult<Budget> findByUserId(
+            UUID ownerId, int page, int size, String sortField, boolean ascending) {
+
+        Objects.requireNonNull(ownerId, "ownerId must not be null");
+
+        String property = SORT_PROPERTIES.get(sortField);
+        if (property == null) {
+            throw new IllegalArgumentException("Sort field not allowed: " + sortField);
+        }
+
+        var sort = org.springframework.data.domain.Sort.by(
+                ascending ? org.springframework.data.domain.Sort.Direction.ASC
+                        : org.springframework.data.domain.Sort.Direction.DESC,
+                property);
+        var pageRequest = org.springframework.data.domain.PageRequest.of(page, size, sort);
+
+        var result = repo.findByUserId(ownerId, pageRequest);
+        return new br.com.ecofy.ms_budgeting.core.port.out.PageResult<>(
+                result.getContent().stream().map(BudgetMapper::toDomain).toList(),
+                page,
+                size,
+                result.getTotalElements());
+    }
+
+    // Verifica a existência de orçamento com a chave natural informada.
     @Override
     @Transactional(readOnly = true)
     public boolean existsByNaturalKey(String naturalKey) {
@@ -95,11 +133,11 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
         return repo.existsByNaturalKey(nk);
     }
 
-    // Lista todos os orçamentos com status ACTIVE.
+    // Lista os orçamentos disponíveis para processamento.
     @Override
     @Transactional(readOnly = true)
     public List<Budget> findAllActive() {
-        log.debug("[BudgetJpaAdapter] - [findAllActive] -> status={}", BudgetStatus.ACTIVE);
+        log.debug("[BudgetJpaAdapter] - [findAllActive] -> Listando budgets ativos status={}", BudgetStatus.ACTIVE);
 
         var entities = repo.findByStatus(BudgetStatus.ACTIVE);
         if (entities == null || entities.isEmpty()) {
@@ -111,7 +149,6 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
                 .toList();
     }
 
-    // Valida e normaliza uma string obrigatória (não nula e não vazia) antes do uso.
     private static String requireNonBlank(String value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " must not be null");
@@ -122,5 +159,4 @@ public class BudgetJpaAdapter implements SaveBudgetPort, LoadBudgetsPort {
         }
         return trimmed;
     }
-
 }

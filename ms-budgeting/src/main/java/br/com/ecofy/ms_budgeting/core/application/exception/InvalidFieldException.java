@@ -2,8 +2,9 @@ package br.com.ecofy.ms_budgeting.core.application.exception;
 
 public class InvalidFieldException extends BudgetingValidationException {
 
+    // Convenção oficial de mensagens (§4.2): Field '{field}' {problem}
     public InvalidFieldException(String field, String reason) {
-        super(field + " " + reason);
+        super("Field '" + field + "' " + reason);
     }
 
     public static InvalidFieldException required(String field) {

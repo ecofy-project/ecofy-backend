@@ -17,6 +17,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 
+// Centraliza a reavaliação dos consumos dos orçamentos ativos.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,7 +27,7 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
     private final LoadBudgetConsumptionPort loadBudgetConsumptionPort;
     private final Clock clock;
 
-    // Recalcula (de forma read-only) os percentuais de consumo dos budgets ativos para uma data de referência e registra métricas em log.
+    // Recalcula os percentuais de consumo para a data de referência.
     @Override
     @Transactional(readOnly = true)
     public void recalculate(RecalculateBudgetsCommand cmd) {
@@ -36,7 +37,7 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
         LocalDate refDate = cmd.referenceDate() != null ? cmd.referenceDate() : LocalDate.now(clock);
         Instant startedAt = Instant.now(clock);
 
-        log.info("[BudgetRecalculationService] - [recalculate] -> START runId={} referenceDate={} startedAt={}",
+        log.info("[BudgetRecalculationService] - [recalculate] -> Iniciando recálculo runId={} referenceDate={} startedAt={}",
                 cmd.runId(), refDate, startedAt);
 
         var budgets = loadBudgetsPort.findAllActive();
@@ -79,7 +80,7 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
                 cmd.runId(), refDate, evaluated);
     }
 
-    // Calcula o percentual consumido sobre o limite com escala 2 e HALF_UP, tratando nulos e limites inválidos como 0%.
+    // Calcula o percentual consumido e retorna zero para limites inválidos.
     private static BigDecimal pct(BigDecimal consumed, BigDecimal limit) {
         if (limit == null || limit.signum() <= 0) return BigDecimal.ZERO;
         if (consumed == null) return BigDecimal.ZERO;
@@ -88,5 +89,4 @@ public class BudgetRecalculationService implements RecalculateBudgetsUseCase {
                 .multiply(BigDecimal.valueOf(100))
                 .divide(limit, 2, RoundingMode.HALF_UP);
     }
-
 }

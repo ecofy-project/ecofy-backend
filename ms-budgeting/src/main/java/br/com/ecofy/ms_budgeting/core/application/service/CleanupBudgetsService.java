@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 
+// Centraliza a limpeza dos dados históricos de orçamento.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,7 +21,7 @@ public class CleanupBudgetsService implements CleanupBudgetsUseCase {
     private final DeleteArchivedBudgetsOlderThanPort deleteArchivedBudgetsOlderThanPort;
     private final DeleteBudgetConsumptionsOlderThanPort deleteBudgetConsumptionsOlderThanPort;
 
-    // Executa a rotina de limpeza: valida o comando, calcula a data de corte (cutoff), remove consumos e budgets arquivados antigos e retorna um resumo da execução.
+    // Remove consumos e orçamentos arquivados conforme a política de retenção.
     @Override
     public CleanupBudgetsResult cleanup(CleanupBudgetsCommand command) {
         if (command == null) throw InvalidFieldException.required("command");
@@ -47,5 +48,4 @@ public class CleanupBudgetsService implements CleanupBudgetsUseCase {
                 consumptionsDeleted
         );
     }
-
 }

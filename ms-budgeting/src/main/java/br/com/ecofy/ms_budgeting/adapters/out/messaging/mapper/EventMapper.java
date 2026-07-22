@@ -9,23 +9,24 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+// Converte alertas de orçamento em eventos destinados ao serviço de notificações.
 public final class EventMapper {
 
     private static final String SOURCE = "ms-budgeting";
 
-    private EventMapper() {}
+    private EventMapper() {
+    }
 
-    // mantém compatibilidade com o método atual do sistema, usando Clock padrão UTC
+    // Converte o alerta utilizando o relógio UTC padrão.
     public static BudgetAlertEvent toEvent(BudgetAlert alert) {
         return toEvent(alert, Clock.systemUTC());
     }
 
-    // converte o BudgetAlert do domínio para o BudgetAlertEvent (contrato do ms-notification)
+    // Converte o alerta utilizando o relógio informado.
     public static BudgetAlertEvent toEvent(BudgetAlert alert, Clock clock) {
         Objects.requireNonNull(alert, "alert must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
 
-        // valida campos obrigatórios para evitar publicar evento inconsistente
         if (alert.getBudgetId() == null) {
             throw new IllegalArgumentException("alert.budgetId must not be null");
         }
@@ -40,7 +41,6 @@ public final class EventMapper {
                 SOURCE
         );
 
-        // monta o evento no formato consumido pelo ms-notification
         return new BudgetAlertEvent(
                 alert.getUserId(),
                 alert.getBudgetId(),
@@ -53,7 +53,6 @@ public final class EventMapper {
         );
     }
 
-    // gera um eventId determinístico a partir dos campos do alerta (facilita idempotência/dedup)
     private static String deterministicEventId(BudgetAlert alert) {
         String base = String.valueOf(alert.getBudgetId())
                 + "|" + String.valueOf(alert.getConsumptionId())

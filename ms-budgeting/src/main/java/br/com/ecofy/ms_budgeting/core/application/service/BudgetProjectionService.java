@@ -15,6 +15,7 @@ import br.com.ecofy.ms_budgeting.core.domain.valueobject.Money;
 import br.com.ecofy.ms_budgeting.core.domain.valueobject.Period;
 import br.com.ecofy.ms_budgeting.core.port.in.ProcessTransactionForBudgetUseCase;
 import br.com.ecofy.ms_budgeting.core.port.out.*;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a projeção de transações categorizadas nos consumos e alertas de orçamento.
 @Slf4j
 @Service
 public class BudgetProjectionService implements ProcessTransactionForBudgetUseCase {
@@ -43,8 +45,36 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
     private final IdempotencyPort idempotencyPort;
     private final BudgetingProperties props;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
 
-    // Inicializa o serviço injetando dependências (ports), propriedades de negócio e clock para facilitar testes/determinismo.
+    private static final String METRIC_TX_PROCESSED = "ecofy.budgeting.transactions.processed.total";
+    private static final String METRIC_TX_IDEMPOTENT = "ecofy.budgeting.transactions.idempotent.total";
+    private static final String METRIC_ALERT_GENERATED = "ecofy.budgeting.alerts.generated.total";
+    private static final String METRIC_ALERT_SUPPRESSED = "ecofy.budgeting.alerts.suppressed.total";
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BudgetProjectionService(
+            LoadBudgetsPort loadBudgetsPort,
+            LoadBudgetConsumptionPort loadBudgetConsumptionPort,
+            SaveBudgetConsumptionPort saveBudgetConsumptionPort,
+            SaveBudgetAlertPort saveBudgetAlertPort,
+            PublishBudgetAlertEventPort publishBudgetAlertEventPort,
+            IdempotencyPort idempotencyPort,
+            BudgetingProperties props,
+            Clock clock,
+            MeterRegistry meterRegistry
+    ) {
+        this.loadBudgetsPort = Objects.requireNonNull(loadBudgetsPort, "loadBudgetsPort must not be null");
+        this.loadBudgetConsumptionPort = Objects.requireNonNull(loadBudgetConsumptionPort, "loadBudgetConsumptionPort must not be null");
+        this.saveBudgetConsumptionPort = Objects.requireNonNull(saveBudgetConsumptionPort, "saveBudgetConsumptionPort must not be null");
+        this.saveBudgetAlertPort = Objects.requireNonNull(saveBudgetAlertPort, "saveBudgetAlertPort must not be null");
+        this.publishBudgetAlertEventPort = Objects.requireNonNull(publishBudgetAlertEventPort, "publishBudgetAlertEventPort must not be null");
+        this.idempotencyPort = Objects.requireNonNull(idempotencyPort, "idempotencyPort must not be null");
+        this.props = Objects.requireNonNull(props, "props must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.meterRegistry = Objects.requireNonNull(meterRegistry, "meterRegistry must not be null");
+    }
+
     public BudgetProjectionService(
             LoadBudgetsPort loadBudgetsPort,
             LoadBudgetConsumptionPort loadBudgetConsumptionPort,
@@ -55,17 +85,12 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
             BudgetingProperties props,
             Clock clock
     ) {
-        this.loadBudgetsPort = Objects.requireNonNull(loadBudgetsPort, "loadBudgetsPort must not be null");
-        this.loadBudgetConsumptionPort = Objects.requireNonNull(loadBudgetConsumptionPort, "loadBudgetConsumptionPort must not be null");
-        this.saveBudgetConsumptionPort = Objects.requireNonNull(saveBudgetConsumptionPort, "saveBudgetConsumptionPort must not be null");
-        this.saveBudgetAlertPort = Objects.requireNonNull(saveBudgetAlertPort, "saveBudgetAlertPort must not be null");
-        this.publishBudgetAlertEventPort = Objects.requireNonNull(publishBudgetAlertEventPort, "publishBudgetAlertEventPort must not be null");
-        this.idempotencyPort = Objects.requireNonNull(idempotencyPort, "idempotencyPort must not be null");
-        this.props = Objects.requireNonNull(props, "props must not be null");
-        this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this(loadBudgetsPort, loadBudgetConsumptionPort, saveBudgetConsumptionPort, saveBudgetAlertPort,
+                publishBudgetAlertEventPort, idempotencyPort, props, clock,
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 
-    // Processa uma transação categorizada aplicando idempotência, buscando budgets elegíveis e atualizando consumo/alertas dentro de uma transação.
+    // Processa a transação com idempotência e atualiza os consumos e alertas elegíveis.
     @Override
     @Transactional
     public void process(ProcessTransactionCommand cmd) {
@@ -76,9 +101,11 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
 
         boolean acquired = idempotencyPort.tryAcquire(idemKey, props.idempotency().ttl(), SCOPE_KAFKA_CATEGORIZED_TX);
         if (!acquired) {
-            log.warn("[BudgetProjectionService] - [process] -> Idempotency hit key={} txId={}", idemKey, cmd.transactionId());
+            meterRegistry.counter(METRIC_TX_IDEMPOTENT).increment();
+            log.warn("[BudgetProjectionService] - [process] -> Requisição idempotente ignorada key={} txId={}", idemKey, cmd.transactionId());
             return;
         }
+        meterRegistry.counter(METRIC_TX_PROCESSED).increment();
 
         List<Budget> budgets = loadBudgetsPort.findByUserId(UUID.fromString(String.valueOf(cmd.userId())));
         if (budgets.isEmpty()) {
@@ -117,7 +144,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         }
     }
 
-    // Atualiza (ou cria) o consumo do budget no período e publica alerta quando cruza thresholds ou quando configurado para publicar em toda atualização.
+    // Atualiza o consumo e publica um alerta quando os critérios configurados são atendidos.
     private void upsertConsumptionAndMaybeAlert(Budget budget, Money delta, LocalDate txDate, String eventId) {
         Instant now = Instant.now(clock);
 
@@ -148,6 +175,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
 
         AlertSeverity severityAfter = resolveSeverity(pctAfter);
         if (severityAfter == null) {
+            meterRegistry.counter(METRIC_ALERT_SUPPRESSED, "reason", "below_threshold").increment();
             if (props.alerts().publishOnEveryUpdate()) {
                 log.debug("[BudgetProjectionService] - [consumption] -> budgetId={} pctAfter={} amountAfter={}",
                         budgetId, pctAfter, after);
@@ -159,6 +187,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         boolean crossed = severityBefore != severityAfter;
 
         if (!crossed && !props.alerts().publishOnEveryUpdate()) {
+            meterRegistry.counter(METRIC_ALERT_SUPPRESSED, "reason", "same_severity").increment();
             log.debug("[BudgetProjectionService] - [alert] -> suppressed (already in same severity) budgetId={} severity={} pctAfter={}",
                     budgetId, severityAfter, pctAfter);
             return;
@@ -166,13 +195,13 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
 
         String alertIdemKey = "alert:" + budgetId + ":" + saved.getId() + ":" + severityAfter;
         if (!idempotencyPort.tryAcquire(alertIdemKey, props.idempotency().ttl(), "budget:alert")) {
-            log.debug("[BudgetProjectionService] - [alert] -> idempotency hit budgetId={} severity={}", budgetId, severityAfter);
+            meterRegistry.counter(METRIC_ALERT_SUPPRESSED, "reason", "idempotent").increment();
+            log.debug("[BudgetProjectionService] - [alert] -> Alerta idempotente ignorado budgetId={} severity={}", budgetId, severityAfter);
             return;
         }
 
         String msg = buildAlertMessage(severityAfter, pctAfter, saved.getPeriodStart(), saved.getPeriodEnd());
 
-        // Enriquecimento p/ o evento BUDGET_ALERT consumido pelo ms-notification (item #10).
         UUID userId = budget.getKey().userId().value();
         UUID categoryId = budget.getKey().categoryId().value();
         Integer consumedPct = pctAfter.setScale(0, RoundingMode.HALF_UP).intValueExact();
@@ -196,14 +225,15 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         );
 
         BudgetAlert persisted = saveBudgetAlertPort.save(alert);
-        // Publica o alerta em memória (totalmente enriquecido); o reload de persistência não carrega o enriquecimento.
         publishBudgetAlertEventPort.publish(persisted.getUserId() != null ? persisted : alert);
+
+        meterRegistry.counter(METRIC_ALERT_GENERATED, "severity", severityAfter.name()).increment();
 
         log.info("[BudgetProjectionService] - [alert] -> budgetId={} severity={} pctAfter={} txDate={} eventId={}",
                 budgetId, severityAfter, pctAfter, txDate, eventId);
     }
 
-    // Converte valores consumido/limite em porcentagem (0–100+) com escala 2 e rounding HALF_UP, tratando nulos e limite inválido.
+    // Calcula o percentual consumido em relação ao limite.
     private static BigDecimal toPct(BigDecimal consumed, BigDecimal limit) {
         if (limit == null || limit.signum() <= 0) return BigDecimal.ZERO;
         if (consumed == null) return BigDecimal.ZERO;
@@ -213,7 +243,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
                 .divide(limit, 2, RoundingMode.HALF_UP);
     }
 
-    // Determina a severidade do alerta com base nos thresholds configurados (CRITICAL >= critical, WARNING >= warning, senão nenhum alerta).
+    // Resolve a severidade conforme os limites configurados.
     private AlertSeverity resolveSeverity(BigDecimal pct) {
         if (pct == null) return null;
 
@@ -222,12 +252,11 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         return null;
     }
 
-    // Monta a mensagem textual do alerta incluindo severidade, percentual consumido e intervalo do período do budget.
     private static String buildAlertMessage(AlertSeverity severity, BigDecimal pct, LocalDate start, LocalDate end) {
         return "Budget " + severity + ": " + pct + "% consumed for period " + start + " -> " + end;
     }
 
-    // Gera a chave de idempotência priorizando eventId (quando presente) e caindo para transactionId quando não há eventId.
+    // Resolve a chave de idempotência priorizando o identificador do evento.
     private static String buildIdempotencyKey(String eventId, String transactionId) {
         if (eventId != null && !eventId.isBlank()) {
             return "kafka:categorized-tx:event:" + eventId.trim();
@@ -235,7 +264,7 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         return "kafka:categorized-tx:tx:" + transactionId;
     }
 
-    // Valida campos obrigatórios e regras básicas (amount >= 0, currency não vazia e ISO-4217 válida, transactionDate presente) antes do processamento.
+    // Valida os dados obrigatórios e as regras básicas da transação.
     private static void validate(ProcessTransactionCommand cmd) {
         if (cmd == null) throw InvalidFieldException.required("cmd");
         if (cmd.runId() == null) throw InvalidFieldException.required("runId");
@@ -246,16 +275,16 @@ public class BudgetProjectionService implements ProcessTransactionForBudgetUseCa
         if (cmd.amount() == null) throw InvalidFieldException.required("amount");
         if (cmd.amount().signum() < 0) throw InvalidFieldException.invalid("amount", "must be >= 0");
 
-        if (cmd.currency() == null || cmd.currency().trim().isEmpty()) throw InvalidFieldException.notBlank("currency");
+        if (cmd.currency() == null || cmd.currency().trim().isEmpty()) {
+            throw InvalidFieldException.notBlank("currency");
+        }
 
         if (cmd.transactionDate() == null) throw InvalidFieldException.required("transactionDate");
 
-        // valida ISO-4217
         try {
             Currency.getInstance(cmd.currency().trim().toUpperCase());
         } catch (Exception ex) {
             throw new InvalidCurrencyCodeException(cmd.currency(), ex);
         }
     }
-
 }

@@ -31,6 +31,7 @@ import java.util.Currency;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza os comandos de criação, atualização e exclusão de orçamentos.
 @Slf4j
 @Service
 public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUseCase, DeleteBudgetUseCase {
@@ -62,7 +63,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    // Cria um budget aplicando idempotência, validações, checagem de duplicidade (naturalKey) e persistência.
+    // Registra um orçamento após validar idempotência, consistência e duplicidade.
     @Override
     @Transactional
     public BudgetResult create(CreateBudgetCommand cmd, String idempotencyKey) {
@@ -100,14 +101,14 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         Budget saved = saveBudgetPort.save(budget);
 
         log.info(
-                "[BudgetCommandService] - [create] -> SUCCESS budgetId={} userId={} categoryId={} naturalKey={}",
+                "[BudgetCommandService] - [create] -> Orçamento criado com sucesso budgetId={} userId={} categoryId={} naturalKey={}",
                 saved.getId(), saved.getKey().userId().value(), saved.getKey().categoryId().value(), naturalKey
         );
 
         return toResult(saved);
     }
 
-    // Atualiza um budget existente aplicando idempotência e alterando limite/moeda e/ou status quando informado.
+    // Atualiza limite, moeda ou status com controle de idempotência e concorrência.
     @Override
     @Transactional
     public BudgetResult update(UpdateBudgetCommand cmd, String idempotencyKey) {
@@ -144,17 +145,19 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
             return toResult(budget);
         }
 
+        budget.applyExpectedVersion(cmd.expectedVersion());
+
         Budget saved = saveBudgetPort.save(budget);
 
         log.info(
-                "[BudgetCommandService] - [update] -> SUCCESS budgetId={} status={} updatedAt={}",
+                "[BudgetCommandService] - [update] -> Orçamento atualizado com sucesso budgetId={} status={} updatedAt={}",
                 saved.getId(), saved.getStatus(), saved.getUpdatedAt()
         );
 
         return toResult(saved);
     }
 
-    // Remove um budget aplicando idempotência e validando existência antes de efetivar a exclusão.
+    // Remove o orçamento após validar idempotência e existência.
     @Override
     @Transactional
     public void delete(DeleteBudgetCommand cmd, String idempotencyKey) {
@@ -169,10 +172,10 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
 
         deleteBudgetPort.deleteById(budgetId);
 
-        log.info("[BudgetCommandService] - [delete] -> SUCCESS budgetId={}", budgetId);
+        log.info("[BudgetCommandService] - [delete] -> Orçamento removido com sucesso budgetId={}", budgetId);
     }
 
-    // Adquire (ou falha) a chave de idempotência para o escopo da operação, prevenindo replays concorrentes.
+    // Valida e reserva a chave de idempotência para o escopo da operação.
     private void acquireIdempotencyOrThrow(String key, String scope) {
         if (key == null || key.isBlank()) {
             throw new MissingIdempotencyKeyException();
@@ -189,7 +192,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         }
     }
 
-    // Valida os campos obrigatórios e regras de consistência do comando de criação (período e currency inclusos).
+    // Valida os campos obrigatórios e a consistência do período e da moeda.
     private void validateCreateCommand(CreateBudgetCommand cmd) {
         requireNonNull(cmd.userId(), "userId");
         requireNonNull(cmd.categoryId(), "categoryId");
@@ -205,7 +208,7 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         parseCurrency(cmd.currency());
     }
 
-    // Converte o código de moeda para Currency com validação e erro de domínio para códigos inválidos.
+    // Converte o código monetário e traduz valores inválidos em erro da aplicação.
     private static Currency parseCurrency(String code) {
         if (code == null || code.isBlank()) {
             throw InvalidFieldException.notBlank("currency");
@@ -217,13 +220,11 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
         }
     }
 
-    // Garante que um campo obrigatório não seja nulo, lançando InvalidFieldException com o nome do campo.
     private static <T> T requireNonNull(T v, String field) {
         if (v == null) throw InvalidFieldException.required(field);
         return v;
     }
 
-    // Converte o agregado Budget em DTO de resultado para retorno de API/camada de aplicação.
     private static BudgetResult toResult(Budget b) {
         return new BudgetResult(
                 b.getId(),
@@ -236,8 +237,8 @@ public class BudgetCommandService implements CreateBudgetUseCase, UpdateBudgetUs
                 b.getLimit().currency().getCurrencyCode(),
                 b.getStatus(),
                 b.getCreatedAt(),
-                b.getUpdatedAt()
+                b.getUpdatedAt(),
+                b.getVersion()
         );
     }
-
 }

@@ -16,11 +16,12 @@ import java.util.Currency;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a conversão entre orçamentos de domínio e entidades persistidas.
 public final class BudgetMapper {
 
     private BudgetMapper() {}
 
-    // Converte a entidade JPA (BudgetEntity) para o objeto de domínio (Budget) validando consistência do naturalKey.
+    // Converte a entidade persistida em orçamento e valida sua chave natural.
     public static Budget toDomain(BudgetEntity e) {
         if (e == null) return null;
 
@@ -45,14 +46,11 @@ public final class BudgetMapper {
         Instant createdAt = e.getCreatedAt() != null ? e.getCreatedAt() : Instant.now();
         Instant updatedAt = e.getUpdatedAt() != null ? e.getUpdatedAt() : createdAt;
 
-        // Opcional (recomendado): validar naturalKey persistida vs calculada
-        // Se você prefere tolerância, remova esse bloco.
         String expectedNaturalKey = key.asNaturalKey();
         if (e.getNaturalKey() == null || e.getNaturalKey().isBlank()) {
             throw new IllegalStateException("naturalKey must not be blank");
         }
         if (!expectedNaturalKey.equals(e.getNaturalKey())) {
-            // Não quebra o fluxo se você não quiser; mas ajuda a detectar dados inconsistentes
             throw new IllegalStateException(
                     "naturalKey mismatch. expected=" + expectedNaturalKey + " persisted=" + e.getNaturalKey()
             );
@@ -65,11 +63,12 @@ public final class BudgetMapper {
                 limit,
                 requireNonNull(e.getStatus(), "status"),
                 createdAt,
-                updatedAt
+                updatedAt,
+                e.getVersion()
         );
     }
 
-    // Converte o objeto de domínio (Budget) para a entidade JPA (BudgetEntity) calculando naturalKey e timestamps.
+    // Converte o orçamento em entidade persistível e define seus metadados.
     public static BudgetEntity toEntity(Budget b) {
         Objects.requireNonNull(b, "budget must not be null");
         Objects.requireNonNull(b.getKey(), "budget.key must not be null");
@@ -80,9 +79,6 @@ public final class BudgetMapper {
         Instant createdAt = b.getCreatedAt() != null ? b.getCreatedAt() : Instant.now();
         Instant updatedAt = b.getUpdatedAt() != null ? b.getUpdatedAt() : createdAt;
 
-        // archived_at é preenchido ao arquivar (status ARCHIVED) e usado pelo cleanup para expurgo.
-        // Antes nunca era setado -> budgets arquivados nunca eram removidos. Deriva do updatedAt
-        // (instante em que o status foi alterado para ARCHIVED via updateStatus).
         LocalDate archivedAt = (b.getStatus() == BudgetStatus.ARCHIVED)
                 ? updatedAt.atZone(ZoneOffset.UTC).toLocalDate()
                 : null;
@@ -101,13 +97,13 @@ public final class BudgetMapper {
                 .naturalKey(naturalKey)
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
+                .version(b.getVersion())
                 .build();
     }
 
-    // Valida e converte o código de moeda (ISO 4217) em um objeto Currency.
     private static Currency parseCurrency(String code) {
         if (code == null || code.isBlank()) {
-            throw new IllegalArgumentException("currency must not be blank");
+            throw new IllegalArgumentException("Field 'currency' must not be blank");
         }
         try {
             return Currency.getInstance(code.trim());
@@ -116,7 +112,6 @@ public final class BudgetMapper {
         }
     }
 
-    // Valida que um campo obrigatório não é nulo e retorna o próprio valor.
     private static <T> T requireNonNull(T v, String field) {
         return Objects.requireNonNull(v, field + " must not be null");
     }

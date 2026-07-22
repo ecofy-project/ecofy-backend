@@ -15,6 +15,7 @@ import java.util.Objects;
 
 @Slf4j
 @Component
+// Centraliza o controle persistente de idempotência com expiração.
 public class IdempotencyJpaAdapter implements IdempotencyPort {
 
     private final IdempotencyRepository repo;
@@ -25,7 +26,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    // Tenta adquirir uma chave de idempotência com TTL e escopo, retornando true se conseguiu bloquear a operação.
+    // Registra uma chave temporária para impedir o processamento duplicado.
     @Override
     @Transactional
     public boolean tryAcquire(String key, Duration ttl, String scope) {
@@ -46,12 +47,10 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
                     .expiresAt(now.plus(ttl))
                     .build());
 
-            log.debug("[IdempotencyJpaAdapter] - [tryAcquire] -> ACQUIRED key={} scope={} ttl={}s", k, sc, ttl.toSeconds());
+            log.debug("[IdempotencyJpaAdapter] - [tryAcquire] -> Chave de idempotência adquirida key={} scope={} ttl={}s", k, sc, ttl.toSeconds());
             return true;
 
         } catch (DataIntegrityViolationException ex) {
-            // Tentativa de recuperação: se existir mas estiver expirada, remove e tenta de novo.
-            // Isso evita "chave fantasma" bloqueando operações depois do TTL.
             boolean reacquired = tryReacquireIfExpired(k, sc, ttl, now);
 
             if (!reacquired) {
@@ -62,15 +61,11 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         }
     }
 
-    // Tenta re-adquirir uma chave existente se ela estiver expirada, removendo-a e recriando com novo TTL.
-    // Correção Dia 6: a busca é pela CHAVE textual (idem_key), não por Long.valueOf(key) — a chave é
-    // textual (ex.: "kafka:categorized-tx:tx:...", "alert:...") e converter para Long lançava
-    // NumberFormatException, quebrando sistematicamente a recuperação de chaves expiradas.
+    // Renova a chave quando o registro existente já expirou.
     private boolean tryReacquireIfExpired(String key, String scope, Duration ttl, Instant now) {
         return repo.findByKey(key)
                 .filter(existing -> existing.getExpiresAt() != null && existing.getExpiresAt().isBefore(now))
                 .map(existing -> {
-                    // Remove a linha expirada pelo PK numérico real da entidade encontrada.
                     repo.deleteById(existing.getId());
 
                     try {
@@ -91,7 +86,6 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
                 .orElse(false);
     }
 
-    // Valida e normaliza uma String obrigatória, lançando exceção se estiver nula ou em branco.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");

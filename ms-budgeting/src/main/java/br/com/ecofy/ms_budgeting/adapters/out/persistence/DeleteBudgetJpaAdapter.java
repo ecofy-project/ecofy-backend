@@ -11,6 +11,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
+// Centraliza a exclusão e a verificação de existência de orçamentos.
 public class DeleteBudgetJpaAdapter implements DeleteBudgetPort {
 
     private final BudgetJpaRepository repo;
@@ -19,7 +20,7 @@ public class DeleteBudgetJpaAdapter implements DeleteBudgetPort {
         this.repo = Objects.requireNonNull(repo, "repo must not be null");
     }
 
-    // Deleta um budget por id (operação idempotente: se não existir, não faz nada).
+    // Remove o orçamento quando existente e preserva a idempotência da operação.
     @Override
     @Transactional
     public void deleteById(UUID id) {
@@ -34,7 +35,6 @@ public class DeleteBudgetJpaAdapter implements DeleteBudgetPort {
         log.debug("[DeleteBudgetJpaAdapter] - [deleteById] -> DELETED id={}", id);
     }
 
-    // Verifica se existe um budget com o id informado.
     @Override
     public boolean existsById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -49,5 +49,4 @@ public class DeleteBudgetJpaAdapter implements DeleteBudgetPort {
 
         return exists;
     }
-
 }

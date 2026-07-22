@@ -13,11 +13,12 @@ import java.util.Objects;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+// Centraliza a remoção de orçamentos arquivados.
 public class DeleteArchivedBudgetsJpaAdapter implements DeleteArchivedBudgetsOlderThanPort {
 
     private final BudgetJpaRepository repository;
 
-    // Remove orçamentos arquivados com archivedAt <= cutoffDateInclusive e retorna a quantidade deletada.
+    // Remove os orçamentos arquivados até a data limite e retorna a quantidade excluída.
     @Override
     @Transactional
     public long deleteArchivedBudgetsOlderThan(LocalDate cutoffDateInclusive) {
