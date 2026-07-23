@@ -34,7 +34,7 @@ public class ContactInfoResolverService implements ResolveContactInfoUseCase {
 
         var profile = loadUserProfilePort.findById(userId)
                 .orElseThrow(() -> {
-                    log.warn("[ContactInfoResolverService] - [resolve] -> profile not found userId={}", userId);
+                    log.warn("[ContactInfoResolverService] - [resolve] -> Perfil não encontrado userId={}", userId);
                     return new UserProfileNotFoundException(userId);
                 });
 

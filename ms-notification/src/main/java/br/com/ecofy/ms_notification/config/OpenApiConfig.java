@@ -12,20 +12,28 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+// Configura a documentação OpenAPI e os grupos de endpoints do serviço.
 @Configuration
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_BEARER = "BearerAuth";
 
+    // Centraliza os metadados, a documentação externa e a segurança da API.
     @Bean
     public OpenAPI ecofyNotificationOpenAPI() {
         return new OpenAPI()
                 .info(apiInfo())
                 .externalDocs(externalDocs())
                 .components(new Components()
-                        .addSecuritySchemes(SECURITY_SCHEME_BEARER, bearerSecurityScheme())
+                        .addSecuritySchemes(
+                                SECURITY_SCHEME_BEARER,
+                                bearerSecurityScheme()
+                        )
                 )
-                .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_BEARER));
+                .addSecurityItem(
+                        new SecurityRequirement()
+                                .addList(SECURITY_SCHEME_BEARER)
+                );
     }
 
     private Info apiInfo() {
@@ -62,6 +70,7 @@ public class OpenApiConfig {
                 .url("https://docs.ecofy.com/notification");
     }
 
+    // Configura o esquema de autenticação JWT exibido na documentação.
     private SecurityScheme bearerSecurityScheme() {
         return new SecurityScheme()
                 .name("Authorization")
@@ -74,6 +83,7 @@ public class OpenApiConfig {
                         """);
     }
 
+    // Agrupa os endpoints funcionais expostos pelo serviço.
     @Bean
     public GroupedOpenApi notificationApiGroup() {
         return GroupedOpenApi.builder()
@@ -83,6 +93,7 @@ public class OpenApiConfig {
                 .build();
     }
 
+    // Agrupa os endpoints operacionais do Actuator.
     @Bean
     public GroupedOpenApi actuatorGroup() {
         return GroupedOpenApi.builder()

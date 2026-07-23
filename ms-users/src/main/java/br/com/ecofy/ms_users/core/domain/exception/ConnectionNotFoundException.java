@@ -4,6 +4,6 @@ import java.util.UUID;
 
 public class ConnectionNotFoundException extends RuntimeException {
     public ConnectionNotFoundException(UUID connectionId) {
-        super("Connection not found: " + connectionId);
+        super("Connection not found for id: " + connectionId);
     }
 }

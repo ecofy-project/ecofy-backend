@@ -46,7 +46,7 @@ public class IdempotencyIndexes implements ApplicationRunner {
 
         } catch (Exception ex) {
             log.error(
-                    "[IdempotencyIndexes] - [ensureIndexes] -> failed to ensure TTL index indexName={}",
+                    "[IdempotencyIndexes] - [ensureIndexes] -> Falha ao garantir índice TTL indexName={}",
                     TTL_INDEX_NAME,
                     ex
             );

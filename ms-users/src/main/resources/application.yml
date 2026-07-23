@@ -1,29 +1,30 @@
-# BASE / DEV (default)
 server:
-  port: 8087                # porta do ms-users
+  port: 8087
   servlet:
-    context-path: /users     # base path do serviço
-  shutdown: graceful         # encerra com segurança
+    context-path: /users
+  shutdown: graceful
   compression:
-    enabled: true            # compressão HTTP
+    enabled: true
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024  # só comprime acima disso
-  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
+    min-response-size: 1024
+  # Confia nos cabeçalhos X-Forwarded-* enviados pelo gateway.
+  forward-headers-strategy: framework
 
 spring:
   application:
-    name: ms-users           # nome do serviço
+    name: ms-users
 
   main:
     allow-bean-definition-overriding: false
     keep-alive: true
     web-application-type: servlet
     threads:
+      # Habilita threads virtuais para as requisições HTTP.
       virtual:
-        enabled: true        # threads virtuais (Java 21+/Boot 4)
+        enabled: true
 
   jackson:
     time-zone: UTC
@@ -32,8 +33,9 @@ spring:
     init:
       mode: never
 
+  # Aponta para o banco local de desenvolvimento.
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5438/ecofy_users} # dev local
+    url: ${DB_URL:jdbc:postgresql://localhost:5438/ecofy_users}
     username: ${DB_USER:ecofy_users}
     password: ${DB_PASS:ecofy_users}
     driver-class-name: org.postgresql.Driver
@@ -44,12 +46,14 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 30000
-      leak-detection-threshold: 0  # 0 desliga
+      # Desliga a detecção de vazamento de conexão.
+      leak-detection-threshold: 0
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate      # não cria tabelas (usa Flyway)
+      # Valida o schema em vez de criá-lo, já que as tabelas vêm do Flyway.
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -60,20 +64,23 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true # baseline automático (evite em prod)
+    # Cria a baseline automaticamente; evite manter isso ligado em produção.
+    baseline-on-migrate: true
     default-schema: ${DB_SCHEMA:ecofy_users}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
+    # Aponta para o broker local de desenvolvimento.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     client-id: ms-users
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
+      # Usa conexão sem criptografia em desenvolvimento; produção sobrescreve o protocolo.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
 
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      # não configure JsonDeserializer via YAML aqui
+      # Mantém a desserialização JSON no código, e não nesta configuração.
       auto-offset-reset: earliest
       max-poll-records: ${KAFKA_MAX_POLL_RECORDS:10}
 
@@ -83,34 +90,45 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        enable.idempotence: true  # evita duplicar publish
+        # Evita duplicar mensagens em caso de reenvio do producer.
+        enable.idempotence: true
 
     listener:
-      ack-mode: record            # commit por mensagem
+      # Confirma o offset por mensagem processada.
+      ack-mode: record
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local (ms-auth context-path=/auth)
+          # Aponta para o JWKS local do ms-auth.
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 ecofy:
   users:
     security:
-      permit-all: ${USR_SECURITY_PERMIT_ALL:true} # dev default: true
+      # Exige autenticação por padrão: sem JWT não há identidade e a verificação de
+      # proprietário deixa de ser aplicada. Ligue apenas para diagnóstico pontual.
+      permit-all: ${USR_SECURITY_PERMIT_ALL:false}
     topics:
-      auth-user-created: ${USR_TOPIC_AUTH_USER_CREATED:auth.user.created}
+      auth-user-created: ${USR_TOPIC_AUTH_USER_CREATED:auth.user.registered}
       eco-user-event: ${USR_TOPIC_ECO_USER_EVENT:eco.user.event}
     idempotency:
       ttl: ${USR_IDEMPOTENCY_TTL:PT24H}
+    # Limita o tamanho das páginas, com max-size como teto obrigatório.
+    pagination:
+      default-size: ${USR_DEFAULT_PAGE_SIZE:20}
+      max-size: ${USR_MAX_PAGE_SIZE:100}
+    # Aponta para o ms-auth local de desenvolvimento.
     external-auth:
-      base-url: ${AUTH_MS_BASE_URL:http://localhost:8081/auth} # dev
+      base-url: ${AUTH_MS_BASE_URL:http://localhost:8081/auth}
       connect-timeout: ${AUTH_MS_CONNECT_TIMEOUT:2s}
       read-timeout: ${AUTH_MS_READ_TIMEOUT:3s}
     internal:
       enabled: true
       token: ${INTERNAL_TOKEN:local-internal-token}
 
+# Expõe os endpoints necessários para saúde e métricas.
 management:
   endpoints:
     web:
@@ -137,6 +155,9 @@ springdoc:
     display-request-duration: true
 
 logging:
+  # Inclui o correlation ID no padrão dos logs.
+  pattern:
+    level: "%5p [correlationId=%X{correlationId:-}]"
   level:
     root: INFO
     br.com.ecofy.ms_users: DEBUG
@@ -144,107 +165,3 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
-
-# PROFILE: test
----
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  datasource:
-    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5438/ecofy_users_test}
-    username: ${DB_USER_TEST:ecofy_users_test}
-    password: ${DB_PASS_TEST:}    # sem default fraco
-
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: create-drop        # cria e apaga no fim
-    show-sql: false
-
-  flyway:
-    enabled: false
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
-    consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-users-test}
-
-logging:
-  level:
-    root: WARN
-    br.com.ecofy.ms_users: INFO
-
-ecofy:
-  users:
-    security:
-      permit-all: true
-    idempotency:
-      ttl: PT1M
-
-
-# PROFILE: prod
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-
-  datasource:
-    url: ${DB_URL}                # sem default local
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    hikari:
-      pool-name: MsUsersHikariPool
-      maximum-pool-size: ${DB_POOL_MAX:20}
-      minimum-idle: ${DB_POOL_MIN:5}
-      idle-timeout: 300000
-      max-lifetime: 1800000
-      connection-timeout: 30000
-
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-
-  flyway:
-    enabled: true
-    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
-    default-schema: ${DB_SCHEMA:ecofy_users}
-    locations: classpath:db/migration
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
-    properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
-
-logging:
-  level:
-    root: INFO
-    br.com.ecofy.ms_users: INFO
-    org.springframework.security: WARN
-    org.springframework.web: WARN
-    org.hibernate.SQL: WARN
-
-ecofy:
-  users:
-    security:
-      permit-all: false
-    topics:
-      auth-user-created: ${USR_TOPIC_AUTH_USER_CREATED:auth.user.created}
-      eco-user-event: ${USR_TOPIC_ECO_USER_EVENT:eco.user.event}
-    idempotency:
-      ttl: ${USR_IDEMPOTENCY_TTL:PT24H}
-    external-auth:
-      base-url: ${AUTH_MS_BASE_URL:https://auth.ecofy.com}
-      connect-timeout: ${AUTH_MS_CONNECT_TIMEOUT:2s}
-      read-timeout: ${AUTH_MS_READ_TIMEOUT:3s}

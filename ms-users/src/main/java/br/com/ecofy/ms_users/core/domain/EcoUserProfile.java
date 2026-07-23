@@ -31,12 +31,7 @@ public class EcoUserProfile {
     private final Instant createdAt;
     private final Instant updatedAt;
 
-    /**
-     * Factory para criação de perfil a partir do Auth (fonte de verdade).
-     * - Gera um novo UserId
-     * - Define timestamps (createdAt/updatedAt) como "now"
-     * - Mantém campos opcionais (fullName pode ser null, etc.)
-     */
+    // Cria um perfil a partir dos dados do ms-auth, gerando o identificador interno e os timestamps.
     public static EcoUserProfile newFromAuth(
             ExternalAuthId externalAuthId,
             EmailAddress email,
@@ -62,14 +57,7 @@ public class EcoUserProfile {
                 .build();
     }
 
-    /**
-     * Atualiza o perfil existente com dados sincronizados do Auth.
-     * Regra:
-     * - Preenche somente quando vier valor (email/fullName/status/locale)
-     * - emailVerified é "fonte de verdade" do Auth (aplica sempre)
-     * - Mantém id/externalAuthId/createdAt/phone (phone não vem do Auth normalmente)
-     * - Atualiza updatedAt para "now"
-     */
+    // Atualiza o perfil com os dados sincronizados do ms-auth, preservando os campos que ele não governa.
     public EcoUserProfile withSyncedAuthData(
             EmailAddress email,
             String fullName,
@@ -89,12 +77,7 @@ public class EcoUserProfile {
                 .build();
     }
 
-    /**
-     * Helper opcional (mas bem útil) para garantir defaults coerentes ao construir perfis
-     * por caminhos que não passam por newFromAuth().
-     *
-     * Use isso se você quiser normalizar ao salvar, por exemplo, em um serviço de domínio.
-     */
+    // Aplica defaults coerentes de status e locale a perfis construídos fora da criação padrão.
     public EcoUserProfile withDefaultsIfMissing() {
         return this.toBuilder()
                 .status(this.status != null ? this.status : UserStatus.PENDING)
@@ -102,15 +85,9 @@ public class EcoUserProfile {
                 .build();
     }
 
-    /**
-     * Validação mínima opcional (não joga exception automaticamente).
-     * Se você usa invariantes fortes no domínio, pode trocar para exception de domínio.
-     */
+    // Valida os invariantes mínimos de identidade e timestamps do perfil.
     public void validate() {
         Objects.requireNonNull(id, "id must not be null");
-        // Se quiser exigir invariantes:
-        // Objects.requireNonNull(externalAuthId, "externalAuthId must not be null");
-        // Objects.requireNonNull(email, "email must not be null");
         Objects.requireNonNull(createdAt, "createdAt must not be null");
         Objects.requireNonNull(updatedAt, "updatedAt must not be null");
     }

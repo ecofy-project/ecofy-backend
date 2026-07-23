@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+// Expõe a sincronização interna de perfis originados pelo serviço de autenticação.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -27,7 +28,10 @@ import org.springframework.web.bind.annotation.*;
         name = "Users - Internal Sync",
         description = "Endpoints internos para sincronização de perfis a partir do ms-auth (upsert por authUserId)"
 )
-@RequestMapping(path = "/internal/users", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(
+        path = "/internal/users",
+        produces = MediaType.APPLICATION_JSON_VALUE
+)
 public class InternalUsersSyncController {
 
     private static final int AUTH_USER_ID_MIN = 3;
@@ -35,6 +39,7 @@ public class InternalUsersSyncController {
 
     private final UpsertUserFromAuthUseCase upsertUserFromAuthUseCase;
 
+    // Sincroniza o perfil usando o identificador do caminho como fonte de verdade.
     @Operation(
             summary = "Upsert de usuário a partir do Auth (internal)",
             description = """
@@ -52,23 +57,44 @@ public class InternalUsersSyncController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Perfil sincronizado com sucesso",
-                    content = @Content(schema = @Schema(implementation = UserProfileResult.class))
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = UserProfileResult.class
+                            )
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Payload inválido / validação falhou"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "403", description = "Sem permissão para endpoint interno"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao sincronizar perfil")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Payload inválido / validação falhou"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sem permissão para endpoint interno"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao sincronizar perfil"
+            )
     })
-    @PutMapping(path = "/{authUserId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PutMapping(
+            path = "/{authUserId}",
+            consumes = MediaType.APPLICATION_JSON_VALUE
+    )
     public ResponseEntity<UserProfileResult> upsert(
             @PathVariable
             @NotBlank(message = "authUserId must not be blank")
-            @Size(min = AUTH_USER_ID_MIN, max = AUTH_USER_ID_MAX, message = "authUserId must be between 3 and 120 chars")
+            @Size(
+                    min = AUTH_USER_ID_MIN,
+                    max = AUTH_USER_ID_MAX,
+                    message = "authUserId must be between 3 and 120 chars"
+            )
             String authUserId,
             @Valid @RequestBody UpsertUserFromAuthRequest body
     ) {
-
-        // Loga o mínimo necessário (sem vazar PII em excesso). Email e nome podem ser sensíveis.
         log.info(
                 "[InternalUsersSyncController] - [upsert] -> authUserId={} hasEmail={} hasNameParts={} emailVerified={} status={} locale={}",
                 authUserId,
@@ -79,7 +105,6 @@ public class InternalUsersSyncController {
                 body.locale()
         );
 
-        // Garante consistência: path é a fonte de verdade
         var cmd = new UpsertUserFromAuthUseCase.Command(
                 authUserId,
                 body.email(),
@@ -105,7 +130,9 @@ public class InternalUsersSyncController {
 
     private static boolean hasAnyName(UpsertUserFromAuthRequest body) {
         return (body.fullName() != null && !body.fullName().isBlank())
-                || (body.firstName() != null && !body.firstName().isBlank())
-                || (body.lastName() != null && !body.lastName().isBlank());
+                || (body.firstName() != null
+                && !body.firstName().isBlank())
+                || (body.lastName() != null
+                && !body.lastName().isBlank());
     }
 }

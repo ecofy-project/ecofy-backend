@@ -90,7 +90,7 @@ public class LinkedAccountService implements LinkAccountUseCase {
 
         var profile = loadUserProfilePort.findById(command.userId())
                 .orElseThrow(() -> {
-                    log.warn("[LinkedAccountService] - [linkAccount] -> profile not found userId={}", command.userId());
+                    log.warn("[LinkedAccountService] - [linkAccount] -> Perfil não encontrado userId={}", command.userId());
                     return new UserProfileNotFoundException(command.userId());
                 });
 

@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -29,12 +30,19 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.UUID;
 
+// Expõe operações HTTP protegidas para gerenciamento de perfis de usuário.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
 @Validated
-@Tag(name = "Users - Profile", description = "Criação, atualização e consulta do perfil de usuário")
-@RequestMapping(path = "/api/users/v1/profile", produces = MediaType.APPLICATION_JSON_VALUE)
+@Tag(
+        name = "Users - Profile",
+        description = "Criação, atualização e consulta do perfil de usuário"
+)
+@RequestMapping(
+        path = "/api/users/v1/profile",
+        produces = MediaType.APPLICATION_JSON_VALUE
+)
 public class UserProfileController {
 
     private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
@@ -42,7 +50,10 @@ public class UserProfileController {
     private final CreateUserProfileUseCase createUseCase;
     private final UpdateUserProfileUseCase updateUseCase;
     private final GetUserProfileUseCase getUseCase;
+    private final br.com.ecofy.ms_users.adapters.in.web.security
+            .ProfileOwnershipGuard ownershipGuard;
 
+    // Registra perfis exclusivamente por credenciais internas com proteção idempotente.
     @Operation(
             summary = "Cria o perfil do usuário",
             description = """
@@ -59,38 +70,65 @@ public class UserProfileController {
             @ApiResponse(
                     responseCode = "201",
                     description = "Perfil criado com sucesso",
-                    content = @Content(schema = @Schema(implementation = UserProfileResponse.class))
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = UserProfileResponse.class
+                            )
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Payload inválido / regras de domínio violadas"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "409", description = "Conflito de idempotência"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao criar perfil")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Payload inválido / regras de domínio violadas"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Conflito de idempotência"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao criar perfil"
+            )
     })
+    @PreAuthorize("hasRole('INTERNAL')")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UserProfileResponse> create(
-            @RequestHeader(name = IDEMPOTENCY_KEY_HEADER, required = false)
-            @Size(min = 8, max = 200, message = "Idempotency-Key must be between 8 and 200 chars")
+            @RequestHeader(
+                    name = IDEMPOTENCY_KEY_HEADER,
+                    required = false
+            )
+            @Size(
+                    min = 8,
+                    max = 200,
+                    message = "Idempotency-Key must be between 8 and 200 chars"
+            )
             String idempotencyKey,
             @Valid @RequestBody CreateProfileRequest req
     ) {
         log.info(
                 "[UserProfileController] - [create] -> userId={} extAuthIdPresent={} hasEmail={} hasPhone={} hasFullName={} hasIdempotencyKey={}",
                 req.userId(),
-                req.externalAuthId() != null && !req.externalAuthId().isBlank(),
+                req.externalAuthId() != null
+                        && !req.externalAuthId().isBlank(),
                 req.email() != null && !req.email().isBlank(),
                 req.phone() != null && !req.phone().isBlank(),
                 req.fullName() != null && !req.fullName().isBlank(),
                 idempotencyKey != null
         );
 
-        UserProfileResult created = createUseCase.create(new CreateUserProfileCommand(
-                req.userId(),
-                req.externalAuthId(),
-                req.fullName(),
-                req.email(),
-                req.phone(),
-                idempotencyKey
-        ));
+        UserProfileResult created = createUseCase.create(
+                new CreateUserProfileCommand(
+                        req.userId(),
+                        req.externalAuthId(),
+                        req.fullName(),
+                        req.email(),
+                        req.phone(),
+                        idempotencyKey
+                )
+        );
 
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
@@ -98,9 +136,11 @@ public class UserProfileController {
                 .buildAndExpand(created.id())
                 .toUri();
 
-        return ResponseEntity.created(location).body(toResponse(created));
+        return ResponseEntity.created(location)
+                .body(toResponse(created));
     }
 
+    // Atualiza o perfil após validar sua propriedade e a idempotência da operação.
     @Operation(
             summary = "Atualiza o perfil do usuário",
             description = """
@@ -117,18 +157,47 @@ public class UserProfileController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Perfil atualizado com sucesso",
-                    content = @Content(schema = @Schema(implementation = UserProfileResponse.class))
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = UserProfileResponse.class
+                            )
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Parâmetros inválidos / regras de domínio violadas"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "404", description = "Perfil não encontrado"),
-            @ApiResponse(responseCode = "409", description = "Conflito de idempotência"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao atualizar perfil")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Parâmetros inválidos / regras de domínio violadas"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Perfil não encontrado"
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Conflito de idempotência"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao atualizar perfil"
+            )
     })
-    @PutMapping(path = "/{userId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PutMapping(
+            path = "/{userId}",
+            consumes = MediaType.APPLICATION_JSON_VALUE
+    )
     public ResponseEntity<UserProfileResponse> update(
-            @RequestHeader(name = IDEMPOTENCY_KEY_HEADER, required = false)
-            @Size(min = 8, max = 200, message = "Idempotency-Key must be between 8 and 200 chars")
+            @RequestHeader(
+                    name = IDEMPOTENCY_KEY_HEADER,
+                    required = false
+            )
+            @Size(
+                    min = 8,
+                    max = 200,
+                    message = "Idempotency-Key must be between 8 and 200 chars"
+            )
             String idempotencyKey,
             @PathVariable("userId") @NotNull UUID userId,
             @Valid @RequestBody UpdateProfileRequest req
@@ -143,18 +212,23 @@ public class UserProfileController {
                 idempotencyKey != null
         );
 
-        UserProfileResult updated = updateUseCase.update(new UpdateUserProfileCommand(
-                userId,
-                req.fullName(),
-                req.email(),
-                req.phone(),
-                req.status(),
-                idempotencyKey
-        ));
+        ownershipGuard.assertOwnsProfile(userId);
+
+        UserProfileResult updated = updateUseCase.update(
+                new UpdateUserProfileCommand(
+                        userId,
+                        req.fullName(),
+                        req.email(),
+                        req.phone(),
+                        req.status(),
+                        idempotencyKey
+                )
+        );
 
         return ResponseEntity.ok(toResponse(updated));
     }
 
+    // Recupera um perfil após validar a propriedade do recurso.
     @Operation(
             summary = "Busca perfil por userId",
             description = """
@@ -168,32 +242,87 @@ public class UserProfileController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Perfil retornado com sucesso",
-                    content = @Content(schema = @Schema(implementation = UserProfileResponse.class))
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = UserProfileResponse.class
+                            )
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Parâmetros inválidos"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "404", description = "Perfil não encontrado"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao buscar perfil")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Parâmetros inválidos"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Perfil não encontrado"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao buscar perfil"
+            )
     })
     @GetMapping("/{userId}")
-    public ResponseEntity<UserProfileResponse> get(@PathVariable("userId") @NotNull UUID userId) {
-        log.debug("[UserProfileController] - [get] -> userId={}", userId);
+    public ResponseEntity<UserProfileResponse> get(
+            @PathVariable("userId") @NotNull UUID userId
+    ) {
+        log.debug(
+                "[UserProfileController] - [get] -> userId={}",
+                userId
+        );
 
-        var result = getUseCase.getById(userId);
+        var result = ownershipGuard.assertOwnsProfile(userId);
+
         return ResponseEntity.ok(toResponse(result));
     }
 
-    private static UserProfileResponse toResponse(UserProfileResult r) {
-        return new UserProfileResponse(
-                r.id(),
-                r.externalAuthId(),
-                r.fullName(),
-                r.email(),
-                r.phone(),
-                r.status() != null ? r.status().name() : null,
-                r.createdAt(),
-                r.updatedAt()
-        );
+    // Resolve o perfil a partir da identidade presente no token autenticado.
+    @Operation(
+            summary = "Retorna o perfil do usuário autenticado",
+            description = """
+                    Deriva o usuário EXCLUSIVAMENTE do JWT (claim de owner) — não aceita
+                    identificador de outro usuário. Contrato preferencial para o frontend.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Perfil do usuário autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Perfil ainda não criado"
+            )
+    })
+    @GetMapping("/me")
+    public ResponseEntity<UserProfileResponse> getMe() {
+        String authUserId = ownershipGuard.currentAuthUserId();
+        var result = getUseCase.getByExternalAuthId(authUserId);
+
+        return ResponseEntity.ok(toResponse(result));
     }
 
+    private static UserProfileResponse toResponse(
+            UserProfileResult result
+    ) {
+        return new UserProfileResponse(
+                result.id(),
+                result.externalAuthId(),
+                result.fullName(),
+                result.email(),
+                result.phone(),
+                result.status() != null
+                        ? result.status().name()
+                        : null,
+                result.createdAt(),
+                result.updatedAt()
+        );
+    }
 }

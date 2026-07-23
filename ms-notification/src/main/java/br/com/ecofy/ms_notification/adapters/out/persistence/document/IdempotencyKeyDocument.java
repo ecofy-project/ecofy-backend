@@ -16,7 +16,7 @@ import java.time.Instant;
 public class IdempotencyKeyDocument {
 
     @Id
-    private String key; // unique
+    private String key;
 
     private Instant createdAt;
 

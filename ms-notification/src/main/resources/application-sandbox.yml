@@ -1,0 +1,24 @@
+# Configura o ambiente de sandbox, onde os providers reais operam em contas controladas.
+spring:
+  data:
+    mongodb:
+      uri: ${MONGO_URI}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      # Adota conexão autenticada e criptografada como padrão.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+
+ecofy:
+  notification:
+    # Exige autenticação em todas as rotas protegidas.
+    security:
+      permit-all: false
+    # Ativa os providers reais com contas de sandbox; as credenciais vêm do ambiente.
+    providers:
+      email:
+        enabled: ${ECOFY_NOTIFICATION_EMAIL_ENABLED:true}
+    clients:
+      user-profile:
+        enabled: ${NTF_USER_PROFILE_CLIENT_ENABLED:true}

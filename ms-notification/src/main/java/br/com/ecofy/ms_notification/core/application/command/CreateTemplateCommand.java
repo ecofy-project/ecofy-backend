@@ -6,10 +6,7 @@ import br.com.ecofy.ms_notification.core.domain.enums.TemplateEngine;
 
 import java.util.UUID;
 
-/**
- * Comando de aplicação para criação de template (Dia 7 / item #6).
- * ownerUserId pode ser null (template global).
- */
+// Transporta os dados de criação de um template, aceitando owner nulo para templates globais.
 public record CreateTemplateCommand(
         UUID ownerUserId,
         DomainEventType eventType,

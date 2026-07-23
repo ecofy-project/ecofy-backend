@@ -7,11 +7,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Correção Dia 6 (item #5): garante que o prefixo unificado {@code ecofy.budgeting.scheduling}
- * faz bind corretamente nas properties (antes o YAML usava "schedulers" e o código lia
- * "scheduling", então a configuração era silenciosamente ignorada).
- */
+// Garante que as propriedades de agendamento são resolvidas a partir do prefixo unificado.
 class BudgetingSchedulingPropertiesBindingTest {
 
     private BudgetingSchedulingProperties bind(MockEnvironment env) {

@@ -51,6 +51,34 @@ public class ConnectionJpaAdapter implements SaveConnectionPort, LoadConnections
         return mapper.toDomain(saved);
     }
 
+    // Busca as conexões do usuário paginadas no banco, a partir de uma consulta já saneada.
+    @Override
+    public br.com.ecofy.ms_users.core.application.pagination.PagedResult<Connection> findByUserId(
+            UUID userId,
+            br.com.ecofy.ms_users.core.application.pagination.PageQuery query
+    ) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(query, "query must not be null");
+
+        var direction = query.direction() == br.com.ecofy.ms_users.core.application.pagination.PageQuery.Direction.ASC
+                ? org.springframework.data.domain.Sort.Direction.ASC
+                : org.springframework.data.domain.Sort.Direction.DESC;
+
+        var pageable = org.springframework.data.domain.PageRequest.of(
+                query.page(), query.size(), org.springframework.data.domain.Sort.by(direction, query.sortBy()));
+
+        var page = repo.findByUserId(userId, pageable);
+
+        log.debug("[ConnectionJpaAdapter] - [findByUserId(paged)] -> userId={} page={} size={} total={}",
+                userId, query.page(), query.size(), page.getTotalElements());
+
+        return new br.com.ecofy.ms_users.core.application.pagination.PagedResult<>(
+                page.getContent().stream().map(mapper::toDomain).toList(),
+                query.page(),
+                query.size(),
+                page.getTotalElements());
+    }
+
     // Carrega todas as Connections associadas a um userId, convertendo de entity para domínio.
     @Override
     public List<Connection> findByUserId(UUID userId) {

@@ -53,7 +53,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort, ListNotif
             return domain;
         } catch (Exception ex) {
             log.error(
-                    "[NotificationMongoAdapter] - [save] -> failed to save notificationId={} userId={}",
+                    "[NotificationMongoAdapter] - [save] -> Falha ao salvar notificationId={} userId={}",
                     notificationId,
                     userId,
                     ex
@@ -80,7 +80,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort, ListNotif
             return opt;
         } catch (Exception ex) {
             log.error(
-                    "[NotificationMongoAdapter] - [loadById] -> failed to load notificationId={}",
+                    "[NotificationMongoAdapter] - [loadById] -> Falha ao carregar notificationId={}",
                     uuid,
                     ex
             );
@@ -111,7 +111,7 @@ public class NotificationMongoAdapter implements SaveNotificationPort, ListNotif
             return list;
         } catch (Exception ex) {
             log.error(
-                    "[NotificationMongoAdapter] - [listByUser] -> failed to list notifications userId={} limit={}",
+                    "[NotificationMongoAdapter] - [listByUser] -> Falha ao listar notificações userId={} limit={}",
                     userId,
                     safeLimit,
                     ex

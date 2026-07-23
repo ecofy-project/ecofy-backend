@@ -47,7 +47,7 @@ public class NotificationEventsKafkaAdapter implements PublishNotificationEventP
                 .whenComplete((SendResult<String, Object> result, Throwable ex) -> {
                     if (ex != null) {
                         log.error(
-                                "[NotificationEventsKafkaAdapter] - [publish] -> status=failed eventType={} topic={} key={} notificationId={} userId={}",
+                                "[NotificationEventsKafkaAdapter] - [publish] -> Falha ao publicar evento eventType={} topic={} key={} notificationId={} userId={}",
                                 EVENT_TYPE_NOTIFICATION_SENT,
                                 topic,
                                 key,
@@ -60,7 +60,7 @@ public class NotificationEventsKafkaAdapter implements PublishNotificationEventP
 
                     var meta = result.getRecordMetadata();
                     log.info(
-                            "[NotificationEventsKafkaAdapter] - [publish] -> status=published eventType={} topic={} key={} notificationId={} userId={} partition={} offset={}",
+                            "[NotificationEventsKafkaAdapter] - [publish] -> Evento publicado com sucesso eventType={} topic={} key={} notificationId={} userId={} partition={} offset={}",
                             EVENT_TYPE_NOTIFICATION_SENT,
                             topic,
                             key,

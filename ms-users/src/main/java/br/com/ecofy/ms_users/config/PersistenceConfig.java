@@ -26,11 +26,7 @@ import java.util.Objects;
 @Configuration
 public class PersistenceConfig {
 
-    /**
-     * Garante que existe um ObjectMapper no contexto (e evita NPE no ConnectionMapper).
-     * Se o Spring Boot já tiver um ObjectMapper auto-configurado, este @Bean não será criado.
-     */
-    // Disponibiliza um ObjectMapper no contexto para ser usado por mappers/serialização na camada de persistência.
+    // Disponibiliza um ObjectMapper no contexto para a serialização usada pelos mappers de persistência.
     @Bean
     ObjectMapper objectMapper() {
         log.info("[PersistenceConfig] - [objectMapper] -> wiring ObjectMapper");

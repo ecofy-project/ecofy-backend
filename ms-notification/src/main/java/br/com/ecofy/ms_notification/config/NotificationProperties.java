@@ -7,105 +7,111 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 import java.util.Map;
 
+// Centraliza as propriedades de configuração do serviço de notificações.
 @Getter
 @Setter
-// Correção Dia 7 (item #1): o application.yml define as propriedades sob "ecofy.notification",
-// mas o prefixo aqui era "notification" -> nada era bindado e o serviço rodava só com defaults.
-// Prefixo alinhado ao YAML.
 @ConfigurationProperties(prefix = "ecofy.notification")
 public class NotificationProperties {
 
-    // Agrupa os nomes dos tópicos Kafka consumidos/publicados pelo ms-notification (com defaults seguros).
     private Topics topics = new Topics();
-
-    // Define políticas de idempotência (TTL e toggle) para evitar processamento duplicado de eventos/commands.
     private Idempotency idempotency = new Idempotency();
-
-    // Centraliza a política de retry (tentativas e backoff) para entregas/dispatch de notificações.
     private Retry retry = new Retry();
-
-    // Configura templates (locale padrão e canais default por tipo de evento) para renderização e roteamento.
     private Templates templates = new Templates();
-
-    // Define propriedades de clients externos (ex.: ms-users) usados para buscar contatos/dados do usuário.
     private Clients clients = new Clients();
+    private Providers providers = new Providers();
+    private CircuitBreaker circuitBreaker = new CircuitBreaker();
 
+    // Centraliza os tópicos Kafka utilizados pelo serviço.
     @Getter
     @Setter
     public static class Topics {
 
-        // Tópico de entrada para eventos de alerta de orçamento (consumido pelo BudgetAlertEventConsumer).
         private String budgetAlert = "eco.budget.alert";
-
-        // Tópico de entrada para eventos de insight criado (consumido pelo InsightCreatedEventConsumer).
         private String insightCreated = "eco.insight.created";
-
-        // Tópico de saída para evento de notificação enviada (publicado pelo NotificationEventsKafkaAdapter).
         private String notificationSent = "eco.notification.sent";
     }
 
+    // Configura a política de deduplicação de eventos e comandos.
     @Getter
     @Setter
     public static class Idempotency {
 
-        // Tempo de expiração (TTL) para chaves de idempotência (controla janela de deduplicação).
         private Duration ttl = Duration.ofHours(24);
-
-        // Habilita/desabilita a checagem de idempotência (útil para dev/local ou troubleshooting).
         private boolean enabled = true;
     }
 
+    // Configura as tentativas e os intervalos das entregas.
     @Getter
     @Setter
     public static class Retry {
 
-        // Número máximo de tentativas de entrega/dispatch antes de marcar como falha definitiva.
         private int maxAttempts = 3;
-
-        // Backoff base aplicado antes de reexecutar uma tentativa (ex.: 3s).
         private Duration baseBackoff = Duration.ofSeconds(3);
-
-        // Multiplicador exponencial do backoff entre tentativas (ex.: 2.0 => 3s, 6s, 12s...).
         private double multiplier = 2.0;
+        private Duration maxBackoff = Duration.ofMinutes(5);
     }
 
+    // Centraliza os provedores externos disponíveis por canal.
+    @Getter
+    @Setter
+    public static class Providers {
+
+        private Provider email = new Provider();
+        private Provider push = new Provider();
+        private Provider whatsapp = new Provider();
+
+        // Configura a comunicação com um provedor de entrega.
+        @Getter
+        @Setter
+        public static class Provider {
+
+            private boolean enabled = false;
+            private String baseUrl = "";
+            private String apiKey = "";
+            private String sender = "";
+            private Duration connectTimeout = Duration.ofSeconds(3);
+            private Duration readTimeout = Duration.ofSeconds(10);
+        }
+    }
+
+    // Configura a proteção contra falhas consecutivas dos provedores.
+    @Getter
+    @Setter
+    public static class CircuitBreaker {
+
+        private int failureThreshold = 5;
+        private Duration waitDurationOpenState = Duration.ofSeconds(30);
+    }
+
+    // Configura os padrões de renderização e roteamento dos templates.
     @Getter
     @Setter
     public static class Templates {
 
-        // Locale padrão para renderização de templates (fallback quando não houver locale do usuário).
         private String defaultLocale = "pt-BR";
-
-        // Canal padrão por tipo de evento (fallback para roteamento quando não houver preferência/override).
         private Map<String, String> defaultChannels = Map.of(
                 "BUDGET_ALERT", "EMAIL",
                 "INSIGHT_CREATED", "PUSH"
         );
     }
 
+    // Centraliza as configurações dos serviços externos consultados.
     @Getter
     @Setter
     public static class Clients {
 
-        // Configura o client que busca dados de contato do usuário (ex.: e-mail/telefone/deviceToken) no ms-users.
         private UserProfile userProfile = new UserProfile();
 
+        // Configura o acesso aos dados de contato do usuário.
         @Getter
         @Setter
         public static class UserProfile {
 
-            // Liga/desliga o client real (quando false, o adapter pode usar stub/synthetic contacts).
-            private boolean enabled = false; // placeholder stub by default
-
-            // Base URL do serviço de perfil do usuário (ms-users) para chamadas HTTP.
+            private boolean enabled = false;
             private String baseUrl = "http://localhost:8086";
-
-            // Timeout de conexão (ms) usado pelo HTTP client para estabelecer socket/TCP.
             private int connectTimeoutMs = 800;
-
-            // Timeout de leitura (ms) usado pelo HTTP client para aguardar resposta após conexão.
             private int readTimeoutMs = 1500;
+            private String serviceToken = "";
         }
     }
-
 }

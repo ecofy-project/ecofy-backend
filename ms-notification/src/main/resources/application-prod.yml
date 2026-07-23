@@ -1,0 +1,35 @@
+# Configura o ambiente de produção.
+spring:
+  data:
+    # Exige o endereço do banco por variável de ambiente, sem default local.
+    mongodb:
+      uri: ${MONGO_URI}
+
+  kafka:
+    # Exige o endereço do broker por variável de ambiente, sem default local.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      # Adota conexão autenticada e criptografada como padrão.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Exige o endereço do JWKS por variável de ambiente.
+          jwk-set-uri: ${JWT_JWKS_URI}
+
+# Reduz o nível dos logs em produção.
+logging:
+  level:
+    root: INFO
+    br.com.ecofy.ms_notification: INFO
+    org.springframework.security: WARN
+    org.springframework.web: WARN
+    org.springframework.kafka: INFO
+
+ecofy:
+  notification:
+    # Exige autenticação em todas as rotas protegidas.
+    security:
+      permit-all: ${NTF_SECURITY_PERMIT_ALL:false}

@@ -2,6 +2,7 @@ package br.com.ecofy.ms_notification.config;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -50,6 +51,40 @@ public class KafkaProducerConfig {
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
         return new KafkaTemplate<>(producerFactory);
+    }
+
+    // Producer/Template DEDICADO para a DLT (ECO-02): byte[]/byte[] republica os BYTES ORIGINAIS
+    // da mensagem verbatim (inclusive quando a falha foi de desserialização), sem re-serializar.
+    @Bean
+    public ProducerFactory<byte[], byte[]> dltProducerFactory() {
+        Map<String, Object> props = new HashMap<>(kafkaProperties.buildProducerProperties());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
+        props.putIfAbsent(ProducerConfig.ACKS_CONFIG, "all");
+        return new DefaultKafkaProducerFactory<>(props, new ByteArraySerializer(), new ByteArraySerializer());
+    }
+
+    @Bean
+    public KafkaTemplate<byte[], byte[]> dltKafkaTemplate(ProducerFactory<byte[], byte[]> dltProducerFactory) {
+        return new KafkaTemplate<>(dltProducerFactory);
+    }
+
+    // Template String/String para o publisher da Outbox (ECO-32): o payload já é o envelope JSON
+    // serializado; StringSerializer publica os bytes verbatim (sem dupla codificação).
+    @Bean
+    public ProducerFactory<String, String> outboxStringProducerFactory() {
+        Map<String, Object> props = new HashMap<>(kafkaProperties.buildProducerProperties());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.putIfAbsent(ProducerConfig.ACKS_CONFIG, "all");
+        props.putIfAbsent(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), new StringSerializer());
+    }
+
+    @Bean
+    public KafkaTemplate<String, String> notificationOutboxKafkaTemplate(
+            ProducerFactory<String, String> outboxStringProducerFactory) {
+        return new KafkaTemplate<>(outboxStringProducerFactory);
     }
 
 }

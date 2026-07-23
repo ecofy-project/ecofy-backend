@@ -15,12 +15,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import java.util.Objects;
 
+// Centraliza as regras de autenticação, autorização e proteção HTTP do serviço.
 @Configuration
 @EnableMethodSecurity
 @Slf4j
 public class SecurityConfig {
 
-    private static final String PROP_PERMIT_ALL = "ecofy.users.security.permit-all";
+    private static final String PROP_PERMIT_ALL =
+            "ecofy.users.security.permit-all";
 
     private static final String[] PUBLIC_ENDPOINTS = {
             "/actuator/health",
@@ -35,6 +37,7 @@ public class SecurityConfig {
             "/api/users/**"
     };
 
+    // Configura uma API stateless com autenticação interna e JWT controlado por ambiente.
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
@@ -43,9 +46,14 @@ public class SecurityConfig {
     ) throws Exception {
         Objects.requireNonNull(http, "http must not be null");
         Objects.requireNonNull(env, "env must not be null");
-        Objects.requireNonNull(internalTokenAuthenticationFilter, "internalTokenAuthenticationFilter must not be null");
+        Objects.requireNonNull(
+                internalTokenAuthenticationFilter,
+                "internalTokenAuthenticationFilter must not be null"
+        );
 
-        boolean devPermitAll = Boolean.parseBoolean(env.getProperty(PROP_PERMIT_ALL, "false"));
+        boolean devPermitAll = Boolean.parseBoolean(
+                env.getProperty(PROP_PERMIT_ALL, "false")
+        );
 
         log.info(
                 "[SecurityConfig] - [securityFilterChain] -> Configurando HTTP security para ms-users devPermitAll={}",
@@ -53,55 +61,62 @@ public class SecurityConfig {
         );
 
         http
-                // API stateless
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // CSRF não faz sentido em APIs stateless
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
                 .csrf(csrf -> csrf.disable())
-
-                // CORS: habilite se o dashboard estiver em outro domínio
                 .cors(Customizer.withDefaults())
-
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll();
+                    auth.requestMatchers(PUBLIC_ENDPOINTS)
+                            .permitAll();
 
-                    // Endpoint interno: SEMPRE protegido pelo token interno (mesmo em permit-all).
-                    // O InternalTokenAuthenticationFilter valida X-Internal-Token e atribui ROLE_INTERNAL.
-                    auth.requestMatchers("/internal/**").hasRole("INTERNAL");
+                    auth.requestMatchers("/internal/**")
+                            .hasRole("INTERNAL");
 
                     if (devPermitAll) {
-                        // LOCAL DEV MODE: libera API inteira para testes locais
-                        auth.requestMatchers(USERS_API_ENDPOINTS).permitAll();
+                        auth.requestMatchers(USERS_API_ENDPOINTS)
+                                .permitAll();
                         auth.anyRequest().permitAll();
                     } else {
-                        // PROD MODE: exige JWT na API do ms-users
-                        auth.requestMatchers(USERS_API_ENDPOINTS).authenticated();
+                        auth.requestMatchers(USERS_API_ENDPOINTS)
+                                .authenticated();
                         auth.anyRequest().authenticated();
                     }
                 })
-
-                // Filtro do endpoint interno roda antes da autenticação padrão.
-                .addFilterBefore(internalTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-
-                // Hardening básico de headers
+                .addFilterBefore(
+                        internalTokenAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                )
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.sameOrigin())
-                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
-                        .referrerPolicy(ref -> ref.policy(
-                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'self'")
+                        )
+                        .referrerPolicy(referrer -> referrer.policy(
+                                org.springframework.security.web.header.writers
+                                        .ReferrerPolicyHeaderWriter
+                                        .ReferrerPolicy
+                                        .NO_REFERRER
                         ))
                 );
 
         if (!devPermitAll) {
             http
-                    .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-                    .exceptionHandling(ex -> ex
-                            .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
-                            .accessDeniedHandler(new BearerTokenAccessDeniedHandler())
+                    .oauth2ResourceServer(oauth2 ->
+                            oauth2.jwt(Customizer.withDefaults())
+                    )
+                    .exceptionHandling(exception -> exception
+                            .authenticationEntryPoint(
+                                    new BearerTokenAuthenticationEntryPoint()
+                            )
+                            .accessDeniedHandler(
+                                    new BearerTokenAccessDeniedHandler()
+                            )
                     );
         }
 
         return http.build();
     }
-
 }

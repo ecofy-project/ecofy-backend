@@ -13,11 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.UUID;
 
-/**
- * Correção Dia 7 (item #13): correlação de logs por request.
- * Lê {@code X-Correlation-Id}/{@code X-Trace-Id} (ou gera um), coloca no MDC como {@code correlationId},
- * ecoa no header de resposta e limpa o MDC ao final. O RestExceptionHandler usa esse valor como traceId.
- */
+// Propaga o correlation ID da requisição no MDC e no header de resposta, limpando o contexto ao final.
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdFilter extends OncePerRequestFilter {

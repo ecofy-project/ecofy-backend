@@ -50,7 +50,7 @@ public class UserEventKafkaAdapter implements PublishUserEventPort {
         String safeKey = (key == null || key.isBlank()) ? UUID.randomUUID().toString() : key.trim();
 
         log.debug(
-                "[UserEventKafkaAdapter] - [{}] -> publishing topic={} keyPresent={} payloadType={}",
+                "[UserEventKafkaAdapter] - [{}] -> Publicando evento topic={} keyPresent={} payloadType={}",
                 operation,
                 ecoUserEventTopic,
                 key != null && !key.isBlank(),
@@ -61,7 +61,7 @@ public class UserEventKafkaAdapter implements PublishUserEventPort {
                 .whenComplete((SendResult<String, Object> result, Throwable ex) -> {
                     if (ex != null) {
                         log.error(
-                                "[UserEventKafkaAdapter] - [{}] -> failed topic={} key={} payloadType={}",
+                                "[UserEventKafkaAdapter] - [{}] -> Falha ao publicar evento topic={} key={} payloadType={}",
                                 operation,
                                 ecoUserEventTopic,
                                 safeKey,

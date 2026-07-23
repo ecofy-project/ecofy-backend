@@ -16,55 +16,94 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+// Configura o consumo de eventos Kafka pelo serviço.
 @Configuration
 @Slf4j
 public class KafkaConsumerConfig {
 
-    // Cria e configura a factory de listeners Kafka (String/String) com propriedades de consumo estável, ack por record e concorrência controlada.
+    // Configura listeners com confirmação por registro, concorrência e retentativas.
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
-            KafkaProperties kafkaProperties
+    public ConcurrentKafkaListenerContainerFactory<String, String>
+    kafkaListenerContainerFactory(
+            KafkaProperties kafkaProperties,
+            InsightsProperties insightsProperties
     ) {
-        Objects.requireNonNull(kafkaProperties, "kafkaProperties must not be null");
+        Objects.requireNonNull(
+                kafkaProperties,
+                "kafkaProperties must not be null"
+        );
+        Objects.requireNonNull(
+                insightsProperties,
+                "insightsProperties must not be null"
+        );
 
-        Map<String, Object> props = new HashMap<>(kafkaProperties.buildConsumerProperties());
+        Map<String, Object> props = new HashMap<>(
+                kafkaProperties.buildConsumerProperties()
+        );
 
-        props.putIfAbsent(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        props.putIfAbsent(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.putIfAbsent(
+                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
+                StringDeserializer.class
+        );
+        props.putIfAbsent(
+                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                StringDeserializer.class
+        );
 
-        // Boas práticas de consumo estável
-        props.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.putIfAbsent(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);
-        props.putIfAbsent(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300_000); // 5 min
-        props.putIfAbsent(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 15_000);
-        props.putIfAbsent(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 5_000);
+        props.putIfAbsent(
+                ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
+                false
+        );
+        props.putIfAbsent(
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+                "earliest"
+        );
+        props.putIfAbsent(
+                ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
+                10
+        );
+        props.putIfAbsent(
+                ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG,
+                300_000
+        );
+        props.putIfAbsent(
+                ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG,
+                15_000
+        );
+        props.putIfAbsent(
+                ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG,
+                5_000
+        );
 
-        var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
-        factory.setConsumerFactory(new DefaultKafkaConsumerFactory<>(props));
+        var factory =
+                new ConcurrentKafkaListenerContainerFactory<String, String>();
+        factory.setConsumerFactory(
+                new DefaultKafkaConsumerFactory<>(props)
+        );
 
-        // Consistência: commit só após processamento bem-sucedido
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        factory.getContainerProperties()
+                .setAckMode(ContainerProperties.AckMode.RECORD);
 
-        // Concorrência: default seguro (depois você pode parametrizar)
-        factory.setConcurrency(1);
+        int concurrency = insightsProperties.kafka() != null
+                ? insightsProperties.kafka().concurrency()
+                : 3;
+        factory.setConcurrency(concurrency);
 
-        // Correção Dia 8 (item #6): antes os consumers engoliam Exception (sem retry) e uma falha
-        // transitória era tratada como "processada". Agora exceções relançadas pelo listener passam
-        // por retry com backoff (2 re-tentativas, 1s). Após esgotar, o DefaultErrorHandler loga e segue
-        // (sem DLT — publicação em Dead Letter Topic fica como próximo passo documentado).
-        var errorHandler = new DefaultErrorHandler(new FixedBackOff(1_000L, 2L));
-        errorHandler.setLogLevel(org.springframework.kafka.KafkaException.Level.ERROR);
+        var errorHandler = new DefaultErrorHandler(
+                new FixedBackOff(1_000L, 2L)
+        );
+        errorHandler.setLogLevel(
+                org.springframework.kafka.KafkaException.Level.ERROR
+        );
         factory.setCommonErrorHandler(errorHandler);
 
         log.info(
                 "[KafkaConsumerConfig] KafkaListenerContainerFactory | bootstrapServers={} | groupId={} | ackMode={}",
-                kafkaProperties.getBootstrapServers(), // List<String> no Boot 4
+                kafkaProperties.getBootstrapServers(),
                 props.get(ConsumerConfig.GROUP_ID_CONFIG),
                 factory.getContainerProperties().getAckMode()
         );
 
         return factory;
     }
-
 }

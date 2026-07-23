@@ -96,7 +96,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
         boolean sameHash = Objects.equals(normalizeOptional(existing.getRequestHash()), hash);
 
         log.info(
-                "[IdempotencyJpaAdapter] - [registerOnce] -> alreadyRegistered operation={} keyLen={} sameRequestHash={}",
+                "[IdempotencyJpaAdapter] - [registerOnce] -> Chave de idempotência já registrada operation={} keyLen={} sameRequestHash={}",
                 op,
                 k.length(),
                 sameHash

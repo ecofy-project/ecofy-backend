@@ -1,8 +1,10 @@
 package br.com.ecofy.ms_users.adapters.in.web;
 
-import br.com.ecofy.ms_users.adapters.in.web.dto.response.ConnectionResponse;
 import br.com.ecofy.ms_users.adapters.in.web.dto.request.CreateConnectionRequest;
+import br.com.ecofy.ms_users.adapters.in.web.dto.response.ConnectionResponse;
+import br.com.ecofy.ms_users.adapters.in.web.dto.response.PagedResponse;
 import br.com.ecofy.ms_users.core.application.command.CreateConnectionCommand;
+import br.com.ecofy.ms_users.core.application.pagination.PageQuery;
 import br.com.ecofy.ms_users.core.application.result.ConnectionResult;
 import br.com.ecofy.ms_users.core.port.in.CreateConnectionUseCase;
 import br.com.ecofy.ms_users.core.port.in.ListConnectionsUseCase;
@@ -24,24 +26,45 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
+// Expõe operações HTTP para criação e consulta das conexões dos usuários.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
 @Validated
-@Tag(name = "Users - Connections", description = "Criação e consulta de conexões (bancos/APIs/importações) por usuário")
-@RequestMapping(path = "/api/users/v1/connections", produces = MediaType.APPLICATION_JSON_VALUE)
+@Tag(
+        name = "Users - Connections",
+        description = "Criação e consulta de conexões (bancos/APIs/importações) por usuário"
+)
+@RequestMapping(
+        path = "/api/users/v1/connections",
+        produces = MediaType.APPLICATION_JSON_VALUE
+)
 public class ConnectionsController {
 
     private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 200;
 
+    // Restringe a ordenação aos campos autorizados para consulta.
+    private static final java.util.List<String> SORT_ALLOWLIST =
+            java.util.List.of(
+                    "createdAt",
+                    "updatedAt",
+                    "type",
+                    "status"
+            );
+
+    private static final String DEFAULT_SORT_BY = "createdAt";
+
     private final CreateConnectionUseCase createConnectionUseCase;
     private final ListConnectionsUseCase listConnectionsUseCase;
+    private final br.com.ecofy.ms_users.config.UsersProperties usersProperties;
+    private final br.com.ecofy.ms_users.adapters.in.web.security
+            .ProfileOwnershipGuard ownershipGuard;
 
+    // Registra uma conexão com proteção contra solicitações duplicadas.
     @Operation(
             summary = "Cria uma conexão para um usuário",
             description = """
@@ -58,17 +81,40 @@ public class ConnectionsController {
             @ApiResponse(
                     responseCode = "201",
                     description = "Conexão criada com sucesso",
-                    content = @Content(schema = @Schema(implementation = ConnectionResponse.class))
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ConnectionResponse.class
+                            )
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Payload inválido / regras de domínio violadas"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "409", description = "Conflito de idempotência"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao criar conexão")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Payload inválido / regras de domínio violadas"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Conflito de idempotência"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao criar conexão"
+            )
     })
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConnectionResponse> create(
-            @RequestHeader(name = IDEMPOTENCY_KEY_HEADER, required = false)
-            @Size(min = 8, max = 200, message = "Idempotency-Key must be between 8 and 200 chars")
+            @RequestHeader(
+                    name = IDEMPOTENCY_KEY_HEADER,
+                    required = false
+            )
+            @Size(
+                    min = 8,
+                    max = 200,
+                    message = "Idempotency-Key must be between 8 and 200 chars"
+            )
             String idempotencyKey,
             @Valid @RequestBody CreateConnectionRequest req
     ) {
@@ -81,13 +127,15 @@ public class ConnectionsController {
                 idempotencyKey != null
         );
 
-        ConnectionResult created = createConnectionUseCase.create(new CreateConnectionCommand(
-                req.userId(),
-                req.type(),
-                req.provider(),
-                req.metadata(),
-                idempotencyKey
-        ));
+        ConnectionResult created = createConnectionUseCase.create(
+                new CreateConnectionCommand(
+                        req.userId(),
+                        req.type(),
+                        req.provider(),
+                        req.metadata(),
+                        idempotencyKey
+                )
+        );
 
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
@@ -95,9 +143,11 @@ public class ConnectionsController {
                 .buildAndExpand(created.id())
                 .toUri();
 
-        return ResponseEntity.created(location).body(toResponse(created));
+        return ResponseEntity.created(location)
+                .body(toResponse(created));
     }
 
+    // Lista conexões paginadas após validar propriedade e ordenação.
     @Operation(
             summary = "Lista conexões por usuário",
             description = """
@@ -115,43 +165,77 @@ public class ConnectionsController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Lista retornada com sucesso",
-                    content = @Content(schema = @Schema(implementation = ConnectionResponse.class))
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ConnectionResponse.class
+                            )
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Parâmetros inválidos"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao listar conexões")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Parâmetros inválidos"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao listar conexões"
+            )
     })
     @GetMapping
-    public ResponseEntity<List<ConnectionResponse>> list(
+    public ResponseEntity<PagedResponse<ConnectionResponse>> list(
             @RequestParam("userId") @NotNull UUID userId,
-            @RequestParam(name = "limit", defaultValue = "" + DEFAULT_LIMIT) Integer limit
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "sort", required = false) String sort
     ) {
-        int safeLimit = clamp(limit, DEFAULT_LIMIT, MAX_LIMIT);
+        ownershipGuard.assertOwnsProfile(userId);
 
-        log.debug("[ConnectionsController] - [list] -> userId={} limit={}", userId, safeLimit);
+        var pagination = usersProperties.pagination();
 
-        var result = listConnectionsUseCase.listByUserId(userId).stream()
-                .limit(safeLimit)
-                .map(ConnectionsController::toResponse)
-                .toList();
+        PageQuery query = PageQuery.of(
+                page,
+                size,
+                sort,
+                pagination.defaultSize(),
+                pagination.maxSize(),
+                DEFAULT_SORT_BY,
+                SORT_ALLOWLIST
+        );
 
-        return ResponseEntity.ok(result);
+        log.debug(
+                "[ConnectionsController] - [list] -> userId={} page={} size={} sortBy={} dir={}",
+                userId,
+                query.page(),
+                query.size(),
+                query.sortBy(),
+                query.direction()
+        );
+
+        var pageResult = listConnectionsUseCase
+                .listByUserId(userId, query)
+                .map(ConnectionsController::toResponse);
+
+        return ResponseEntity.ok(PagedResponse.from(pageResult));
     }
 
     private static int clamp(Integer value, int defaultValue, int max) {
-        if (value == null || value < 1) return defaultValue;
+        if (value == null || value < 1) {
+            return defaultValue;
+        }
         return Math.min(value, max);
     }
 
-    private static ConnectionResponse toResponse(ConnectionResult r) {
+    private static ConnectionResponse toResponse(ConnectionResult result) {
         return new ConnectionResponse(
-                r.id(),
-                r.userId(),
-                r.type(),
-                r.provider(),
-                r.metadata(),
-                r.createdAt()
+                result.id(),
+                result.userId(),
+                result.type(),
+                result.provider(),
+                result.metadata(),
+                result.createdAt()
         );
     }
-
 }

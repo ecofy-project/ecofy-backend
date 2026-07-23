@@ -52,7 +52,7 @@ public class NotificationIndexes implements ApplicationRunner {
             );
         } catch (Exception ex) {
             log.error(
-                    "[NotificationIndexes] - [ensureIndexes] -> failed to ensure indexes for NotificationDocument",
+                    "[NotificationIndexes] - [ensureIndexes] -> Falha ao garantir índices de NotificationDocument",
                     ex
             );
             throw ex;

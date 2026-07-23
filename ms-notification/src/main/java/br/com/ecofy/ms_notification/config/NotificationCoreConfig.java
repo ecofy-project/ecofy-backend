@@ -4,10 +4,7 @@ import br.com.ecofy.ms_notification.core.application.config.NotificationSettings
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Correção Dia 7 (item #5): faz a ponte entre a config Spring ({@link NotificationProperties})
- * e o tipo neutro do core ({@link NotificationSettings}), mantendo Spring/config fora do core.
- */
+// Converte as propriedades Spring no tipo neutro consumido pelo core, mantendo o framework fora dele.
 @Configuration
 public class NotificationCoreConfig {
 
@@ -22,6 +19,7 @@ public class NotificationCoreConfig {
                 retry.getMaxAttempts(),
                 retry.getBaseBackoff(),
                 retry.getMultiplier(),
+                retry.getMaxBackoff(),
                 templates.getDefaultChannels()
         );
     }

@@ -8,4 +8,7 @@ import java.util.UUID;
 
 public interface ConnectionRepository extends JpaRepository<ConnectionEntity, UUID> {
     List<ConnectionEntity> findByUserId(UUID userId);
+
+    org.springframework.data.domain.Page<ConnectionEntity> findByUserId(
+            UUID userId, org.springframework.data.domain.Pageable pageable);
 }

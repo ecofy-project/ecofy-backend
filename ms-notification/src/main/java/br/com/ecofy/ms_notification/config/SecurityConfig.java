@@ -12,12 +12,14 @@ import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthen
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.SecurityFilterChain;
 
+// Centraliza as regras de autenticação, autorização e proteção HTTP do serviço.
 @Configuration
 @EnableMethodSecurity
 @Slf4j
 public class SecurityConfig {
 
-    private static final String PERMIT_ALL_PROPERTY = "ecofy.notification.security.permit-all";
+    private static final String PERMIT_ALL_PROPERTY =
+            "ecofy.notification.security.permit-all";
 
     private static final String[] PUBLIC_ENDPOINTS = {
             "/actuator/health",
@@ -28,60 +30,67 @@ public class SecurityConfig {
             "/swagger-ui.html"
     };
 
-    // Ajuste se você tiver outros paths públicos no ms-notification
     private static final String[] NOTIFICATION_API_ENDPOINTS = {
             "/api/notification/**"
     };
 
+    // Configura uma API stateless protegida por JWT com liberação controlada por ambiente.
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, Environment env) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            Environment env
+    ) throws Exception {
+        boolean devPermitAll = env.getProperty(
+                PERMIT_ALL_PROPERTY,
+                Boolean.class,
+                false
+        );
 
-        // Correção Dia 7 (item #2): antes /api/notification/** era permitAll fixo e o Resource Server
-        // JWT estava comentado -> API totalmente aberta apesar do OpenAPI declarar JWT.
-        // Agora: JWT sempre configurado; permit-all controlado por profile (default: exigir JWT).
-        boolean devPermitAll = env.getProperty(PERMIT_ALL_PROPERTY, Boolean.class, false);
-
-        log.info("[SecurityConfig] - [securityFilterChain] -> ms-notification security (permitAll={})", devPermitAll);
+        log.info(
+                "[SecurityConfig] - [securityFilterChain] -> ms-notification security (permitAll={})",
+                devPermitAll
+        );
 
         http
-                // API stateless
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // CSRF não faz sentido em APIs stateless (sem cookies de sessão)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
                 .csrf(csrf -> csrf.disable())
-
-                // CORS: habilite/ajuste se o dashboard estiver em outro domínio
                 .cors(Customizer.withDefaults())
-
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll();
 
                     if (devPermitAll) {
-                        // dev/test/local: libera a API principal para facilitar testes (documentado)
-                        auth.requestMatchers(NOTIFICATION_API_ENDPOINTS).permitAll();
+                        auth.requestMatchers(NOTIFICATION_API_ENDPOINTS)
+                                .permitAll();
                     } else {
-                        // prod: exige JWT válido nos endpoints de negócio
-                        auth.requestMatchers(NOTIFICATION_API_ENDPOINTS).authenticated();
+                        auth.requestMatchers(NOTIFICATION_API_ENDPOINTS)
+                                .authenticated();
                     }
 
                     auth.anyRequest().authenticated();
                 })
-
-                // Resource Server JWT sempre ativo (validação via JWKS do ms-auth), alinhado ao OpenAPI
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-
-                // Respostas corretas para 401/403 com Bearer token
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
-                        .accessDeniedHandler(new BearerTokenAccessDeniedHandler())
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(Customizer.withDefaults())
                 )
-
-                // Hardening básico de headers
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(
+                                new BearerTokenAuthenticationEntryPoint()
+                        )
+                        .accessDeniedHandler(
+                                new BearerTokenAccessDeniedHandler()
+                        )
+                )
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.sameOrigin())
-                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
-                        .referrerPolicy(ref -> ref.policy(
-                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'self'")
+                        )
+                        .referrerPolicy(referrer -> referrer.policy(
+                                org.springframework.security.web.header.writers
+                                        .ReferrerPolicyHeaderWriter
+                                        .ReferrerPolicy
+                                        .NO_REFERRER
                         ))
                 );
 

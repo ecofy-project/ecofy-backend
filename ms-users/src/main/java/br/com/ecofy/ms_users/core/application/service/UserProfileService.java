@@ -98,7 +98,7 @@ public class UserProfileService implements
         if (existing.isPresent()) {
             // Idempotência já garantiu que este request não será processado 2x; retornar o estado atual é ok.
             EcoUserProfile cur = existing.get();
-            log.info("[UserProfileService] - [create] -> already exists userId={} status={}", userId, cur.getStatus());
+            log.info("[UserProfileService] - [create] -> Perfil já existe userId={} status={}", userId, cur.getStatus());
             return toResult(cur);
         }
 
@@ -200,6 +200,18 @@ public class UserProfileService implements
                 .orElseThrow(() -> new UserProfileNotFoundException(userId));
 
         log.debug("[UserProfileService] - [getById] -> userId={} status={}", userId, profile.getStatus());
+        return toResult(profile);
+    }
+
+    // ECO-08: base do contrato /me — resolve pelo authUserId imutável do ms-auth.
+    @Override
+    public UserProfileResult getByExternalAuthId(String externalAuthId) {
+        Objects.requireNonNull(externalAuthId, "externalAuthId must not be null");
+        EcoUserProfile profile = loadPort
+                .findByExternalAuthId(br.com.ecofy.ms_users.core.domain.valueobject.ExternalAuthId.of(externalAuthId))
+                .orElseThrow(UserProfileNotFoundException::forAuthenticatedUser);
+
+        log.debug("[UserProfileService] - [getByExternalAuthId] -> status={}", profile.getStatus());
         return toResult(profile);
     }
 

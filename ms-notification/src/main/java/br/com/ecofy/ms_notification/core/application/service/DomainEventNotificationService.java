@@ -15,13 +15,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+// Orquestra o envio de notificações originadas por eventos de domínio.
 @Slf4j
 @Service
-public class DomainEventNotificationService implements HandleDomainEventNotificationUseCase {
+public class DomainEventNotificationService
+        implements HandleDomainEventNotificationUseCase {
 
-    private static final NotificationChannel FALLBACK_CHANNEL = NotificationChannel.EMAIL;
+    private static final NotificationChannel FALLBACK_CHANNEL =
+            NotificationChannel.EMAIL;
 
-    // Correção Dia 7 (item #5): depende do tipo neutro do core, não de config.NotificationProperties.
     private final NotificationSettings settings;
     private final SendNotificationUseCase sendNotificationUseCase;
 
@@ -29,25 +31,36 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
             NotificationSettings settings,
             SendNotificationUseCase sendNotificationUseCase
     ) {
-        this.settings = Objects.requireNonNull(settings, "settings must not be null");
-        this.sendNotificationUseCase = Objects.requireNonNull(sendNotificationUseCase, "sendNotificationUseCase must not be null");
+        this.settings = Objects.requireNonNull(
+                settings,
+                "settings must not be null"
+        );
+        this.sendNotificationUseCase = Objects.requireNonNull(
+                sendNotificationUseCase,
+                "sendNotificationUseCase must not be null"
+        );
     }
 
-    // Orquestra o tratamento de um evento de domínio: valida entrada, resolve canal padrão, normaliza payload/idempotency e dispara o caso de uso de envio.
+    // Processa eventos de domínio e encaminha comandos normalizados para envio.
     @Override
     public void handle(HandleDomainEventCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
-        UUID userId = Objects.requireNonNull(command.userId(), "command.userId must not be null");
-        DomainEventType eventType = Objects.requireNonNull(command.eventType(), "command.eventType must not be null");
+        UUID userId = Objects.requireNonNull(
+                command.userId(),
+                "command.userId must not be null"
+        );
+        DomainEventType eventType = Objects.requireNonNull(
+                command.eventType(),
+                "command.eventType must not be null"
+        );
 
         Map<String, Object> payload = safePayload(command.payload());
         NotificationChannel channel = resolveDefaultChannel(eventType);
-
         String idem = blankToNull(command.idempotencyKey());
 
         log.debug(
-                "[DomainEventNotificationService] - [handle] -> handling domain event userId={} eventType={} channel={} hasPayload={} hasIdempotencyKey={}",
+                "[DomainEventNotificationService] - [handle] -> Tratando evento de domínio userId={} eventType={} channel={} hasPayload={} hasIdempotencyKey={}",
                 userId,
                 eventType,
                 channel,
@@ -67,7 +80,7 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
         sendNotificationUseCase.send(sendCmd);
     }
 
-    // Resolve o canal padrão configurado para um tipo de evento, aplicando fallback seguro e tolerância a configuração inválida.
+    // Resolve o canal configurado com fallback para valores ausentes ou inválidos.
     private NotificationChannel resolveDefaultChannel(DomainEventType type) {
         String raw = settings.defaultChannelFor(type.name());
 
@@ -86,7 +99,7 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
             return NotificationChannel.valueOf(normalized);
         } catch (Exception ex) {
             log.warn(
-                    "[DomainEventNotificationService] - [resolveDefaultChannel] -> invalid default channel configured eventType={} configured={} fallback={}",
+                    "[DomainEventNotificationService] - [resolveDefaultChannel] -> Canal padrão configurado inválido eventType={} configured={} fallback={}",
                     type,
                     raw,
                     FALLBACK_CHANNEL
@@ -95,16 +108,19 @@ public class DomainEventNotificationService implements HandleDomainEventNotifica
         }
     }
 
-    // Normaliza e protege o payload: garante mapa imutável/cópia defensiva para evitar mutações externas após o recebimento.
-    private static Map<String, Object> safePayload(Map<String, Object> payload) {
-        if (payload == null || payload.isEmpty()) return Map.of();
-        // cópia defensiva: evita que mutações externas afetem o comando
+    // Protege o payload contra alterações externas após o recebimento.
+    private static Map<String, Object> safePayload(
+            Map<String, Object> payload
+    ) {
+        if (payload == null || payload.isEmpty()) {
+            return Map.of();
+        }
         return Map.copyOf(new HashMap<>(payload));
     }
 
-    // Converte strings vazias/em branco em null para padronizar persistência/logs/validações.
-    private static String blankToNull(String v) {
-        return (v == null || v.isBlank()) ? null : v.trim();
+    private static String blankToNull(String value) {
+        return (value == null || value.isBlank())
+                ? null
+                : value.trim();
     }
-
 }

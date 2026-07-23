@@ -41,7 +41,15 @@ public class AuthUserClientAdapter implements LoadAuthUserFromAuthMsPort {
         log.debug("[AuthUserClientAdapter] loadByUserId client={} url={} userId={}", CLIENT_NAME, url, userId);
 
         try {
-            RequestEntity<Void> req = RequestEntity.get(URI.create(url)).build();
+            // ECO-05 §14.1(7): propaga o correlation ID da requisição/evento corrente ao
+            // ms-auth, para que o rastro atravesse a chamada interna.
+            var builder = RequestEntity.get(URI.create(url));
+            String correlationId = br.com.ecofy.ms_users.adapters.in.web.correlation.CorrelationId.current();
+            if (correlationId != null && !correlationId.isBlank()) {
+                builder = builder.header(
+                        br.com.ecofy.ms_users.adapters.in.web.correlation.CorrelationId.HEADER, correlationId);
+            }
+            RequestEntity<Void> req = builder.build();
             ResponseEntity<AuthUserSnapshot> resp = restTemplate.exchange(req, AuthUserSnapshot.class);
 
             var status = resp.getStatusCode();

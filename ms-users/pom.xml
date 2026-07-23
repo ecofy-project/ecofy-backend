@@ -137,6 +137,27 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- ECO-11/ECO-01: PostgreSQL REAL nos testes de integração. Concorrência
+             (optimistic locking) e unique constraint não podem ser validadas apenas
+             em banco em memória — o comportamento do PG é o que vale em produção. -->
+        <!-- Testcontainers 2.x renomeou os módulos (testcontainers-*); as versões vêm
+             do testcontainers-bom importado pelo BOM do Spring Boot 4. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

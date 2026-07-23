@@ -14,25 +14,37 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+// Centraliza a persistência e recuperação de perfis por JPA.
 @Slf4j
 @Component
-public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfilePort {
+public class UserProfileJpaAdapter
+        implements SaveUserProfilePort, LoadUserProfilePort {
 
     private final UserProfileRepository repo;
     private final UserProfileMapper mapper;
 
-    // Inicializa o adapter JPA de perfil de usuário com o repositório e o mapper (entity <-> domain).
-    public UserProfileJpaAdapter(UserProfileRepository repo, UserProfileMapper mapper) {
-        this.repo = Objects.requireNonNull(repo, "repo must not be null");
-        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
+    public UserProfileJpaAdapter(
+            UserProfileRepository repo,
+            UserProfileMapper mapper
+    ) {
+        this.repo = Objects.requireNonNull(
+                repo,
+                "repo must not be null"
+        );
+        this.mapper = Objects.requireNonNull(
+                mapper,
+                "mapper must not be null"
+        );
     }
 
-    // Persiste o EcoUserProfile via JPA e retorna o perfil salvo convertido para domínio.
     @Override
     @Transactional
     public EcoUserProfile save(EcoUserProfile profile) {
         Objects.requireNonNull(profile, "profile must not be null");
-        Objects.requireNonNull(profile.getId(), "profile.id must not be null");
+        Objects.requireNonNull(
+                profile.getId(),
+                "profile.id must not be null"
+        );
 
         log.info(
                 "[UserProfileJpaAdapter] - [save] -> userId={} hasExternalAuthId={} hasEmail={} hasPhone={} status={}",
@@ -54,14 +66,17 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
         return mapper.toDomain(saved);
     }
 
-    // Busca um EcoUserProfile pelo userId (UUID) e retorna Optional com o domínio quando encontrado.
     @Override
     public Optional<EcoUserProfile> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
 
-        log.debug("[UserProfileJpaAdapter] - [findById] -> userId={}", id);
+        log.debug(
+                "[UserProfileJpaAdapter] - [findById] -> userId={}",
+                id
+        );
 
-        var found = repo.findById(id).map(mapper::toDomain);
+        var found = repo.findById(id)
+                .map(mapper::toDomain);
 
         log.info(
                 "[UserProfileJpaAdapter] - [findById] -> userId={} found={}",
@@ -72,20 +87,28 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
         return found;
     }
 
-    // Busca um EcoUserProfile pelo externalAuthId (ID do provedor de autenticação) e retorna Optional com o domínio quando encontrado.
     @Override
-    public Optional<EcoUserProfile> findByExternalAuthId(ExternalAuthId externalAuthId) {
-        // Corrigido: usar o VALOR real do value object, não String.valueOf(VO) (que produziria
-        // "ExternalAuthId[value=...]" e nunca casaria com o valor persistido no banco).
-        String ext = (externalAuthId == null) ? null : blankToNull(externalAuthId.value());
+    public Optional<EcoUserProfile> findByExternalAuthId(
+            ExternalAuthId externalAuthId
+    ) {
+        String ext = externalAuthId == null
+                ? null
+                : blankToNull(externalAuthId.value());
+
         if (ext == null) {
-            log.debug("[UserProfileJpaAdapter] - [findByExternalAuthId] -> externalAuthId=<blank> found=false");
+            log.debug(
+                    "[UserProfileJpaAdapter] - [findByExternalAuthId] -> externalAuthId=<blank> found=false"
+            );
             return Optional.empty();
         }
 
-        log.debug("[UserProfileJpaAdapter] - [findByExternalAuthId] -> externalAuthId={}", safeExtId(ext));
+        log.debug(
+                "[UserProfileJpaAdapter] - [findByExternalAuthId] -> externalAuthId={}",
+                safeExtId(ext)
+        );
 
-        var found = repo.findByExternalAuthId(ext).map(mapper::toDomain);
+        var found = repo.findByExternalAuthId(ext)
+                .map(mapper::toDomain);
 
         log.info(
                 "[UserProfileJpaAdapter] - [findByExternalAuthId] -> externalAuthId={} found={}",
@@ -96,17 +119,24 @@ public class UserProfileJpaAdapter implements SaveUserProfilePort, LoadUserProfi
         return found;
     }
 
-    // Normaliza string opcional, retornando null quando vazia/em branco e trimando quando presente.
-    private static String blankToNull(String v) {
-        return (v == null || v.isBlank()) ? null : v.trim();
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank()
+                ? null
+                : value.trim();
     }
 
-    // Mascara o externalAuthId para logging seguro, evitando expor o identificador completo.
+    // Mascara o identificador externo antes de registrá-lo nos logs.
     private static String safeExtId(String externalAuthId) {
-        // Evita logar IDs externos completos (podem ser sensíveis dependendo do provedor).
-        if (externalAuthId == null || externalAuthId.isBlank()) return "<empty>";
-        if (externalAuthId.length() <= 8) return "***";
-        return externalAuthId.substring(0, 4) + "..." + externalAuthId.substring(externalAuthId.length() - 4);
-    }
+        if (externalAuthId == null || externalAuthId.isBlank()) {
+            return "<empty>";
+        }
 
+        if (externalAuthId.length() <= 8) {
+            return "***";
+        }
+
+        return externalAuthId.substring(0, 4)
+                + "..."
+                + externalAuthId.substring(externalAuthId.length() - 4);
+    }
 }

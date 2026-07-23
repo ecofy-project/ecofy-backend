@@ -6,10 +6,7 @@ import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 
 import java.util.Objects;
 
-/**
- * Mapper JPA <-> Domain para UserPreference.
- * Padrão: fail-fast em nulos essenciais e mapeamento explícito.
- */
+// Converte preferências entre entidade e domínio, falhando cedo em campos essenciais nulos.
 public final class PreferenceMapper {
 
     // Cria uma instância do mapper (sem estado) para conversões entre Entity e Domain.

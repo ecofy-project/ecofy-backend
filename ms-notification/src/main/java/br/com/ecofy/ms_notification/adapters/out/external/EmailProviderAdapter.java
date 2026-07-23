@@ -3,16 +3,19 @@ package br.com.ecofy.ms_notification.adapters.out.external;
 import br.com.ecofy.ms_notification.core.domain.valueobject.ChannelAddress;
 import br.com.ecofy.ms_notification.core.port.out.EmailSenderPort;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 import java.util.UUID;
 
+// Simula o envio de e-mail em console para dev e teste, sem I/O externo e fora de prod e sandbox.
 @Slf4j
 @Component
+@Profile("!prod & !sandbox")
 public class EmailProviderAdapter implements EmailSenderPort {
 
-    private static final String PROVIDER_NAME = "email-stub";
+    private static final String PROVIDER_NAME = "email-console";
 
     // Envia e-mail via provedor (stub), validando parâmetros, gerando messageId e retornando um SendResult com rastreabilidade mínima.
     @Override

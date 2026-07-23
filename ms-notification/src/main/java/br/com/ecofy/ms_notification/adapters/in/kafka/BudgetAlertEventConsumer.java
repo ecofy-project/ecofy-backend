@@ -38,11 +38,11 @@ public class BudgetAlertEventConsumer {
 
         final long startNs = System.nanoTime();
 
-        final String eventId = message.metadata() != null ? message.metadata().eventId() : null;
-        final String userId = String.valueOf(message.userId());
+        final String eventId = message.eventId() != null ? message.eventId().toString() : null;
+        final String userId = message.data() != null ? String.valueOf(message.data().userId()) : "null";
 
         log.info(
-                "[BudgetAlertEventConsumer] - [consume] -> status=received topic={} partition={} offset={} userId={} eventId={}",
+                "[BudgetAlertEventConsumer] - [consume] -> Evento Kafka recebido topic={} partition={} offset={} userId={} eventId={}",
                 safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId)
         );
 
@@ -55,14 +55,14 @@ public class BudgetAlertEventConsumer {
             final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
 
             log.info(
-                    "[BudgetAlertEventConsumer] - [consume] -> status=processed topic={} partition={} offset={} userId={} eventId={} idemKey={} elapsedMs={}",
+                    "[BudgetAlertEventConsumer] - [consume] -> Evento Kafka processado com sucesso topic={} partition={} offset={} userId={} eventId={} idemKey={} elapsedMs={}",
                     safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId), safe(idemKey), elapsedMs
             );
         } catch (Exception ex) {
             final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
 
             log.error(
-                    "[BudgetAlertEventConsumer] - [consume] -> status=failed topic={} partition={} offset={} userId={} eventId={} elapsedMs={}",
+                    "[BudgetAlertEventConsumer] - [consume] -> Falha ao processar evento Kafka topic={} partition={} offset={} userId={} eventId={} elapsedMs={}",
                     safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId), elapsedMs, ex
             );
 

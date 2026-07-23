@@ -46,7 +46,7 @@ public class IdempotencyMongoAdapter implements IdempotencyPort {
             repo.insert(doc);
 
             log.debug(
-                    "[IdempotencyMongoAdapter] - [tryAcquire] -> acquired key={} expiresAt={}",
+                    "[IdempotencyMongoAdapter] - [tryAcquire] -> Chave de idempotência adquirida key={} expiresAt={}",
                     key.value(),
                     expiresAt
             );
@@ -54,13 +54,13 @@ public class IdempotencyMongoAdapter implements IdempotencyPort {
             return true;
         } catch (DuplicateKeyException ex) {
             log.warn(
-                    "[IdempotencyMongoAdapter] - [tryAcquire] -> already acquired key={}",
+                    "[IdempotencyMongoAdapter] - [tryAcquire] -> Chave de idempotência já utilizada key={}",
                     key.value()
             );
             return false;
         } catch (Exception ex) {
             log.error(
-                    "[IdempotencyMongoAdapter] - [tryAcquire] -> failed to acquire key={}",
+                    "[IdempotencyMongoAdapter] - [tryAcquire] -> Falha ao adquirir chave de idempotência key={}",
                     key.value(),
                     ex
             );

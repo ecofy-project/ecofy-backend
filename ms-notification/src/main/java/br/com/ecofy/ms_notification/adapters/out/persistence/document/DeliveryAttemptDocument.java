@@ -32,6 +32,12 @@ public class DeliveryAttemptDocument {
     private String errorCode;
     private String errorMessage;
 
+    // Etapa 8 (§11): auditoria enriquecida.
+    private String errorCategory;
+    private Integer providerStatusCode;
+    private Instant nextRetryAt;
+    private String correlationId;
+
     private Instant createdAt;
 
 }

@@ -27,6 +27,11 @@ public class DeliveryAttempt {
     private final String errorCode;
     private final String errorMessage;
 
+    private final String errorCategory;
+    private final Integer providerStatusCode;
+    private final Instant nextRetryAt;
+    private final String correlationId;
+
     private final Instant createdAt;
 
     // Factory method para criar uma tentativa de entrega bem-sucedida com dados do provedor.
@@ -67,6 +72,37 @@ public class DeliveryAttempt {
                 .provider(provider)
                 .errorCode(errorCode)
                 .errorMessage(errorMessage)
+                .createdAt(Instant.now())
+                .build();
+    }
+
+    // Cria uma tentativa falha classificada, registrando categoria, status do provider e próximo retry.
+    public static DeliveryAttempt classifiedFailure(
+            NotificationId notificationId,
+            NotificationChannel channel,
+            int attemptNumber,
+            String provider,
+            AttemptStatus status,
+            String errorCategory,
+            String errorCode,
+            String errorMessage,
+            Integer providerStatusCode,
+            Instant nextRetryAt,
+            String correlationId
+    ) {
+        return DeliveryAttempt.builder()
+                .id(UUID.randomUUID())
+                .notificationId(notificationId)
+                .channel(channel)
+                .attemptNumber(attemptNumber)
+                .status(status)
+                .provider(provider)
+                .errorCategory(errorCategory)
+                .errorCode(errorCode)
+                .errorMessage(errorMessage)
+                .providerStatusCode(providerStatusCode)
+                .nextRetryAt(nextRetryAt)
+                .correlationId(correlationId)
                 .createdAt(Instant.now())
                 .build();
     }

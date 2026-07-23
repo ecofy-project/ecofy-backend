@@ -1,4 +1,18 @@
+# =============================================================================
+# EcoFy — stack completa (infraestrutura + 8 aplicações)
+#
+#   docker compose up -d --build      sobe tudo
+#   docker compose ps                 estado e healthcheck de cada serviço
+#   docker compose logs -f ms-auth    logs de um serviço
+#   docker compose down               derruba (mantém os volumes)
+#   docker compose down -v            derruba e apaga os dados
+#
+# Para subir apenas a infraestrutura e rodar um serviço isolado, veja
+# infra/docker/README.md.
+# =============================================================================
+
 name: ecofy
 
 include:
   - infra/docker/docker-compose.infra.yml
+  - infra/docker/docker-compose.apps.yml

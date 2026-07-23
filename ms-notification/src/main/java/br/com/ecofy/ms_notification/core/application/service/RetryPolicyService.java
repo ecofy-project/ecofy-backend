@@ -7,21 +7,25 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.Objects;
 
+// Centraliza a política de retentativas e o cálculo dos intervalos entre execuções.
 @Slf4j
 @Service
 public class RetryPolicyService {
 
-    private static final Duration MAX_BACKOFF = Duration.ofSeconds(60);
-
-    // Correção Dia 7 (item #5): depende do tipo neutro do core, não de config.NotificationProperties.
     private final NotificationSettings settings;
 
     public RetryPolicyService(NotificationSettings settings) {
-        this.settings = Objects.requireNonNull(settings, "settings must not be null");
-        Objects.requireNonNull(settings.retryBaseBackoff(), "settings.retryBaseBackoff must not be null");
+        this.settings = Objects.requireNonNull(
+                settings,
+                "settings must not be null"
+        );
+        Objects.requireNonNull(
+                settings.retryBaseBackoff(),
+                "settings.retryBaseBackoff must not be null"
+        );
     }
 
-    // Verifica se ainda é permitido re-tentar com base no attemptCount atual e no maxAttempts configurado.
+    // Valida se a quantidade atual permite uma nova tentativa.
     public boolean canRetry(int attemptCount) {
         int safeAttempts = Math.max(0, attemptCount);
         int maxAttempts = Math.max(1, settings.retryMaxAttempts());
@@ -29,7 +33,7 @@ public class RetryPolicyService {
         boolean can = safeAttempts < maxAttempts;
 
         log.debug(
-                "[RetryPolicyService] - [canRetry] -> attemptCount={} maxAttempts={} canRetry={}",
+                "[RetryPolicyService] - [canRetry] -> Avaliando retentativa attemptCount={} maxAttempts={} canRetry={}",
                 safeAttempts,
                 maxAttempts,
                 can
@@ -38,7 +42,7 @@ public class RetryPolicyService {
         return can;
     }
 
-    // Calcula o backoff exponencial (baseBackoff * multiplier^attemptCount) com proteção contra overflow e limite máximo.
+    // Calcula o intervalo exponencial respeitando o limite máximo configurado.
     public Duration computeBackoff(int attemptCount) {
         int safeAttempts = Math.max(0, attemptCount);
 
@@ -49,10 +53,13 @@ public class RetryPolicyService {
         long baseMs = Math.max(0L, base.toMillis());
         long computedMs = safeMultiply(baseMs, factor);
 
-        Duration backoff = clamp(Duration.ofMillis(computedMs), MAX_BACKOFF);
+        Duration backoff = clamp(
+                Duration.ofMillis(computedMs),
+                settings.retryMaxBackoff()
+        );
 
         log.debug(
-                "[RetryPolicyService] - [computeBackoff] -> attemptCount={} baseMs={} multiplier={} computedMs={} backoffMs={}",
+                "[RetryPolicyService] - [computeBackoff] -> Backoff calculado attemptCount={} baseMs={} multiplier={} computedMs={} backoffMs={}",
                 safeAttempts,
                 baseMs,
                 multiplier,
@@ -63,28 +70,50 @@ public class RetryPolicyService {
         return backoff;
     }
 
-    // Normaliza o multiplier de retry para um valor válido (fallback 1.0) quando configurado inválido (NaN/Infinity/<=0).
+    // Normaliza multiplicadores inválidos para um valor neutro.
     private double retryMultiplier() {
-        double m = settings.retryMultiplier();
-        if (Double.isNaN(m) || Double.isInfinite(m) || m <= 0d) return 1d;
-        return m;
+        double multiplier = settings.retryMultiplier();
+
+        if (Double.isNaN(multiplier)
+                || Double.isInfinite(multiplier)
+                || multiplier <= 0d) {
+            return 1d;
+        }
+
+        return multiplier;
     }
 
-    // Multiplica baseMs por um fator double de forma segura, evitando resultados inválidos e saturando em Long.MAX_VALUE quando necessário.
+    // Calcula o intervalo em milissegundos com proteção contra valores inválidos e overflow.
     private static long safeMultiply(long baseMs, double factor) {
-        if (baseMs <= 0L) return 0L;
-        if (Double.isNaN(factor) || Double.isInfinite(factor) || factor <= 0d) return 0L;
+        if (baseMs <= 0L) {
+            return 0L;
+        }
 
-        double v = baseMs * factor;
-        if (v >= Long.MAX_VALUE) return Long.MAX_VALUE;
-        return (long) v;
+        if (Double.isNaN(factor)
+                || Double.isInfinite(factor)
+                || factor <= 0d) {
+            return 0L;
+        }
+
+        double value = baseMs * factor;
+
+        if (value >= Long.MAX_VALUE) {
+            return Long.MAX_VALUE;
+        }
+
+        return (long) value;
     }
 
-    // Garante que a Duration calculada seja não-negativa e não ultrapasse o limite máximo configurado.
+    // Limita a duração a valores não negativos e ao máximo configurado.
     private static Duration clamp(Duration value, Duration max) {
-        if (value == null) return Duration.ZERO;
-        if (value.isNegative()) return Duration.ZERO;
+        if (value == null) {
+            return Duration.ZERO;
+        }
+
+        if (value.isNegative()) {
+            return Duration.ZERO;
+        }
+
         return value.compareTo(max) > 0 ? max : value;
     }
-
 }

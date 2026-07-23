@@ -1,0 +1,29 @@
+# Configura o ambiente de testes automatizados.
+spring:
+  data:
+    # Aponta para o banco dedicado de testes.
+    mongodb:
+      uri: ${MONGO_URI_TEST:mongodb://localhost:27018/ecofy_notification_test}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-notification-test}
+
+# Reduz o nível dos logs durante os testes.
+logging:
+  level:
+    root: WARN
+    br.com.ecofy.ms_notification: INFO
+
+ecofy:
+  notification:
+    # Dispensa autenticação para simplificar os testes.
+    security:
+      permit-all: true
+    # Encurta o TTL de idempotência para não prender chaves entre cenários.
+    idempotency:
+      ttl: PT1M
+    # Impede que o publisher da Outbox dispare no contexto de testes.
+    scheduling:
+      enabled: false

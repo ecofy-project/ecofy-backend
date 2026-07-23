@@ -9,10 +9,7 @@ import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 
 import java.util.Objects;
 
-/**
- * Mapper JPA <-> Domain para EcoUserProfile.
- * Padrão: fail-fast para entidade/domain nulos e helpers para VOs opcionais.
- */
+// Converte perfis entre entidade e domínio, tratando os value objects opcionais.
 public final class UserProfileMapper {
 
     // Cria uma instância do mapper (sem estado) para conversões entre Entity e Domain.

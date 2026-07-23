@@ -48,7 +48,7 @@ public class DeliveryAttemptMongoAdapter implements SaveDeliveryAttemptPort {
             return domain;
         } catch (Exception ex) {
             log.error(
-                    "[DeliveryAttemptMongoAdapter] - [save] -> failed to save notificationId={} attemptNumber={} status={}",
+                    "[DeliveryAttemptMongoAdapter] - [save] -> Falha ao salvar tentativa notificationId={} attemptNumber={} status={}",
                     notificationId,
                     attemptNumber,
                     status,
@@ -79,7 +79,7 @@ public class DeliveryAttemptMongoAdapter implements SaveDeliveryAttemptPort {
             return list;
         } catch (Exception ex) {
             log.error(
-                    "[DeliveryAttemptMongoAdapter] - [loadByNotificationId] -> failed to load attempts notificationId={}",
+                    "[DeliveryAttemptMongoAdapter] - [loadByNotificationId] -> Falha ao carregar tentativas notificationId={}",
                     id,
                     ex
             );

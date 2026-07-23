@@ -3,16 +3,19 @@ package br.com.ecofy.ms_notification.adapters.out.external;
 import br.com.ecofy.ms_notification.core.domain.valueobject.ChannelAddress;
 import br.com.ecofy.ms_notification.core.port.out.WhatsAppSenderPort;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 import java.util.UUID;
 
+// Simula o envio de WhatsApp em console para dev e teste, sem I/O externo e fora de prod e sandbox.
 @Slf4j
 @Component
+@Profile("!prod & !sandbox")
 public class WhatsAppProviderAdapter implements WhatsAppSenderPort {
 
-    private static final String PROVIDER_NAME = "whatsapp-stub";
+    private static final String PROVIDER_NAME = "whatsapp-console";
 
     // Envia mensagem via WhatsApp (stub), validando parâmetros, gerando messageId e retornando um SendResult para rastreabilidade.
     @Override

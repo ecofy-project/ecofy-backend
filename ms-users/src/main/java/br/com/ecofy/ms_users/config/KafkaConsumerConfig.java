@@ -51,11 +51,7 @@ public class KafkaConsumerConfig {
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), valueDeserializer);
     }
 
-    /**
-     * Esse bean precisa ter o mesmo nome usado no seu @KafkaListener(containerFactory=...).
-     * Você está usando "kafkaListenerContainerFactory" no consumer, então mantemos esse nome.
-     */
-    // Cria o ConcurrentKafkaListenerContainerFactory usado pelos @KafkaListener, definindo ConsumerFactory e estratégia de ack/commit.
+    // Cria a listener container factory usada pelos consumers, com commit apenas após processamento bem-sucedido.
     @Bean(name = "kafkaListenerContainerFactory")
     public ConcurrentKafkaListenerContainerFactory<String, AuthUserCreatedEventMessage> kafkaListenerContainerFactory(
             ConsumerFactory<String, AuthUserCreatedEventMessage> authUserCreatedConsumerFactory

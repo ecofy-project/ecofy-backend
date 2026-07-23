@@ -13,7 +13,9 @@ public record UsersProperties(
 
         ExternalAuth externalAuth,
 
-        Internal internal
+        Internal internal,
+
+        Pagination pagination
 
 ) {
 
@@ -21,6 +23,22 @@ public record UsersProperties(
             String authUserCreated,
             String ecoUserEvent
     ) {}
+
+    // Define os limites de paginação externos, com teto obrigatório para o tamanho da página.
+    public record Pagination(
+            int defaultSize,
+            int maxSize
+    ) {
+        public Pagination {
+            if (defaultSize <= 0) {
+                throw new IllegalArgumentException("ecofy.users.pagination.default-size must be > 0");
+            }
+            if (maxSize < defaultSize) {
+                throw new IllegalArgumentException(
+                        "ecofy.users.pagination.max-size must be >= default-size");
+            }
+        }
+    }
 
     public record Idempotency(
             Duration ttl

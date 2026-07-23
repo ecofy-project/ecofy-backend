@@ -41,7 +41,7 @@ public class InsightCreatedEventConsumer {
         final String userId = String.valueOf(message.userId());
 
         log.info(
-                "[InsightCreatedEventConsumer] - [consume] -> status=received topic={} partition={} offset={} userId={} eventId={}",
+                "[InsightCreatedEventConsumer] - [consume] -> Evento Kafka recebido topic={} partition={} offset={} userId={} eventId={}",
                 safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId)
         );
 
@@ -59,14 +59,14 @@ public class InsightCreatedEventConsumer {
             final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
 
             log.info(
-                    "[InsightCreatedEventConsumer] - [consume] -> status=processed topic={} partition={} offset={} userId={} eventId={} idempotencyKey={} elapsedMs={}",
+                    "[InsightCreatedEventConsumer] - [consume] -> Evento Kafka processado com sucesso topic={} partition={} offset={} userId={} eventId={} idempotencyKey={} elapsedMs={}",
                     safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId), safe(idempotencyKey), elapsedMs
             );
         } catch (Exception ex) {
             final long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
 
             log.error(
-                    "[InsightCreatedEventConsumer] - [consume] -> status=failed topic={} partition={} offset={} userId={} eventId={} elapsedMs={}",
+                    "[InsightCreatedEventConsumer] - [consume] -> Falha ao processar evento Kafka topic={} partition={} offset={} userId={} eventId={} elapsedMs={}",
                     safe(topic), safe(partition), safe(offset), safe(userId), safe(eventId), elapsedMs, ex
             );
 

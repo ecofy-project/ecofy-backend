@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+// Coordena a recuperação das notificações persistidas por usuário.
 @Slf4j
 @Service
 public class NotificationQueryService implements ListNotificationsUseCase {
@@ -17,14 +18,18 @@ public class NotificationQueryService implements ListNotificationsUseCase {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 200;
 
-    // Correção Dia 7 (item #5): depende do port de saída, não do adapter Mongo concreto.
     private final ListNotificationsPort listNotificationsPort;
 
-    public NotificationQueryService(ListNotificationsPort listNotificationsPort) {
-        this.listNotificationsPort = Objects.requireNonNull(listNotificationsPort, "listNotificationsPort must not be null");
+    public NotificationQueryService(
+            ListNotificationsPort listNotificationsPort
+    ) {
+        this.listNotificationsPort = Objects.requireNonNull(
+                listNotificationsPort,
+                "listNotificationsPort must not be null"
+        );
     }
 
-    // Lista notificações recentes de um usuário, aplicando normalização de limite (default/máximo) e delegando a consulta ao adapter Mongo.
+    // Recupera notificações recentes com limite normalizado.
     @Override
     public List<NotificationResult> listByUser(UUID userId, int limit) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -40,10 +45,11 @@ public class NotificationQueryService implements ListNotificationsUseCase {
         return listNotificationsPort.listByUser(userId, safeLimit);
     }
 
-    // Garante um limite seguro para paginação: aplica default quando inválido e impõe teto máximo para proteger o sistema.
+    // Normaliza o limite entre o valor padrão e o máximo permitido.
     private static int clamp(int value, int defaultValue, int max) {
-        if (value < 1) return defaultValue;
+        if (value < 1) {
+            return defaultValue;
+        }
         return Math.min(value, max);
     }
-
 }

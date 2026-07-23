@@ -10,11 +10,5 @@ import java.util.List;
 public interface SaveUserPreferencePort {
     List<UserPreference> upsertAll(List<UserPreference> prefs);
 
-    /**
-     * Remove as preferências das chaves informadas para o usuário.
-     * Usado para "limpar" uma preferência (política: valor vazio => remoção).
-     *
-     * @return número de preferências efetivamente removidas.
-     */
     int deleteByUserIdAndKeys(UserId userId, Collection<PreferenceKey> keys);
 }

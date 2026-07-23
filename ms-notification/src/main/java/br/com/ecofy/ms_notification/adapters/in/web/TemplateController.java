@@ -1,8 +1,8 @@
 package br.com.ecofy.ms_notification.adapters.in.web;
 
 import br.com.ecofy.ms_notification.adapters.in.web.dto.request.SendNotificationRequest;
-import br.com.ecofy.ms_notification.adapters.in.web.dto.response.TemplatePreviewResponse;
 import br.com.ecofy.ms_notification.adapters.in.web.dto.request.TemplateRequest;
+import br.com.ecofy.ms_notification.adapters.in.web.dto.response.TemplatePreviewResponse;
 import br.com.ecofy.ms_notification.adapters.in.web.dto.response.TemplateResponse;
 import br.com.ecofy.ms_notification.core.application.command.CreateTemplateCommand;
 import br.com.ecofy.ms_notification.core.application.command.PreviewTemplateCommand;
@@ -30,19 +30,26 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.UUID;
 
+// Expõe operações HTTP para cadastro, consulta e prévia de templates.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
 @Validated
-@Tag(name = "Notification Templates", description = "Cadastro e preview de templates de notificação")
-@RequestMapping(path = "/api/notification/v1/templates", produces = MediaType.APPLICATION_JSON_VALUE)
+@Tag(
+        name = "Notification Templates",
+        description = "Cadastro e preview de templates de notificação"
+)
+@RequestMapping(
+        path = "/api/notification/v1/templates",
+        produces = MediaType.APPLICATION_JSON_VALUE
+)
 public class TemplateController {
 
-    // Correção Dia 7 (item #6): controller depende de use cases/ports, não do adapter Mongo concreto.
     private final CreateTemplateUseCase createUseCase;
     private final GetTemplateUseCase getUseCase;
     private final PreviewTemplateUseCase previewUseCase;
 
+    // Registra templates globais ou vinculados a usuários.
     @Operation(
             summary = "Cria um template",
             description = """
@@ -57,17 +64,34 @@ public class TemplateController {
             @ApiResponse(
                     responseCode = "201",
                     description = "Template criado com sucesso",
-                    content = @Content(schema = @Schema(implementation = TemplateResponse.class))
+                    content = @Content(
+                            schema = @Schema(implementation = TemplateResponse.class)
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Payload inválido / regras de domínio violadas"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao criar template")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Payload inválido / regras de domínio violadas"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao criar template"
+            )
     })
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<TemplateResponse> create(@Valid @RequestBody TemplateRequest req) {
+    public ResponseEntity<TemplateResponse> create(
+            @Valid @RequestBody TemplateRequest req
+    ) {
         log.info(
                 "[TemplateController] - [create] -> ownerUserId={} eventType={} channel={} engine={} active={}",
-                req.ownerUserId(), req.eventType(), req.channel(), req.engine(), req.active()
+                req.ownerUserId(),
+                req.eventType(),
+                req.channel(),
+                req.engine(),
+                req.active()
         );
 
         var saved = createUseCase.create(new CreateTemplateCommand(
@@ -97,22 +121,39 @@ public class TemplateController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Template retornado com sucesso",
-                    content = @Content(schema = @Schema(implementation = TemplateResponse.class))
+                    content = @Content(
+                            schema = @Schema(implementation = TemplateResponse.class)
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Parâmetros inválidos"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "404", description = "Template não encontrado"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao buscar template")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Parâmetros inválidos"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Template não encontrado"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao buscar template"
+            )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<TemplateResponse> get(@PathVariable("id") @NotNull UUID id) {
+    public ResponseEntity<TemplateResponse> get(
+            @PathVariable("id") @NotNull UUID id
+    ) {
         log.debug("[TemplateController] - [get] -> id={}", id);
 
         return getUseCase.findById(new TemplateId(id))
-                .map(t -> ResponseEntity.ok(toResponse(t)))
+                .map(template -> ResponseEntity.ok(toResponse(template)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    // Gera uma prévia do conteúdo renderizado antes do envio.
     @Operation(
             summary = "Preview de template",
             description = """
@@ -124,17 +165,32 @@ public class TemplateController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Preview gerado com sucesso",
-                    content = @Content(schema = @Schema(implementation = TemplatePreviewResponse.class))
+                    content = @Content(
+                            schema = @Schema(implementation = TemplatePreviewResponse.class)
+                    )
             ),
-            @ApiResponse(responseCode = "400", description = "Payload inválido / regras de domínio violadas"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado (JWT ausente/inválido)"),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao gerar preview")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Payload inválido / regras de domínio violadas"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado (JWT ausente/inválido)"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Erro interno ao gerar preview"
+            )
     })
     @PostMapping(path = "/preview", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<TemplatePreviewResponse> preview(@Valid @RequestBody SendNotificationRequest req) {
+    public ResponseEntity<TemplatePreviewResponse> preview(
+            @Valid @RequestBody SendNotificationRequest req
+    ) {
         log.debug(
                 "[TemplateController] - [preview] -> userId={} eventType={} channel={} hasPayload={}",
-                req.userId(), req.eventType(), req.channel(),
+                req.userId(),
+                req.eventType(),
+                req.channel(),
                 req.payload() != null && !req.payload().isEmpty()
         );
 
@@ -145,22 +201,25 @@ public class TemplateController {
                 req.payload()
         ));
 
-        return ResponseEntity.ok(new TemplatePreviewResponse(result.subject(), result.body()));
-    }
-
-    private static TemplateResponse toResponse(NotificationTemplate t) {
-        return new TemplateResponse(
-                t.getId().value(),
-                t.getOwnerUserId() == null ? null : t.getOwnerUserId().value(),
-                t.getEventType(),
-                t.getChannel(),
-                t.getEngine(),
-                t.getSubjectTemplate(),
-                t.getBodyTemplate(),
-                t.isActive(),
-                t.getCreatedAt(),
-                t.getUpdatedAt()
+        return ResponseEntity.ok(
+                new TemplatePreviewResponse(result.subject(), result.body())
         );
     }
 
+    private static TemplateResponse toResponse(NotificationTemplate template) {
+        return new TemplateResponse(
+                template.getId().value(),
+                template.getOwnerUserId() == null
+                        ? null
+                        : template.getOwnerUserId().value(),
+                template.getEventType(),
+                template.getChannel(),
+                template.getEngine(),
+                template.getSubjectTemplate(),
+                template.getBodyTemplate(),
+                template.isActive(),
+                template.getCreatedAt(),
+                template.getUpdatedAt()
+        );
+    }
 }

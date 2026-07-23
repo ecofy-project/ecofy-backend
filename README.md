@@ -1,9 +1,9 @@
 # 🌱 EcoFy — Financial Automation & Data Intelligence Platform
 ## 🌱 EcoFy — Plataforma de Automação Financeira e Inteligência de Dados
 
-> **📌 Status / Maturidade:** projeto de **portfólio/estudos** com práticas profissionais (arquitetura hexagonal, testes, segurança JWT/JWKS, event‑driven). Alguns provedores e integrações externas são **stubs/placeholders** claramente marcados. Ver **[Limitações](#-known-limitations--limitações-conhecidas)** e **[Roadmap](#-roadmap--roadmap)**.
+> **📌 Status / Maturidade:** projeto de **portfólio/estudos** com práticas profissionais — arquitetura hexagonal, event‑driven com **Transactional Outbox** e **DLT**, segurança JWT/JWKS com rotação de chave, idempotência com constraint de banco como árbitro. A stack completa sobe com `docker compose up -d`. **Não está pronto para produção:** há falhas de autorização em aberto, listadas em **[Limitações](#-known-limitations--limitações-conhecidas)**.
 >
-> **📌 Status / Maturity:** a **portfolio/study** project built with professional practices (hexagonal architecture, tests, JWT/JWKS security, event‑driven). Some external providers/integrations are **stubs/placeholders**, clearly flagged. See **[Known Limitations](#-known-limitations--limitações-conhecidas)** and **[Roadmap](#-roadmap--roadmap)**.
+> **📌 Status / Maturity:** a **portfolio/study** project built with professional practices — hexagonal architecture, event‑driven with **Transactional Outbox** and **DLT**, JWT/JWKS security with key rotation, idempotency arbitrated by database constraints. The full stack starts with `docker compose up -d`. **Not production‑ready:** there are open authorization gaps, listed under **[Known Limitations](#-known-limitations--limitações-conhecidas)**.
 
 ---
 
@@ -97,7 +97,7 @@ flowchart LR
 | **ms-categorization** | 8083 | `/categorization` | Auto/manual categorization, publishes categorized events | Categorização auto/manual, publica eventos categorizados | [↗](ms-categorization/README.md) |
 | **ms-budgeting** | 8084 | `/budgeting` | Budgets, BudgetConsumption, BUDGET_ALERT | Orçamentos, BudgetConsumption, BUDGET_ALERT | [↗](ms-budgeting/README.md) |
 | **ms-insights** | 8085 | `/insights` | Dashboard, goals, metrics, insight.created | Dashboard, goals, métricas, insight.created | [↗](ms-insights/README.md) |
-| **ms-notification** | 8086 | `/notification` | Multichannel notifications (stub providers), templates, delivery attempts | Notificações multicanal (providers stub), templates, tentativas de entrega | [↗](ms-notification/README.md) |
+| **ms-notification** | 8086 | `/notification` | Multichannel notifications (real providers in `prod`/`sandbox`, console in `dev`/`test`), templates, delivery attempts | Notificações multicanal (providers reais em `prod`/`sandbox`, console em `dev`/`test`), templates, tentativas de entrega | [↗](ms-notification/README.md) |
 
 ---
 
@@ -130,30 +130,51 @@ flowchart LR
 
 ## 🚀 How to Run Locally | Como Rodar Localmente
 
-**EN:** 1) start infrastructure, 2) run each service (per-service Compose *or* `mvnw spring-boot:run`), 3) call everything through the gateway at `http://localhost:8080`.
+**EN:** all 8 services are containerized (multi-stage, JRE 25, non-root, actuator `HEALTHCHECK`). Three ways to run — details in **[infra/docker/README.md](infra/docker/README.md)**.
 
-**PT:** 1) suba a infraestrutura, 2) rode cada serviço (Compose por serviço *ou* `mvnw spring-boot:run`), 3) acesse tudo pelo gateway em `http://localhost:8080`.
+**PT:** os 8 serviços são containerizados (multi-stage, JRE 25, usuário não-root, `HEALTHCHECK` no actuator). Três modos de execução — detalhes em **[infra/docker/README.md](infra/docker/README.md)**.
+
+### 1️⃣ Full stack | Stack completa
 
 ```bash
-# 1) Infra (Kafka :19092, Postgres, Mongo :27017, Maildev)
-docker compose -f infra/docker/docker-compose.infra.yml up -d
-
-# (optional) create Kafka topics explicitly | (opcional) criar tópicos
-bash infra/kafka/scripts/wait-for-kafka.sh
-bash infra/kafka/scripts/create-topics.sh
-
-# 2a) Run a service via Maven (needs JDK 25) | Rodar um serviço via Maven
-cd ms-auth && JAVA_HOME=~/.jdks/openjdk-25.0.1 ./mvnw spring-boot:run
-
-# 2b) OR per-service Docker Compose | OU Docker Compose por serviço
-docker compose -f infra/docker/ms-auth/docker-compose.yml up -d
+docker compose up -d --build      # infrastructure + 8 services | infraestrutura + 8 serviços
+docker compose ps                 # status and health | estado e health
+docker compose logs -f ms-auth    # logs of one service | logs de um serviço
+docker compose down               # stop, keep volumes | derruba, preserva volumes
 ```
 
-**Recommended startup order | Ordem recomendada de subida:**
-`infra` → `ms-auth` → `ms-users` → `ms-ingestion` → `ms-categorization` → `ms-budgeting` → `ms-insights` → `ms-notification` → `api-gateway`.
+Gateway at `http://localhost:8080`. The first run compiles all services inside the images and takes a few minutes.
+Gateway em `http://localhost:8080`. A primeira execução compila tudo dentro das imagens e leva alguns minutos.
 
-> ⚠️ **EN:** There is **no** aggregated `docker-compose.apps.yml` and **no** `.env.example` in this repo; each service is started individually (Compose per service or `mvnw`).
-> ⚠️ **PT:** **Não existe** um `docker-compose.apps.yml` agregado nem `.env.example`; cada serviço sobe individualmente (Compose por serviço ou `mvnw`).
+### 2️⃣ One service at a time | Um serviço por vez
+
+```bash
+# infrastructure once | infraestrutura uma vez
+docker compose -f infra/docker/docker-compose.infra.yml up -d
+
+# then only the service under test | depois só o serviço em análise
+docker compose -f infra/docker/ms-categorization/docker-compose.yml up -d --build
+```
+
+**EN:** per-service Compose files contain **only the application** and attach to the external `ecofy-net` network — they do not recreate databases or the broker.
+**PT:** os Compose por serviço contêm **apenas a aplicação** e se anexam à rede externa `ecofy-net` — não recriam bancos nem broker.
+
+### 3️⃣ Infrastructure in Docker, service in the IDE | Infra no Docker, serviço na IDE
+
+```bash
+docker compose -f infra/docker/docker-compose.infra.yml up -d
+cd ms-budgeting && ./mvnw spring-boot:run    # needs JDK 25 | requer JDK 25
+```
+
+**Recommended order to exercise the pipeline | Ordem recomendada para exercitar o pipeline:**
+`ms-auth` → `ms-users` → `ms-ingestion` → `ms-categorization` → `ms-budgeting` → `ms-insights` → `ms-notification` → `api-gateway`.
+
+> **EN:** Kafka topics are created automatically by `kafka-init`. To create them explicitly:
+> `bash infra/kafka/scripts/wait-for-kafka.sh && bash infra/kafka/scripts/create-topics.sh`
+> **PT:** os tópicos Kafka são criados automaticamente pelo `kafka-init`. Para criá-los explicitamente, use os scripts acima.
+
+> **EN:** `.env.example` documents every variable with the exact names read by the `application.yml` files. Copy it to `.env` and adjust.
+> **PT:** o `.env.example` documenta todas as variáveis com os nomes exatos lidos pelos `application.yml`. Copie para `.env` e ajuste.
 
 ---
 
@@ -166,9 +187,12 @@ cd ms-budgeting && JAVA_HOME=~/.jdks/openjdk-25.0.1 ./mvnw clean test
 ./mvnw clean package
 ```
 
-**EN:** ~**1,600+ automated tests** across the ecosystem (unit, web slices `@WebMvcTest`, security, Kafka consumers/publishers, mappers). Test counts per service: gateway 19 · auth 485 · users 30 · ingestion 30 · categorization 31 · budgeting 929 · notification 54 · insights 43.
+**EN:** broad automated suite (unit, `@WebMvcTest` slices, security, Kafka consumers/publishers, mappers), plus **integration tests against real infrastructure**: `ms-ingestion` validates DLT routing against a real Kafka broker (payload preserved, no stack trace leaked in headers); `ms-users` validates the unique constraint under concurrency against a real PostgreSQL via Testcontainers.
 
-**PT:** ~**1.600+ testes automatizados** no ecossistema (unitários, slices web `@WebMvcTest`, segurança, consumers/publishers Kafka, mappers). Contagem por serviço acima.
+**PT:** suíte automatizada ampla (unitários, slices `@WebMvcTest`, segurança, consumers/publishers Kafka, mappers), além de **testes de integração contra infraestrutura real**: o `ms-ingestion` valida o roteamento para DLT contra um broker Kafka real (payload preservado, sem stack trace nos headers); o `ms-users` valida a unique constraint sob concorrência contra um PostgreSQL real via Testcontainers.
+
+> ⚠️ **EN:** three services currently have **pre-existing failures**, an accepted consequence of the improvement cycles (the standing instruction was "do not change tests"): `ms-budgeting` (48 assertion failures — exception messages were standardized), `ms-insights` (test compile error — `Money` became decimal), `ms-notification` (1 failure — backoff ceiling became configurable). None is a configuration or Spring context failure. A separate workstream is addressing them.
+> ⚠️ **PT:** três serviços têm **falhas pré-existentes**, consequência aceita dos ciclos de melhoria (a instrução vigente era "não alterar testes"): `ms-budgeting` (48 falhas de asserção — mensagens de exception padronizadas), `ms-insights` (erro de compilação de teste — `Money` passou a decimal), `ms-notification` (1 falha — teto de backoff virou configurável). Nenhuma é falha de configuração ou de contexto Spring. Uma frente separada trata disso.
 
 ---
 
@@ -221,28 +245,36 @@ upload CSV/OFX ──▶ ms-ingestion ──(eco.categorization.request)──�
    ms-insights ──(eco.insight.created)──▶ ms-notification
 ```
 
-**EN:** ingestion imports and publishes categorization requests → categorization categorizes and publishes categorized transactions → budgeting updates `BudgetConsumption` (idempotent) and emits `BUDGET_ALERT` when thresholds are crossed → insights aggregates metrics/insights and emits `insight.created` → notification consumes alerts/insights and creates notifications (stub providers).
+**EN:** ingestion imports (streaming, bounded memory) and publishes categorization requests → categorization categorizes and publishes via Outbox → budgeting updates `BudgetConsumption` (idempotent) and emits `BUDGET_ALERT` when thresholds are crossed → insights aggregates metrics and emits `insight.created` → notification delivers through real providers (console in `dev`/`test`) and records every delivery attempt.
 
-**PT:** ingestion importa e publica pedidos de categorização → categorization categoriza e publica transações categorizadas → budgeting atualiza `BudgetConsumption` (idempotente) e emite `BUDGET_ALERT` ao cruzar limites → insights agrega métricas/insights e emite `insight.created` → notification consome alertas/insights e cria notificações (providers stub).
+**PT:** ingestion importa (streaming, memória limitada) e publica pedidos de categorização → categorization categoriza e publica via Outbox → budgeting atualiza `BudgetConsumption` (idempotente) e emite `BUDGET_ALERT` ao cruzar limites → insights agrega métricas e emite `insight.created` → notification entrega pelos providers reais (console em `dev`/`test`) e registra cada tentativa.
+
+**EN:** every hop carries `correlationId` and `causationId`, so a single upload can be traced end-to-end across five services.
+**PT:** cada salto carrega `correlationId` e `causationId`, então um upload é rastreável ponta a ponta pelos cinco serviços.
 
 ---
 
 ## 📡 Kafka Events | Eventos Kafka
 
-| Topic / Tópico | Producer / Produtor | Consumer(s) / Consumidor(es) | Key | Purpose / Propósito |
-|---|---|---|---|---|
-| `eco.categorization.request` | ms-ingestion | ms-categorization | txId | raw tx → categorize / tx bruta → categorizar |
-| `eco.transaction.categorized` | ms-categorization | ms-budgeting, ms-insights | — | categorized tx / tx categorizada |
-| `eco.budget.alert` | ms-budgeting | ms-notification, ms-insights | budgetId | budget threshold alert / alerta de limite |
-| `eco.insight.created` | ms-insights | ms-notification | userId | insight generated / insight gerado |
-| `eco.notification.sent` | ms-notification | *(audit / auditoria)* | notificationId | delivery event / evento de envio |
-| `eco.ingestion.transaction.imported` | ms-ingestion | *(audit)* | importJobId | import audit / auditoria de importação |
-| `eco.ingestion.import-job.status-changed` | ms-ingestion | *(audit)* | importJobId | job status / status do job |
-| `eco.tx.raw` | *(external / externo)* | ms-ingestion | — | event-based ingestion / ingestão por evento |
-| `auth.user.registered` | ms-auth | *(see limitations)* | userId | user registered / usuário registrado |
+| Topic / Tópico | Producer / Produtor | Consumer(s) / Consumidor(es) | Partition key | Outbox | DLT |
+|---|---|---|---|:--:|:--:|
+| `eco.categorization.request` | ms-ingestion | ms-categorization (`ms-categorization-v2`) | transactionId | — | ✅ |
+| `eco.transaction.categorized` | ms-categorization | ms-budgeting, ms-insights | transactionId | ✅ | ✅ |
+| `eco.budget.alert` | ms-budgeting | ms-notification, ms-insights | userId | ✅ | ✅ |
+| `eco.insight.created` | ms-insights | ms-notification | userId | ✅ | ✅ |
+| `eco.notification.sent` | ms-notification | *(audit / auditoria)* | userId | ✅ | — |
+| `eco.tx.raw` | *(external / externo)* | ms-ingestion | — | — | ✅ |
+| `auth.user.registered` | ms-auth | ms-users | authUserId | — | 🟠 |
+| `eco.categorization.applied` | ms-categorization | *(none / nenhum)* | transactionId | — | — |
+| `eco.ingestion.transaction.imported` | ms-ingestion | *(none / nenhum)* | importJobId | — | — |
+| `eco.ingestion.import-job.status-changed` | ms-ingestion | *(none / nenhum)* | importJobId | — | — |
 
-> ⚠️ **EN:** ms-auth publishes `auth.user.registered` while ms-users listens on `auth.user.created` (topic+payload mismatch). The **auth→users sync works via HTTP** (`/internal/users`); the Kafka branch is a **documented pending item** — see limitations.
-> ⚠️ **PT:** o ms-auth publica `auth.user.registered` enquanto o ms-users escuta `auth.user.created` (divergência de tópico+payload). O **sync auth→users funciona via HTTP** (`/internal/users`); o ramo Kafka é uma **pendência documentada** — ver limitações.
+**EN:** semantics are **at-least-once** — never exactly-once. Every consumer is idempotent, with a database constraint as the final arbiter. The **Transactional Outbox** writes the event in the same transaction as the domain change (the adapter uses `PROPAGATION_MANDATORY`, so writing outside the transaction is impossible), and a separate publisher delivers it afterwards with retry and broker confirmation. **DLT** routing distinguishes permanent errors (malformed JSON, unsupported version — straight to the DLT, no retry wasted) from transient ones (exponential backoff with a ceiling). Canonical topic documentation: **[infra/kafka/topics.yml](infra/kafka/topics.yml)**; event schemas: **[contracts/events](contracts/events)**.
+
+**PT:** a semântica é **at-least-once** — nunca exactly-once. Todo consumer é idempotente, com constraint de banco como árbitro final. A **Transactional Outbox** grava o evento na mesma transação da mudança de domínio (o adapter usa `PROPAGATION_MANDATORY`, então gravar fora da transação é impossível), e um publisher separado o entrega depois, com retry e confirmação do broker. A **DLT** separa erro permanente (JSON malformado, versão não suportada — vai direto, sem gastar tentativa) de transitório (backoff exponencial com teto). Documentação canônica dos tópicos: **[infra/kafka/topics.yml](infra/kafka/topics.yml)**; schemas: **[contracts/events](contracts/events)**.
+
+> 🟠 **EN:** `ms-users` is the only consumer **without a DLT**, and `topics.yml` still declares `auth.user.created` while the code uses `auth.user.registered` — the provisioning script creates the wrong topic. Both are open items.
+> 🟠 **PT:** o `ms-users` é o único consumer **sem DLT**, e o `topics.yml` ainda declara `auth.user.created` enquanto o código usa `auth.user.registered` — o script de provisionamento cria o tópico errado. Ambos em aberto.
 
 ---
 
@@ -287,16 +319,23 @@ ecofy-beckend/
 ├── ms-budgeting/           # budgets, consumption, alerts
 ├── ms-insights/            # dashboard, goals, metrics, insights
 ├── ms-notification/        # notifications, templates (Mongo)
+├── contracts/events/       # JSON schemas per event + version
 ├── infra/
-│   ├── docker/             # docker-compose.infra.yml + per-service compose
-│   └── kafka/              # topics.yml + scripts (create-topics, wait-for-kafka)
+│   ├── docker/             # infra compose + apps compose + per-service compose + README
+│   └── kafka/              # topics.yml (canonical docs) + scripts
 ├── docs/
 │   ├── architecture/       # C4 context diagram (Mermaid)
-│   └── relatorios/         # daily technical reports (dia-1 … dia-10)
+│   ├── apresentacao-tecnica-ecofy.md          # technical presentation
+│   ├── avaliacao-tecnica-maturidade-ecofy.md  # assessment + maturity matrix
+│   └── relatorios/         # technical reports per cycle
 ├── evidences/              # execution evidence + Postman collections
+├── .env.example
 ├── EcoFy.postman_collection.json
-└── docker-compose.yml      # includes infra compose
+└── docker-compose.yml      # includes infra + apps
 ```
+
+**EN / PT:** every service has its own `Dockerfile` (multi-stage, JRE 25, non-root, actuator `HEALTHCHECK`) and `.dockerignore`.
+Cada serviço tem `Dockerfile` próprio (multi-stage, JRE 25, não-root, `HEALTHCHECK` no actuator) e `.dockerignore`.
 
 Each microservice follows Hexagonal Architecture: `core/domain`, `core/application`, `core/port/in|out`, `adapters/in|out`, `config`.
 
@@ -311,35 +350,78 @@ Each microservice follows Hexagonal Architecture: `core/domain`, `core/applicati
 
 ## 🗺️ Roadmap | Roadmap
 
-**EN / PT:**
-- **Kafka reliability:** Dead Letter Topics (DLT) + transactional **Outbox** for event publishing.
-- **auth→users:** align the Kafka branch (topic + payload) or remove it (HTTP sync already works).
-- **Real providers:** e-mail / WhatsApp / push (currently **stubs**) and real external HTTP clients (insights, notification→users).
-- **Observability:** uniform correlation-id/MDC filter across all services + Kafka header propagation; business metrics.
-- **Planned infra:** Redis (cache/idempotency), OpenSearch (search), Schema Registry.
-- **Integration tests:** Testcontainers (Kafka/Postgres/Mongo) + an end-to-end smoke test.
-- **ms-insights:** real `InsightRebuildService`, short transaction on generation.
+### ✅ Delivered | Entregue
+
+Transactional Outbox (4 services) · DLT with error classification (5 services) · real notification providers by profile · real insight rebuild with checkpoint · external I/O moved out of transactions · `Money` value object · JWT ownership in `ms-users`/`ms-budgeting`/`ms-ingestion` · rate limiting + brute-force protection · key rotation with production guard · correlation/causation ID end-to-end · business metrics with controlled cardinality · full containerization · CI with Trivy scanning.
+
+Outbox transacional (4 serviços) · DLT com classificação de erro (5 serviços) · providers reais por profile · rebuild real com checkpoint · I/O externo fora de transação · value object `Money` · ownership por JWT em `ms-users`/`ms-budgeting`/`ms-ingestion` · rate limiting + brute force · rotação de chave com guard de produção · correlation/causation ID ponta a ponta · métricas de negócio com cardinalidade controlada · containerização completa · CI com Trivy.
+
+### 🔜 Next | Próximo
+
+**Phase 1 — security blockers | Fase 1 — bloqueadores de segurança**
+- JWT-derived ownership in `ms-insights` and `ms-notification` (see limitations).
+- Strip `X-Internal-Token` at the gateway edge + production startup guard.
+- Rotate the versioned RSA key and purge it from git history.
+
+**Phase 2 — reliability | Fase 2 — confiabilidade**
+- DLT for the `ms-users` consumer.
+- Fix `topics.yml` (`auth.user.registered`).
+
+**Phase 3 — operations | Fase 3 — operação**
+- Administrative DLT replay (recovery is manual today).
+- Distributed tracing (OpenTelemetry) — correlation ID links logs but gives no per-span latency across 5 async hops.
+- Real static analysis in CI (currently a placeholder `echo`); image build/scan for all 8 services.
+- Secret management; cross-cutting ADRs (money, ownership, event versioning, partition key).
+
+> **EN / PT:** Kubernetes, Schema Registry and OpenSearch remain **out of scope by decision** — Compose covers the current need and `eventType`+`eventVersion` covers contract evolution at this scale.
 
 ---
 
 ## ⚠️ Known Limitations | Limitações Conhecidas
 
-**EN / PT:**
-- **Stub providers** in ms-notification (e-mail/WhatsApp/push) and stub external clients (ms-insights, ms-users profile client) — **not real integrations**.
-- **auth→users Kafka branch** is misaligned (topic/payload); HTTP sync is the working path.
-- **No DLT/Outbox** yet — Kafka has retry with backoff (ms-insights) and observable publish callbacks, but no dead-letter routing.
-- **Long transaction** in `ms-insights` generation (documented; not refactored).
-- **Correlation-id/MDC** is partial (present in notification/insights/budgeting; missing elsewhere).
-- **`InsightRebuildService`** is a placeholder (does not rebuild).
-- **Planned infra** (Redis/OpenSearch/Schema Registry) is not implemented.
+### 🔴 Open security gaps | Falhas de segurança em aberto
+
+**EN:** found in the internal technical assessment (**[docs/avaliacao-tecnica-maturidade-ecofy.md](docs/avaliacao-tecnica-maturidade-ecofy.md)**). These are the reason the project is **not production-ready**.
+
+**PT:** encontradas na avaliação técnica interna (link acima). São o motivo pelo qual o projeto **não está pronto para produção**.
+
+- **`ms-insights` performs no identity check.** There is not a single reference to JWT or `SecurityContext` in its `src/main`. `GET /api/insights/v1/dashboard/{userId}` returns any user's dashboard. | **O `ms-insights` não verifica identidade.** Não há uma única referência a JWT ou `SecurityContext` no `src/main`. O endpoint de dashboard devolve os dados de qualquer usuário.
+- **`ms-notification` likewise** — `GET /notifications?userId=X` lists any user's notifications. | **O `ms-notification` idem** — lista notificações de qualquer usuário.
+- **Internal endpoint reachable from the edge.** The gateway forwards `/users/internal/**` and does not strip `X-Internal-Token`; the token's default is public and is not overridden in the `prod` profile. | **Endpoint interno alcançável pela borda.** O gateway encaminha `/users/internal/**` e não remove o `X-Internal-Token`; o default do token é público e não é sobrescrito no profile `prod`.
+- **A private RSA key is versioned.** `ms-auth/src/main/resources/keys/ecofy-auth-private.pem` was deleted from the working tree but **remains in git history**. It must be treated as compromised and rotated. | **Chave privada RSA versionada.** O arquivo foi apagado da working tree mas **permanece no histórico do git**. Deve ser tratada como comprometida e rotacionada.
+
+> **EN:** the ownership pattern exists and is correct in `ms-users`, `ms-budgeting` and `ms-ingestion` (derived from the JWT claim, client-supplied `userId` ignored). The issue is **incomplete coverage** of a decision already made — which is why it is cheap to close.
+> **PT:** o padrão de ownership existe e está correto em `ms-users`, `ms-budgeting` e `ms-ingestion` (derivado da claim do JWT, com o `userId` do cliente ignorado). O problema é **cobertura incompleta** de uma decisão já tomada — por isso é barato de fechar.
+
+### 🟠 Reliability and operations | Confiabilidade e operação
+
+- **`ms-users` has no DLT** — a malformed message on `auth.user.registered` is redelivered indefinitely, stalling the identity partition. | **`ms-users` sem DLT** — mensagem malformada é reentregue indefinidamente, travando a partição do fluxo de identidade.
+- **`topics.yml` declares `auth.user.created`** while the code uses `auth.user.registered`. | **`topics.yml` declara o tópico errado.**
+- **No secret management** — everything is environment variables with development defaults. Only `ms-auth` fails startup on a missing secret. | **Sem gestão de secrets** — apenas o `ms-auth` derruba o startup se o segredo faltar.
+- **No DLT replay tooling** — recovery requires manual intervention on the broker. | **Sem ferramenta de replay de DLT** — recuperação é manual no broker.
+- **No distributed tracing** — correlation ID links logs but gives no per-span latency. | **Sem tracing distribuído.**
+
+### 🟡 Known inconsistencies | Inconsistências conhecidas
+
+- `ms-budgeting` returns the error code in `details.code` instead of top-level `errorCode`. | Contrato de erro divergente no `ms-budgeting`.
+- Pagination differs across services (`PageResponse` / `PagedResponse` / plain `limit`). | Paginação divergente entre serviços.
+- Four Outbox implementations with divergent naming — functionally equivalent, but they require four runbooks. | Quatro Outbox com nomenclatura divergente.
+- `static-analysis` and `publish` are placeholders in the CI pipeline. | `static-analysis` e `publish` são placeholder no CI.
+- Orphan producers: `eco.categorization.applied`, `eco.notification.sent` and the two `eco.ingestion.*` topics have no consumer. | Produtores órfãos sem consumidor.
 
 ---
 
 ## 🎓 Portfolio Note | Observação de Portfólio
 
-**EN:** EcoFy was built as a **professional portfolio project** to demonstrate real-world backend architecture: event-driven microservices, hexagonal design, JWT/JWKS security, Kafka contracts between services, and financial-domain modeling — with an honest separation between what is **implemented** and what is **planned/stubbed**.
+**EN:** EcoFy was built as a **professional portfolio project** to demonstrate real-world backend architecture: event-driven microservices, hexagonal design, JWT/JWKS security, Kafka contracts between services, and financial-domain modeling — with an honest separation between what is **implemented** and what is **still open**.
 
-**PT:** O EcoFy foi construído como **projeto de portfólio profissional** para demonstrar arquitetura backend realista: microsserviços orientados a eventos, design hexagonal, segurança JWT/JWKS, contratos Kafka entre serviços e modelagem de domínio financeiro — com separação honesta entre o que está **implementado** e o que é **planejado/stub**.
+What makes it worth reading is less the feature list and more the **defensive decisions** — the ones that only appear when someone thought about the failure mode: `PROPAGATION_MANDATORY` makes it *impossible* to write the Outbox outside the domain transaction; `ErrorHandlingDeserializer` prevents malformed JSON from becoming a poison pill inside `poll()`; strict charset decoding makes Latin-1 fail loudly instead of silently corrupting a financial description; the Outbox health indicator stays out of the liveness probe because restarting the pod does not fix the broker.
+
+**PT:** O EcoFy foi construído como **projeto de portfólio profissional** para demonstrar arquitetura backend realista: microsserviços orientados a eventos, design hexagonal, segurança JWT/JWKS, contratos Kafka entre serviços e modelagem de domínio financeiro — com separação honesta entre o que está **implementado** e o que continua **em aberto**.
+
+O que vale a leitura não é a lista de features, e sim as **decisões defensivas** — as que só aparecem quando alguém pensou no modo de falha: `PROPAGATION_MANDATORY` torna *impossível* gravar a Outbox fora da transação do domínio; `ErrorHandlingDeserializer` impede que JSON malformado vire poison pill dentro do `poll()`; a decodificação estrita faz Latin-1 falhar em vez de corromper silenciosamente uma descrição financeira; o health da Outbox fica fora do liveness porque reiniciar o pod não conserta o broker.
+
+**EN / PT:** for the full assessment, maturity matrix per area and prioritised roadmap, see **[docs/avaliacao-tecnica-maturidade-ecofy.md](docs/avaliacao-tecnica-maturidade-ecofy.md)**.
 
 ---
 

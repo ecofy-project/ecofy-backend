@@ -6,10 +6,7 @@ import br.com.ecofy.ms_users.core.domain.valueobject.UserId;
 
 import java.util.Objects;
 
-/**
- * Mapper JPA <-> Domain para LinkedAccount.
- * Padrão: fail-fast para nulos essenciais e mapeamento explícito.
- */
+// Converte contas vinculadas entre entidade e domínio, falhando cedo em campos essenciais nulos.
 public final class LinkedAccountMapper {
 
     // Cria uma instância do mapper (sem estado) para conversões entre Entity e Domain.

@@ -52,7 +52,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
             return domain;
         } catch (Exception ex) {
             log.error(
-                    "[NotificationTemplateMongoAdapter] - [save] -> failed to save templateId={} ownerUserId={}",
+                    "[NotificationTemplateMongoAdapter] - [save] -> Falha ao salvar template templateId={} ownerUserId={}",
                     templateId,
                     ownerUserId,
                     ex
@@ -79,7 +79,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
             return opt;
         } catch (Exception ex) {
             log.error(
-                    "[NotificationTemplateMongoAdapter] - [loadById] -> failed to load templateId={}",
+                    "[NotificationTemplateMongoAdapter] - [loadById] -> Falha ao carregar template templateId={}",
                     uuid,
                     ex
             );
@@ -108,7 +108,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
 
                 if (userTemplate.isPresent()) {
                     log.debug(
-                            "[NotificationTemplateMongoAdapter] - [loadActiveTemplate] -> found user template ownerUserId={} eventType={} channel={}",
+                            "[NotificationTemplateMongoAdapter] - [loadActiveTemplate] -> Template do usuário encontrado ownerUserId={} eventType={} channel={}",
                             ownerUserId,
                             eventType,
                             channel
@@ -132,7 +132,7 @@ public class NotificationTemplateMongoAdapter implements LoadNotificationTemplat
             return globalTemplate.map(mapper::toDomain);
         } catch (Exception ex) {
             log.error(
-                    "[NotificationTemplateMongoAdapter] - [loadActiveTemplate] -> failed to load active template ownerUserId={} eventType={} channel={}",
+                    "[NotificationTemplateMongoAdapter] - [loadActiveTemplate] -> Falha ao carregar template ativo ownerUserId={} eventType={} channel={}",
                     ownerUserId,
                     eventType,
                     channel,

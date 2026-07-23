@@ -26,6 +26,10 @@ public class AttemptMapper {
                 .providerMessageId(blankToNull(a.getProviderMessageId()))
                 .errorCode(blankToNull(a.getErrorCode()))
                 .errorMessage(blankToNull(a.getErrorMessage()))
+                .errorCategory(blankToNull(a.getErrorCategory()))
+                .providerStatusCode(a.getProviderStatusCode())
+                .nextRetryAt(a.getNextRetryAt())
+                .correlationId(blankToNull(a.getCorrelationId()))
                 .createdAt(a.getCreatedAt())
                 .build();
     }
@@ -45,6 +49,10 @@ public class AttemptMapper {
                 .providerMessageId(blankToNull(d.getProviderMessageId()))
                 .errorCode(blankToNull(d.getErrorCode()))
                 .errorMessage(blankToNull(d.getErrorMessage()))
+                .errorCategory(blankToNull(d.getErrorCategory()))
+                .providerStatusCode(d.getProviderStatusCode())
+                .nextRetryAt(d.getNextRetryAt())
+                .correlationId(blankToNull(d.getCorrelationId()))
                 .createdAt(d.getCreatedAt())
                 .build();
     }

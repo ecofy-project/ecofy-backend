@@ -15,11 +15,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
-/**
- * Correção Dia 7 (item #6): centraliza a criação/consulta de templates em um caso de uso do core,
- * removendo essa lógica (build + validate + persistência) do TemplateController, que antes acessava
- * o adapter Mongo concreto diretamente.
- */
+// Centraliza a criação e a consulta de templates no core, isolando o controller da persistência.
 @Slf4j
 @Service
 public class TemplateManagementService implements CreateTemplateUseCase, GetTemplateUseCase {
@@ -56,7 +52,7 @@ public class TemplateManagementService implements CreateTemplateUseCase, GetTemp
         var saved = savePort.save(template);
 
         log.info(
-                "[TemplateManagementService] - [create] -> created templateId={} ownerUserId={} eventType={} channel={} active={}",
+                "[TemplateManagementService] - [create] -> Template criado templateId={} ownerUserId={} eventType={} channel={} active={}",
                 saved.getId().value(),
                 saved.getOwnerUserId() == null ? null : saved.getOwnerUserId().value(),
                 saved.getEventType(), saved.getChannel(), saved.isActive()

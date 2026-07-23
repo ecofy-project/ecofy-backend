@@ -12,10 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Correção Dia 6: exceções de APLICAÇÃO (core.application.exception.*) antes caíam no fallback 500 genérico.
- * Agora validação -> 400 e demais processamento -> 500 com code padronizado.
- */
+// Verifica que exceções de aplicação são traduzidas para os status e códigos padronizados.
 class RestExceptionHandlerAppExceptionTest {
 
     private final RestExceptionHandler handler = new RestExceptionHandler();
