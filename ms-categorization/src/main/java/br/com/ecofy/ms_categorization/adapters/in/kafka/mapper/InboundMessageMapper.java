@@ -10,22 +10,21 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 
+// Centraliza a conversão das mensagens recebidas para o domínio.
 @Component
 public class InboundMessageMapper {
 
     private final Clock clock;
 
-    // Construtor padrão que usa Clock UTC (facilita uso sem DI explícita).
     public InboundMessageMapper() {
         this(Clock.systemUTC());
     }
 
-    // Construtor que permite injetar Clock (útil para testes determinísticos).
     public InboundMessageMapper(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    // Converte a mensagem de categorização recebida em um Transaction do domínio.
+    // Converte a solicitação de categorização em uma transação.
     public Transaction toDomain(CategorizationRequestMessage msg) {
         Objects.requireNonNull(msg, "msg must not be null");
 
@@ -50,9 +49,8 @@ public class InboundMessageMapper {
         );
     }
 
-    // Normaliza String nula para vazio para evitar NullPointerException em parsing.
+    // Normaliza descrições nulas para uma representação vazia.
     private static String safe(String s) {
         return s == null ? "" : s;
     }
-
 }

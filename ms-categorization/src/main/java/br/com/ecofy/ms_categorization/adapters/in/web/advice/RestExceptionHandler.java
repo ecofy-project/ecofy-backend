@@ -17,10 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-/**
- * Handler global de erros HTTP do ms-categorization. Traduz exceções de domínio, validação,
- * conflito e falhas inesperadas para {@link ApiErrorResponse} consistente, sem expor stack trace.
- */
+// Converte exceções de domínio, validação e falhas inesperadas em resposta de erro consistente.
 @RestControllerAdvice
 @Slf4j
 public class RestExceptionHandler {
@@ -49,14 +46,14 @@ public class RestExceptionHandler {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, "BUSINESS_VALIDATION", ex.getMessage(), req);
     }
 
-    // Bean Validation em @RequestBody (@Valid) -> 400 com fieldErrors.
+    // Bean Validation em @RequestBody (@Valid) -> 400 com details por campo.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
-        List<ApiErrorResponse.FieldError> fieldErrors = ex.getBindingResult().getFieldErrors().stream()
-                .map(fe -> new ApiErrorResponse.FieldError(fe.getField(), fe.getDefaultMessage()))
+        List<ApiErrorResponse.Detail> details = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> ApiErrorResponse.Detail.ofField(fe.getField(), "INVALID", fe.getDefaultMessage()))
                 .toList();
         return ResponseEntity.badRequest()
-                .body(ApiErrorResponse.of(400, "VALIDATION_ERROR", "Request validation failed", req.getRequestURI(), fieldErrors));
+                .body(ApiErrorResponse.of(400, "VALIDATION_ERROR", "Request validation failed", req.getRequestURI(), details));
     }
 
     // Bean Validation em parâmetros (@Validated) -> 400.

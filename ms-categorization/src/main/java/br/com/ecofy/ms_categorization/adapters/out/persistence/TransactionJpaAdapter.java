@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+// Centraliza a persistência e a consulta das transações.
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -23,7 +24,7 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
     private final TransactionRepository repo;
     private final TransactionMapper mapper;
 
-    // Carrega uma transação por ID (UUID) e converte a entidade persistida para o domínio.
+    // Consulta uma transação pelo identificador informado.
     @Override
     public Optional<Transaction> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -34,7 +35,7 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
                 .map(mapper::toDomain);
     }
 
-    // Carrega uma transação pela chave externa (importJobId + externalId) e converte para o domínio.
+    // Consulta uma transação pela chave externa de importação.
     @Override
     public Optional<Transaction> findByExternalKey(UUID importJobId, String externalId) {
         Objects.requireNonNull(importJobId, "importJobId must not be null");
@@ -46,14 +47,14 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
                 .map(mapper::toDomain);
     }
 
-    // Persiste uma transação no banco via JPA e retorna o objeto de domínio correspondente ao registro salvo.
+    // Persiste a transação e retorna o domínio reconstituído.
     @Override
     @Transactional
     public Transaction save(Transaction transaction) {
         Objects.requireNonNull(transaction, "transaction must not be null");
 
         log.debug(
-                "[TransactionJpaAdapter] - [save] -> Saving txId={} importJobId={} externalId={} categoryId={}",
+                "[TransactionJpaAdapter] - [save] -> Salvando transação txId={} importJobId={} externalId={} categoryId={}",
                 transaction.getId(),
                 transaction.getImportJobId(),
                 transaction.getExternalId(),
@@ -71,5 +72,4 @@ public class TransactionJpaAdapter implements LoadTransactionPortOut, SaveTransa
 
         return mapper.toDomain(savedEntity);
     }
-
 }

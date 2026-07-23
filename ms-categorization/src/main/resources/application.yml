@@ -1,32 +1,34 @@
-# BASE / DEV (default)
 server:
-  port: 8083                     # porta do ms-categorization
+  port: 8083
   servlet:
-    context-path: /categorization # base path do serviço
-  shutdown: graceful              # encerra com segurança
+    context-path: /categorization
+  shutdown: graceful
   compression:
-    enabled: true                 # compressão HTTP
+    enabled: true
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024       # só comprime acima disso
-  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
+    min-response-size: 1024
+  # Confia nos cabeçalhos X-Forwarded-* enviados pelo gateway.
+  forward-headers-strategy: framework
 
 spring:
   application:
-    name: ms-categorization       # nome do serviço
+    name: ms-categorization
 
   main:
     allow-bean-definition-overriding: false
     keep-alive: true
     web-application-type: servlet
     threads:
+      # Habilita threads virtuais para as requisições HTTP.
       virtual:
-        enabled: true             # threads virtuais (Java 21+/Boot 4)
+        enabled: true
 
+  # Aponta para o banco local de desenvolvimento.
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5435/ecofy_categorization} # dev local
+    url: ${DB_URL:jdbc:postgresql://localhost:5435/ecofy_categorization}
     username: ${DB_USER:ecofy_categorization}
     password: ${DB_PASS:ecofy_categorization}
     driver-class-name: org.postgresql.Driver
@@ -37,12 +39,14 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 30000
-      leak-detection-threshold: 0   # 0 desliga
+      # Desliga a detecção de vazamento de conexão.
+      leak-detection-threshold: 0
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate            # não cria tabelas (usa Flyway)
+      # Valida o schema em vez de criá-lo, já que as tabelas vêm do Flyway.
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -53,32 +57,39 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true       # baseline automático (evite em prod)
+    # Cria a baseline automaticamente; evite manter isso ligado em produção.
+    baseline-on-migrate: true
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
+    # Aponta para o broker local de desenvolvimento.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     client-id: ms-categorization
 
-    # Propriedades gerais do client Kafka (vale para producer/consumer)
+    # Aplica as propriedades comuns a producer e consumer.
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
+      # Usa conexão sem criptografia em desenvolvimento; produção sobrescreve o protocolo.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
 
     consumer:
-      # IMPORTANTE: para evitar "ler do offset 0" quando o serviço ficou OFF e o grupo não tem offset commitado,
-      # use um group-id versionado e comece do latest.
+      # Versiona o consumer group e começa pelo offset mais recente, para que um serviço que
+      # ficou fora do ar não reprocesse o tópico inteiro ao voltar.
       group-id: ${KAFKA_CONSUMER_GROUP_ID:ms-categorization-v2}
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      # Envolve os deserializers reais para que uma falha de desserialização chegue ao error
+      # handler e siga para a DLT, em vez de virar poison pill reentregue indefinidamente.
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       auto-offset-reset: latest
       max-poll-records: ${KAFKA_MAX_POLL_RECORDS:10}
 
-      # JSON Deserializer config (somente via YAML)
+      # Configura a desserialização JSON aqui, e não por código.
       properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto"
         spring.json.value.default.type: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto.CategorizationRequestMessage"
         spring.json.use.type.headers: false
-        # Opcional, mas ajuda quando chega payload "ruim" (sem quebrar por campos extras)
+        # Tolera campos desconhecidos, permitindo que o produtor evolua o payload.
         spring.json.fail.on.unknown.properties: false
 
     producer:
@@ -87,48 +98,14 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-      # JSON Serializer config (somente via YAML)
+      # Configura a serialização JSON aqui, e não por código.
       properties:
         spring.json.add.type.headers: false
         enable.idempotence: true
 
     listener:
-      ack-mode: record               # commit por mensagem
-
-#  kafka:
-#    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
-#    client-id: ms-categorization
-#
-#    # Propriedades gerais do client Kafka (vale para producer/consumer)
-#    properties:
-#      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
-#
-#    consumer:
-#      group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
-#      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-#      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-#      auto-offset-reset: earliest
-#      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:10}
-#
-#      # JSON Deserializer config (somente via YAML)
-#      properties:
-#        spring.json.trusted.packages: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto"
-#        spring.json.value.default.type: "br.com.ecofy.ms_categorization.adapters.in.kafka.dto.CategorizationRequestMessage"
-#        spring.json.use.type.headers: false
-#
-#    producer:
-#      acks: all
-#      retries: 3
-#      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-#      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-#
-#      # JSON Serializer config (somente via YAML)
-#      properties:
-#        spring.json.add.type.headers: false
-#        enable.idempotence: true
-#
-#    listener:
-#      ack-mode: record               # commit por mensagem
+      # Confirma o offset por mensagem processada.
+      ack-mode: record
 
   sql:
     init:
@@ -138,13 +115,14 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
+          # Aponta para o JWKS local do ms-auth.
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 ecofy:
   categorization:
-    # Segurança da API por ambiente: dev/test/local liberam /api/categorization/**; prod exige JWT.
+    # Libera a API em desenvolvimento e testes; produção exige JWT.
     security:
-      permit-all: ${CAT_SECURITY_PERMIT_ALL:true}              # dev default: true
+      permit-all: ${CAT_SECURITY_PERMIT_ALL:true}
 
     topics:
       categorization-request: ${CAT_TOPIC_REQUEST:eco.categorization.request}
@@ -160,6 +138,37 @@ ecofy:
       min-score-to-categorize: ${CAT_RULE_MIN_SCORE:40}
       create-suggestion-when-unmatched: ${CAT_RULE_CREATE_SUGGESTION_WHEN_UNMATCHED:true}
 
+    # Define a concorrência do consumo e a política de retry e DLT.
+    kafka:
+      # Espelha o consumer group nos headers da DLT.
+      consumer-group: ${KAFKA_CONSUMER_GROUP_ID:ms-categorization-v2}
+      # Acompanha o número de partições do tópico de entrada; acima disso a thread fica ociosa.
+      concurrency: ${CAT_KAFKA_CONCURRENCY:3}
+      dlt-suffix: ${CAT_KAFKA_DLT_SUFFIX:.dlt}
+      supported-event-versions: ${CAT_SUPPORTED_EVENT_VERSIONS:1}
+      retry:
+        # Conta a entrega original entre as tentativas.
+        max-attempts: ${CAT_RETRY_MAX_ATTEMPTS:3}
+        initial-interval: ${CAT_RETRY_INITIAL:1s}
+        multiplier: ${CAT_RETRY_MULTIPLIER:2}
+        max-interval: ${CAT_RETRY_MAX:10s}
+
+    # Configura a Transactional Outbox de eventos de categorização.
+    outbox:
+      batch-size: ${CAT_OUTBOX_BATCH_SIZE:100}
+      poll-interval: ${CAT_OUTBOX_POLL_INTERVAL:1s}
+      # Limita as tentativas antes do descarte auditável, sem permitir retry infinito.
+      max-attempts: ${CAT_OUTBOX_MAX_ATTEMPTS:10}
+      initial-backoff: ${CAT_OUTBOX_INITIAL_BACKOFF:1s}
+      backoff-multiplier: ${CAT_OUTBOX_BACKOFF_MULTIPLIER:2}
+      max-backoff: ${CAT_OUTBOX_MAX_BACKOFF:5m}
+      # Libera os registros abandonados em processamento após este tempo.
+      processing-timeout: ${CAT_OUTBOX_PROCESSING_TIMEOUT:5m}
+      published-retention: ${CAT_OUTBOX_PUBLISHED_RETENTION:7d}
+      cleanup-batch-size: ${CAT_OUTBOX_CLEANUP_BATCH:500}
+      publish-timeout: ${CAT_OUTBOX_PUBLISH_TIMEOUT:10s}
+
+# Expõe os endpoints necessários para saúde e métricas.
 management:
   endpoints:
     web:
@@ -185,8 +194,9 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
+# Libera a origem local do frontend durante o desenvolvimento.
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}           # dev
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS}
   allowed-headers: ${CORS_ALLOWED_HEADERS:*}
 
@@ -198,114 +208,3 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
-
-# PROFILE: test
----
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  datasource:
-    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_categorization_test}
-    username: ${DB_USER_TEST:ecofy_categorization_test}
-    password: ${DB_PASS_TEST:}      # sem default fraco
-
-  jpa:
-    hibernate:
-      ddl-auto: create-drop          # cria e apaga no fim
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: false
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
-    consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-categorization-test}
-
-logging:
-  level:
-    root: WARN
-    br.com.ecofy.ms_categorization: INFO
-
-ecofy:
-  categorization:
-    security:
-      permit-all: true            # test: facilita testes locais
-    idempotency:
-      ttl-seconds: 60
-    rule-engine:
-      max-rules-to-evaluate: 20
-      min-score-to-categorize: 40
-      create-suggestion-when-unmatched: true
-
-
-# PROFILE: prod
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-
-  datasource:
-    url: ${DB_URL}                   # sem default local
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    hikari:
-      pool-name: MsCategorizationHikariPool
-      maximum-pool-size: ${DB_POOL_MAX:20}
-      minimum-idle: ${DB_POOL_MIN:5}
-      idle-timeout: 300000
-      max-lifetime: 1800000
-      connection-timeout: 30000
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: true
-    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
-    properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
-
-logging:
-  level:
-    root: INFO
-    br.com.ecofy.ms_categorization: INFO
-    org.hibernate.SQL: WARN
-    org.springframework.security: WARN
-    org.springframework.web: WARN
-
-ecofy:
-  categorization:
-    security:
-      permit-all: ${CAT_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/categorization/**
-
-    topics:
-      categorization-request: ${CAT_TOPIC_REQUEST:eco.categorization.request}
-      transaction-categorized: ${CAT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
-      categorization-applied: ${CAT_TOPIC_APPLIED:eco.categorization.applied}
-
-    idempotency:
-      ttl-seconds: ${CAT_IDEMPOTENCY_TTL_SECONDS:86400}
-
-    rule-engine:
-      max-rules-to-evaluate: ${CAT_RULE_MAX_RULES:500}
-      best-score-wins: ${CAT_RULE_BEST_SCORE_WINS:true}
-      min-score-to-categorize: ${CAT_RULE_MIN_SCORE:40}
-      create-suggestion-when-unmatched: ${CAT_RULE_CREATE_SUGGESTION_WHEN_UNMATCHED:true}

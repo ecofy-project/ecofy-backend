@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_categorization.adapters.in.web;
 
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.CategoryResponse;
 import br.com.ecofy.ms_categorization.adapters.in.web.dto.request.CreateCategoryRequest;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.CategoryResponse;
 import br.com.ecofy.ms_categorization.core.application.command.CreateCategoryCommand;
 import br.com.ecofy.ms_categorization.core.port.in.CreateCategoryUseCase;
 import br.com.ecofy.ms_categorization.core.port.in.ListCategoriesUseCase;
@@ -23,6 +23,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.List;
 
+// Centraliza os endpoints de criação e consulta de categorias.
 @RestController
 @RequestMapping(path = "/api/categorization/v1/categories", produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
@@ -34,6 +35,7 @@ public class CategoryController {
     private final CreateCategoryUseCase createUseCase;
     private final ListCategoriesUseCase listUseCase;
 
+    // Registra uma categoria e retorna sua localização.
     @Operation(
             summary = "Cria uma nova categoria",
             description = """
@@ -70,6 +72,7 @@ public class CategoryController {
         return ResponseEntity.created(location).body(body);
     }
 
+    // Consulta as categorias disponíveis para categorização.
     @Operation(
             summary = "Lista categorias ativas",
             description = """
@@ -102,5 +105,4 @@ public class CategoryController {
                 c.isActive()
         );
     }
-
 }

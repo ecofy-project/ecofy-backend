@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a criação e a consulta das regras de categorização.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -31,7 +32,7 @@ public class CategorizationRuleService implements CreateRuleUseCase, ListRulesUs
 
     private final Clock clock = Clock.systemUTC();
 
-    // Cria e persiste uma regra de categorização garantindo que a categoria alvo exista.
+    // Registra uma regra após validar a existência da categoria.
     @Override
     @Transactional
     public CategorizationRule create(CreateRuleCommand command) {
@@ -67,6 +68,7 @@ public class CategorizationRuleService implements CreateRuleUseCase, ListRulesUs
         return saved;
     }
 
+    // Consulta as regras ativas conforme a prioridade definida.
     @Override
     public List<CategorizationRule> listActive() {
         log.debug("[CategorizationRuleService] - [listActive] -> Listing active rules ordered by priority");
@@ -76,5 +78,4 @@ public class CategorizationRuleService implements CreateRuleUseCase, ListRulesUs
         log.debug("[CategorizationRuleService] - [listActive] -> loadedRules={}", rules.size());
         return rules;
     }
-
 }

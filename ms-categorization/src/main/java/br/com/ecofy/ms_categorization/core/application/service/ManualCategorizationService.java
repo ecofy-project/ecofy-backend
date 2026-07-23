@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a aplicação manual de categorias em transações.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,7 +43,7 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
 
     private final Clock clock = Clock.systemUTC();
 
-    // Aplica categorização manual garantindo existência de transação/categoria, persistindo sugestão e publicando eventos.
+    // Aplica a categoria após validar os recursos e registra a decisão.
     @Override
     @Transactional
     public CategorizationResult manualCategorize(ManualCategorizeCommand command) {
@@ -92,7 +93,7 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
         );
     }
 
-    // Publica eventos de transação categorizada e auditoria de aplicação para consumo por serviços downstream.
+    // Publica os eventos resultantes da categorização manual.
     private void publishEvents(Transaction updated, UUID suggestionId, Instant now) {
         publishPort.publish(new CategorizedTransactionDomainEvent(
                 UUID.randomUUID(),
@@ -119,18 +120,17 @@ public class ManualCategorizationService implements ManualCategorizationUseCase 
         ));
     }
 
-    // Valida campos obrigatórios do comando para evitar execução com parâmetros nulos.
+    // Valida os dados obrigatórios do comando.
     private static void validate(ManualCategorizeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         Objects.requireNonNull(command.transactionId(), "command.transactionId must not be null");
         Objects.requireNonNull(command.categoryId(), "command.categoryId must not be null");
     }
 
-    // Normaliza a justificativa removendo whitespace e convertendo vazio para null.
+    // Normaliza a justificativa e converte valores vazios em nulo.
     private static String normalizeRationale(String rationale) {
         if (rationale == null) return null;
         String r = rationale.trim();
         return r.isEmpty() ? null : r;
     }
-
 }

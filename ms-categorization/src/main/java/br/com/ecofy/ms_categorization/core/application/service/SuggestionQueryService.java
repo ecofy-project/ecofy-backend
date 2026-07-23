@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a consulta das sugestões de categorização.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -22,7 +23,7 @@ public class SuggestionQueryService implements GetSuggestionUseCase {
     private final LoadTransactionPortOut loadTransactionPort;
     private final SaveSuggestionPortOut saveSuggestionPort;
 
-    // Busca a sugestão mais recente de uma transação, validando antes a existência da transação.
+    // Consulta a sugestão mais recente após validar a existência da transação.
     @Override
     public SuggestionResult getByTransactionId(UUID transactionId) {
         Objects.requireNonNull(transactionId, "transactionId must not be null");
@@ -54,5 +55,4 @@ public class SuggestionQueryService implements GetSuggestionUseCase {
                     return null;
                 });
     }
-
 }

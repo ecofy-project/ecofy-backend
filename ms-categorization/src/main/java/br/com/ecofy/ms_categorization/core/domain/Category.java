@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+// Representa uma categoria disponível para classificar transações.
 public final class Category {
 
     private final UUID id;
@@ -13,7 +14,6 @@ public final class Category {
     private final Instant createdAt;
     private final Instant updatedAt;
 
-    // Representa uma categoria de transações (ex.: Alimentação) com metadados de status e auditoria.
     public Category(
             UUID id,
             String name,
@@ -34,37 +34,30 @@ public final class Category {
         }
     }
 
-    // Retorna o identificador único da categoria.
     public UUID getId() {
         return id;
     }
 
-    // Retorna o nome da categoria para exibição e regras.
     public String getName() {
         return name;
     }
 
-    // Retorna a cor associada (opcional) para uso em UI.
     public String getColor() {
         return color;
     }
 
-    // Indica se a categoria está ativa para uso no sistema.
     public boolean isActive() {
         return active;
     }
 
-    // Retorna o timestamp de criação para rastreabilidade/auditoria.
     public Instant getCreatedAt() {
         return createdAt;
     }
 
-    // Retorna o timestamp da última atualização para rastreabilidade/auditoria.
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
-    // Compara categorias por valor (campos relevantes) para consistência em coleções e testes.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -77,13 +70,11 @@ public final class Category {
                 updatedAt.equals(category.updatedAt);
     }
 
-    // Gera hash consistente com equals para uso em estruturas baseadas em hashing.
     @Override
     public int hashCode() {
         return Objects.hash(id, name, color, active, createdAt, updatedAt);
     }
 
-    // Fornece uma representação textual completa da categoria para logs e debug.
     @Override
     public String toString() {
         return "Category[" +
@@ -95,5 +86,4 @@ public final class Category {
                 ", updatedAt=" + updatedAt +
                 ']';
     }
-
 }

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Objects;
 
+// Representa uma condição utilizada na avaliação das regras.
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class RuleCondition {
 
@@ -15,7 +16,6 @@ public final class RuleCondition {
     private final String value;
     private final Integer weight;
 
-    // Jackson-friendly + invariantes do domínio
     @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
     public RuleCondition(
             @JsonProperty(value = "field", required = true) String field,

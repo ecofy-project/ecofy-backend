@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+// Centraliza a persistência e a consulta das regras de categorização.
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -25,10 +26,10 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
     private final CategorizationRuleRepository repo;
     private final RuleMapper mapper;
 
-    // Busca regras ativas ordenadas por prioridade (ascendente).
+    // Consulta as regras ativas conforme a prioridade definida.
     @Override
     public List<CategorizationRule> findActiveOrdered() {
-        log.debug("[CategorizationRuleJpaAdapter] - [findActiveOrdered] -> Loading ACTIVE rules ordered by priority");
+        log.debug("[CategorizationRuleJpaAdapter] - [findActiveOrdered] -> Carregando regras ativas ordenadas por prioridade");
 
         return repo.findByStatusOrderByPriorityAsc(RuleStatus.ACTIVE)
                 .stream()
@@ -36,7 +37,7 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
                     try {
                         return mapper.toDomain(e);
                     } catch (Exception ex) {
-                        log.error("[CategorizationRuleJpaAdapter] - [findActiveOrdered] -> Failed mapping ruleId={} conditionsJson={}",
+                        log.error("[CategorizationRuleJpaAdapter] - [findActiveOrdered] -> Falha ao mapear regra ruleId={} conditionsJson={}",
                                 e.getId(), e.getConditionsJson(), ex);
                         throw ex;
                     }
@@ -44,8 +45,7 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
                 .toList();
     }
 
-
-    // Busca uma regra por id e a converte para o domínio.
+    // Consulta uma regra pelo identificador informado.
     @Override
     public Optional<CategorizationRule> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -55,21 +55,20 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
         return repo.findById(id).map(mapper::toDomain);
     }
 
-    // Persiste uma regra (create/update) e retorna a versão do domínio salva.
+    // Persiste a regra e retorna o domínio reconstituído.
     @Override
     @Transactional
     public CategorizationRule save(CategorizationRule rule) {
         Objects.requireNonNull(rule, "rule must not be null");
 
         log.debug(
-                "[CategorizationRuleJpaAdapter] - [save] -> Saving rule name={} categoryId={} priority={} status={}",
+                "[CategorizationRuleJpaAdapter] - [save] -> Salvando regra name={} categoryId={} priority={} status={}",
                 rule.getName(),
                 rule.getCategoryId(),
                 rule.getPriority(),
                 rule.getStatus()
         );
 
-        // Persiste entidade (grava conditions_json via writeConditions)
         var savedEntity = repo.save(mapper.toEntity(rule));
 
         log.info(
@@ -90,5 +89,4 @@ public class CategorizationRuleJpaAdapter implements LoadRulesPortOut, SaveRuleP
                 (savedEntity.getUpdatedAt() != null ? savedEntity.getUpdatedAt() : rule.getUpdatedAt())
         );
     }
-
 }

@@ -6,7 +6,6 @@ import br.com.ecofy.ms_categorization.config.CategorizationProperties;
 import br.com.ecofy.ms_categorization.core.port.out.IdempotencyPortOut;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 
+// Centraliza o controle persistente de idempotência com expiração.
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -25,7 +25,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPortOut {
     private final CategorizationProperties props;
     private final Clock clock = Clock.systemUTC();
 
-    // Tenta adquirir uma chave de idempotência persistindo-a com TTL, retornando false em caso de colisão.
+    // Registra a chave de forma atômica para impedir o processamento duplicado.
     @Override
     @Transactional
     public boolean tryAcquire(String key, Instant now) {
@@ -33,29 +33,16 @@ public class IdempotencyJpaAdapter implements IdempotencyPortOut {
 
         final Instant instant = now != null ? now : Instant.now(clock);
         final long ttl = Math.max(MIN_TTL_SECONDS, props.getIdempotency().getTtlSeconds());
+        final Instant expiresAt = instant.plusSeconds(ttl);
 
-        IdempotencyKeyEntity entity = IdempotencyKeyEntity.builder()
-                .idempotencyKey(key)
-                .createdAt(instant)
-                .expiresAt(instant.plusSeconds(ttl))
-                .build();
+        int inserted = repo.tryInsert(key, instant, expiresAt);
 
-        try {
-            repo.save(entity);
-
-            log.debug(
-                    "[IdempotencyJpaAdapter] - [tryAcquire] -> ACQUIRED key={} expiresAt={}",
-                    key, entity.getExpiresAt()
-            );
-
+        if (inserted == 1) {
+            log.debug("[IdempotencyJpaAdapter] - [tryAcquire] -> Chave de idempotência adquirida key={} expiresAt={}", key, expiresAt);
             return true;
-        } catch (DataIntegrityViolationException ex) {
-            log.info(
-                    "[IdempotencyJpaAdapter] - [tryAcquire] -> COLLISION key={}",
-                    key
-            );
-            return false;
         }
-    }
 
+        log.info("[IdempotencyJpaAdapter] - [tryAcquire] -> COLLISION key={} (replay ignorado)", key);
+        return false;
+    }
 }

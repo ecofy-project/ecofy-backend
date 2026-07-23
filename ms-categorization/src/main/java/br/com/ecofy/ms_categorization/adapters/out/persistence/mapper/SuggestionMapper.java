@@ -9,22 +9,21 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a conversão entre sugestões de domínio e entidades persistidas.
 @Component
 public class SuggestionMapper {
 
     private final Clock clock;
 
-    // Construtor default que usa Clock UTC.
     public SuggestionMapper() {
         this(Clock.systemUTC());
     }
 
-    // Construtor que injeta Clock para testes e consistência temporal.
     public SuggestionMapper(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    // Converte o domínio CategorizationSuggestion para a entidade JPA CategorizationSuggestionEntity.
+    // Converte a sugestão de categorização em uma entidade persistível.
     public CategorizationSuggestionEntity toEntity(CategorizationSuggestion d) {
         Objects.requireNonNull(d, "domain must not be null");
 
@@ -41,7 +40,7 @@ public class SuggestionMapper {
                 .build();
     }
 
-    // Converte a entidade JPA CategorizationSuggestionEntity para o domínio CategorizationSuggestion.
+    // Converte a entidade persistida em uma sugestão de categorização.
     public CategorizationSuggestion toDomain(CategorizationSuggestionEntity e) {
         Objects.requireNonNull(e, "entity must not be null");
 
@@ -58,21 +57,17 @@ public class SuggestionMapper {
         );
     }
 
-    // Garante que um UUID obrigatório não seja nulo (senão lança exceção).
     private UUID nonNullOrThrow(UUID v, String msg) {
         if (v == null) throw new IllegalStateException(msg);
         return v;
     }
 
-    // Garante que um valor obrigatório não seja nulo (senão lança exceção).
     private <T> T nonNullOrThrow(T v, String msg) {
         if (v == null) throw new IllegalStateException(msg);
         return v;
     }
 
-    // Retorna o Instant informado ou um Instant "agora" usando o Clock.
     private Instant nonNullOrNow(Instant v) {
         return v != null ? v : Instant.now(clock);
     }
-
 }

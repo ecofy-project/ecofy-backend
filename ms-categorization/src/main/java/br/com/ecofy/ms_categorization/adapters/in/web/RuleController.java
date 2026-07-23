@@ -23,6 +23,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.List;
 
+// Centraliza os endpoints de criação e consulta de regras.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -34,6 +35,7 @@ public class RuleController {
     private final CreateRuleUseCase createRuleUseCase;
     private final ListRulesUseCase listRulesUseCase;
 
+    // Registra uma regra e retorna sua localização.
     @Operation(
             summary = "Cria uma nova regra",
             description = """
@@ -70,12 +72,13 @@ public class RuleController {
                 .buildAndExpand(saved.getId())
                 .toUri();
 
-        log.info("[RuleController] - [create] -> SUCCESS ruleId={} categoryId={} priority={}",
+        log.info("[RuleController] - [create] -> Regra criada com sucesso ruleId={} categoryId={} priority={}",
                 saved.getId(), saved.getCategoryId(), saved.getPriority());
 
         return ResponseEntity.created(location).body(toResponse(saved));
     }
 
+    // Consulta as regras ativas na ordem definida pelo domínio.
     @Operation(
             summary = "Lista regras ativas",
             description = """
@@ -111,5 +114,4 @@ public class RuleController {
                 r.getUpdatedAt()
         );
     }
-
 }

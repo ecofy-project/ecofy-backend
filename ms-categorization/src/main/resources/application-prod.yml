@@ -1,0 +1,68 @@
+# Configura o ambiente de produção.
+spring:
+  # Exige as credenciais do banco por variável de ambiente, sem default local.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+    hikari:
+      pool-name: MsCategorizationHikariPool
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    # Mantém a baseline automática desligada por padrão em produção.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+
+  kafka:
+    # Exige o endereço do broker por variável de ambiente, sem default local.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      # Adota conexão autenticada e criptografada como padrão.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Exige o endereço do JWKS por variável de ambiente.
+          jwk-set-uri: ${JWT_JWKS_URI}
+
+# Reduz o nível dos logs em produção.
+logging:
+  level:
+    root: INFO
+    br.com.ecofy.ms_categorization: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+    org.springframework.web: WARN
+
+ecofy:
+  categorization:
+    # Exige autenticação em todas as rotas protegidas.
+    security:
+      permit-all: ${CAT_SECURITY_PERMIT_ALL:false}
+
+    topics:
+      categorization-request: ${CAT_TOPIC_REQUEST:eco.categorization.request}
+      transaction-categorized: ${CAT_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
+      categorization-applied: ${CAT_TOPIC_APPLIED:eco.categorization.applied}
+
+    idempotency:
+      ttl-seconds: ${CAT_IDEMPOTENCY_TTL_SECONDS:86400}
+
+    rule-engine:
+      max-rules-to-evaluate: ${CAT_RULE_MAX_RULES:500}
+      best-score-wins: ${CAT_RULE_BEST_SCORE_WINS:true}
+      min-score-to-categorize: ${CAT_RULE_MIN_SCORE:40}
+      create-suggestion-when-unmatched: ${CAT_RULE_CREATE_SUGGESTION_WHEN_UNMATCHED:true}

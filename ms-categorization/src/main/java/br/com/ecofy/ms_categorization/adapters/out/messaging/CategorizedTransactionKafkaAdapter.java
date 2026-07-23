@@ -11,13 +11,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
-import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+// Publica eventos diretamente no Kafka; substituído pelo OutboxWriterAdapter e mantido apenas por compatibilidade.
+@Deprecated(since = "Etapa 5", forRemoval = true)
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTransactionEventPortOut {
 
@@ -53,7 +53,7 @@ public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTra
 
         fut.whenComplete((res, ex) -> {
             if (ex != null) {
-                log.error("[CategorizedTransactionKafkaAdapter] - [publishCategorized] -> FAILED txId={} topic={} error={}",
+                log.error("[CategorizedTransactionKafkaAdapter] - [publishCategorized] -> Falha ao publicar evento txId={} topic={} error={}",
                         event.transactionId(), topic, ex.getMessage(), ex);
                 return;
             }
@@ -89,7 +89,7 @@ public class CategorizedTransactionKafkaAdapter implements PublishCategorizedTra
 
         fut.whenComplete((res, ex) -> {
             if (ex != null) {
-                log.error("[CategorizedTransactionKafkaAdapter] - [publishApplied] -> FAILED txId={} topic={} error={}",
+                log.error("[CategorizedTransactionKafkaAdapter] - [publishApplied] -> Falha ao publicar evento txId={} topic={} error={}",
                         event.transactionId(), topic, ex.getMessage(), ex);
                 return;
             }

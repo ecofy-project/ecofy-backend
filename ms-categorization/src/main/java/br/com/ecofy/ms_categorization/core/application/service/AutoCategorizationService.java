@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+// Centraliza a categorização automática de transações por regras.
 @Slf4j
 @Service
 public class AutoCategorizationService implements AutoCategorizeTransactionUseCase {
@@ -38,7 +39,6 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
     private final Clock clock;
     private final RuleEngine engine;
 
-    // Construtor padrão para wiring do Spring usando Clock/RuleEngine default.
     @Autowired
     public AutoCategorizationService(
             CategorizationProperties props,
@@ -52,7 +52,6 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
                 Clock.systemUTC(), new RuleEngine());
     }
 
-    // Inicializa e valida dependências obrigatórias do serviço.
     public AutoCategorizationService(
             CategorizationProperties props,
             IdempotencyPortOut idempotencyPort,
@@ -73,7 +72,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
         this.engine = Objects.requireNonNull(engine, "engine must not be null");
     }
 
-    // Executa a auto-categorização com idempotência, avaliação de regras, persistência e publicação de eventos.
+    // Processa a transação com idempotência, avaliação de regras e publicação de eventos.
     @Override
     @Transactional
     public CategorizationResult autoCategorize(AutoCategorizeCommand command) {
@@ -192,7 +191,7 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
         );
     }
 
-    // Calcula o melhor score da regra para a transação e retorna um candidato se houver match.
+    // Calcula o melhor resultado da regra para a transação.
     private Optional<Candidate> toCandidate(Transaction tx, CategorizationRule rule) {
         var scores = engine.score(tx, rule);
 
@@ -208,12 +207,11 @@ public class AutoCategorizationService implements AutoCategorizeTransactionUseCa
         ));
     }
 
-    // Define a ordenação para escolher o melhor candidato (maior score; em empate, maior prioridade).
+    // Ordena candidatos por pontuação e prioridade.
     private static Comparator<Candidate> bestCandidateComparator() {
         return Comparator.<Candidate>comparingInt(Candidate::score)
                 .thenComparingInt(c -> -c.priority());
     }
 
     private record Candidate(UUID ruleId, UUID categoryId, int score, int priority, String rationale) { }
-
 }

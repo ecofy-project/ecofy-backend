@@ -3,10 +3,7 @@ package br.com.ecofy.ms_categorization.core.domain.event;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Evento de DOMÍNIO (core) de categorização aplicada (auditoria). Sem dependência de
- * DTOs Kafka/Jackson/Spring/adapters — o adapter converte para o DTO Kafka de saída.
- */
+// Representa o evento de domínio de categorização aplicada, independente de DTOs de transporte.
 public record CategorizationAppliedDomainEvent(
         UUID eventId,
         UUID transactionId,

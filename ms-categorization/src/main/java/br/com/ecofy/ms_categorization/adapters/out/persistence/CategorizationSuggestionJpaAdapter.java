@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+// Centraliza a persistência e a consulta das sugestões de categorização.
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -22,14 +23,14 @@ public class CategorizationSuggestionJpaAdapter implements SaveSuggestionPortOut
     private final CategorizationSuggestionRepository repo;
     private final SuggestionMapper mapper;
 
-    // Persiste uma sugestão de categorização (create/update) e retorna a versão do domínio salva.
+    // Persiste a sugestão e retorna o domínio reconstituído.
     @Override
     @Transactional
     public CategorizationSuggestion save(CategorizationSuggestion suggestion) {
         Objects.requireNonNull(suggestion, "suggestion must not be null");
 
         log.debug(
-                "[CategorizationSuggestionJpaAdapter] - [save] -> Saving suggestion txId={} categoryId={} status={} score={}",
+                "[CategorizationSuggestionJpaAdapter] - [save] -> Salvando sugestão txId={} categoryId={} status={} score={}",
                 suggestion.getTransactionId(),
                 suggestion.getCategoryId(),
                 suggestion.getStatus(),
@@ -48,7 +49,7 @@ public class CategorizationSuggestionJpaAdapter implements SaveSuggestionPortOut
         return mapper.toDomain(savedEntity);
     }
 
-    // Busca a sugestão mais recente de uma transação e converte para o domínio.
+    // Consulta a sugestão mais recente associada à transação.
     @Override
     public Optional<CategorizationSuggestion> findByTransactionId(UUID transactionId) {
         Objects.requireNonNull(transactionId, "transactionId must not be null");
@@ -61,5 +62,4 @@ public class CategorizationSuggestionJpaAdapter implements SaveSuggestionPortOut
         return repo.findTopByTransactionIdOrderByUpdatedAtDesc(transactionId)
                 .map(mapper::toDomain);
     }
-
 }

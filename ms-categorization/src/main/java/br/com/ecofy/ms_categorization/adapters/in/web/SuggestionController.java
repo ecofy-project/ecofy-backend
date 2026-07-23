@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+// Centraliza a consulta de sugestões de categorização.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -28,6 +29,7 @@ public class SuggestionController {
 
     private final GetSuggestionUseCase getSuggestionUseCase;
 
+    // Consulta a sugestão mais recente associada à transação.
     @Operation(
             summary = "Busca a última sugestão por transação",
             description = """
@@ -61,5 +63,4 @@ public class SuggestionController {
                 result.rationale()
         ));
     }
-
 }

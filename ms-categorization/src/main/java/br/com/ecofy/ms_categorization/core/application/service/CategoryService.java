@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+// Centraliza a criação e a consulta das categorias.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,13 +31,12 @@ public class CategoryService implements CreateCategoryUseCase, ListCategoriesUse
     private final LoadCategoriesPortOut loadCategoriesPort;
     private final Clock clock;
 
-    // Construtor de conveniência para wiring padrão com Clock em UTC.
     @Autowired
     public CategoryService(SaveCategoryPortOut saveCategoryPort, LoadCategoriesPortOut loadCategoriesPort) {
         this(saveCategoryPort, loadCategoriesPort, Clock.systemUTC());
     }
 
-    // Cria e persiste uma categoria normalizando nome/cor e aplicando defaults (active=true).
+    // Registra uma categoria após normalizar seus dados.
     @Override
     @Transactional
     public Category create(CreateCategoryCommand command) {
@@ -64,25 +64,24 @@ public class CategoryService implements CreateCategoryUseCase, ListCategoriesUse
         return saved;
     }
 
-    // Lista categorias ativas para consumo em UI e validações de domínio (ex.: criação de regras).
+    // Consulta as categorias disponíveis para categorização.
     @Override
     public List<Category> listActive() {
         log.debug("[CategoryService] - [listActive] -> Listing active categories");
         return loadCategoriesPort.findActive();
     }
 
-    // Remove whitespace e converte nome vazio em null para facilitar validação.
+    // Normaliza o nome e converte valores vazios em nulo.
     private static String normalizeName(String name) {
         if (name == null) return null;
         String n = name.trim();
         return n.isEmpty() ? null : n;
     }
 
-    // Remove whitespace e converte cor vazia em null (campo opcional).
+    // Normaliza a cor opcional e converte valores vazios em nulo.
     private static String normalizeColor(String color) {
         if (color == null) return null;
         String c = color.trim();
         return c.isEmpty() ? null : c;
     }
-
 }

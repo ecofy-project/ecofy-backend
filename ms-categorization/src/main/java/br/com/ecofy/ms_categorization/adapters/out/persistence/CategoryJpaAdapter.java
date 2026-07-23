@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+// Centraliza a persistência e a consulta das categorias.
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -24,11 +25,11 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
     private final CategoryRepository repo;
     private final CategoryMapper mapper;
 
-    // Carrega todas as categorias ativas ordenadas por nome.
+    // Consulta as categorias ativas conforme a ordenação definida.
     @Override
     public List<Category> findActive() {
 
-        log.debug("[CategoryJpaAdapter] - [findActive] -> Loading active categories ordered by name");
+        log.debug("[CategoryJpaAdapter] - [findActive] -> Carregando categorias ativas ordenadas por nome");
 
         return repo.findByActiveTrueOrderByNameAsc()
                 .stream()
@@ -36,7 +37,7 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
                 .toList();
     }
 
-    // Busca uma categoria por id e converte para o domínio.
+    // Consulta uma categoria pelo identificador informado.
     @Override
     public Optional<Category> findById(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
@@ -47,14 +48,14 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
                 .map(mapper::toDomain);
     }
 
-    // Persiste uma categoria (create/update) e retorna a versão do domínio salva.
+    // Persiste a categoria e retorna o domínio reconstituído.
     @Override
     @Transactional
     public Category save(Category category) {
         Objects.requireNonNull(category, "category must not be null");
 
         log.debug(
-                "[CategoryJpaAdapter] - [save] -> Saving category name={} active={}",
+                "[CategoryJpaAdapter] - [save] -> Salvando categoria name={} active={}",
                 category.getName(),
                 category.isActive()
         );
@@ -69,5 +70,4 @@ public class CategoryJpaAdapter implements LoadCategoriesPortOut, SaveCategoryPo
 
         return mapper.toDomain(savedEntity);
     }
-
 }

@@ -5,7 +5,7 @@ import java.util.UUID;
 public class TransactionNotFoundException extends RuntimeException {
 
     public TransactionNotFoundException(UUID id) {
-        super("Transaction not found id=" + id);
+        super("Transaction not found for id: " + id);
     }
 
 }

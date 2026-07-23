@@ -1,0 +1,43 @@
+# Configura o ambiente de testes automatizados.
+spring:
+  # Aponta para o banco dedicado de testes, sem senha padrão embutida.
+  datasource:
+    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_categorization_test}
+    username: ${DB_USER_TEST:ecofy_categorization_test}
+    password: ${DB_PASS_TEST:}
+
+  jpa:
+    hibernate:
+      # Cria o schema no início e o descarta ao fim da execução.
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+
+  # Desliga as migrations, já que o schema é gerado pelo próprio teste.
+  flyway:
+    enabled: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-categorization-test}
+
+# Reduz o nível dos logs durante os testes.
+logging:
+  level:
+    root: WARN
+    br.com.ecofy.ms_categorization: INFO
+
+ecofy:
+  categorization:
+    # Dispensa autenticação para simplificar os testes.
+    security:
+      permit-all: true
+    # Encurta o TTL de idempotência para não prender chaves entre cenários.
+    idempotency:
+      ttl-seconds: 60
+    # Reduz o conjunto de regras avaliadas para manter os testes determinísticos.
+    rule-engine:
+      max-rules-to-evaluate: 20
+      min-score-to-categorize: 40
+      create-suggestion-when-unmatched: true

@@ -1,7 +1,7 @@
 package br.com.ecofy.ms_categorization.adapters.in.web;
 
-import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.CategorizationResponse;
 import br.com.ecofy.ms_categorization.adapters.in.web.dto.request.ManualCategorizationRequest;
+import br.com.ecofy.ms_categorization.adapters.in.web.dto.response.CategorizationResponse;
 import br.com.ecofy.ms_categorization.core.application.command.ManualCategorizeCommand;
 import br.com.ecofy.ms_categorization.core.application.result.CategorizationResult;
 import br.com.ecofy.ms_categorization.core.port.in.ManualCategorizationUseCase;
@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+// Centraliza o endpoint de categorização manual de transações.
 @RestController
 @RequestMapping(path = "/api/categorization/v1/manual", produces = MediaType.APPLICATION_JSON_VALUE)
 @Validated
@@ -29,6 +30,7 @@ public class ManualCategorizationController {
 
     private final ManualCategorizationUseCase useCase;
 
+    // Aplica a categoria informada e retorna o resultado da decisão.
     @Operation(
             summary = "Aplica categorização manual em uma transação",
             description = """
@@ -64,7 +66,7 @@ public class ManualCategorizationController {
         CategorizationResult result = useCase.manualCategorize(cmd);
 
         log.info(
-                "[ManualCategorizationController] - [apply] -> SUCCESS txId={} categorized={} categoryId={} decision={} score={}",
+                "[ManualCategorizationController] - [apply] -> Transação categorizada com sucesso txId={} categorized={} categoryId={} decision={} score={}",
                 result.transactionId(),
                 result.categorized(),
                 result.categoryId(),
@@ -85,5 +87,4 @@ public class ManualCategorizationController {
                 result.score()
         );
     }
-
 }

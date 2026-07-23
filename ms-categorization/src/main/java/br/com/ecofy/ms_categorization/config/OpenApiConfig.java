@@ -12,11 +12,13 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+// Configura a documentação OpenAPI do serviço de categorização.
 @Configuration
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_BEARER = "BearerAuth";
 
+    // Configura os metadados e a autenticação da API.
     @Bean
     public OpenAPI ecofyCategorizationOpenAPI() {
         return new OpenAPI()
@@ -68,6 +70,7 @@ public class OpenApiConfig {
                         """);
     }
 
+    // Agrupa os endpoints funcionais da API de categorização.
     @Bean
     public GroupedOpenApi categorizationApiGroup() {
         return GroupedOpenApi.builder()
@@ -77,6 +80,7 @@ public class OpenApiConfig {
                 .build();
     }
 
+    // Agrupa os endpoints de monitoramento em documentação separada.
     @Bean
     public GroupedOpenApi actuatorGroup() {
         return GroupedOpenApi.builder()
@@ -84,5 +88,4 @@ public class OpenApiConfig {
                 .pathsToMatch("/actuator/**")
                 .build();
     }
-
 }
