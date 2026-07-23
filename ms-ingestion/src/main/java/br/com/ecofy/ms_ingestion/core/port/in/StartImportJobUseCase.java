@@ -6,8 +6,8 @@ import java.util.UUID;
 
 public interface StartImportJobUseCase {
 
-    record StartImportJobCommand(UUID importFileId) {}
+    record StartImportJobCommand(UUID importFileId, UUID ownerId, String correlationId) {
+    }
 
     ImportJob start(StartImportJobCommand command);
-
 }

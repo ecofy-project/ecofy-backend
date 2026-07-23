@@ -4,11 +4,7 @@ import br.com.ecofy.ms_insights.core.domain.enums.GoalStatus;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
-/**
- * Correção Dia 8 (item #2): campos opcionais, mas validados quando presentes
- * (targetCents positivo; currency ISO 3 letras; name com tamanho máximo).
- * A regra "targetCents e currency devem vir juntos" permanece no GoalService.
- */
+// Transporta os dados de atualização de uma meta, com campos opcionais validados quando presentes.
 public record UpdateGoalRequest(
 
         @Size(max = 120, message = "name must be at most 120 chars")

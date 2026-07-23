@@ -1,30 +1,61 @@
 package br.com.ecofy.ms_ingestion.adapters.in.web.advice;
 
+import br.com.ecofy.ms_ingestion.adapters.in.web.correlation.CorrelationId;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.time.Instant;
 import java.util.List;
 
-/**
- * Payload padronizado de erro da API do ms-ingestion.
- * Não expõe stack trace nem caminho local de arquivo.
- */
+// Define o contrato seguro de erros expostos pela API.
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ApiErrorResponse(
         Instant timestamp,
         int status,
-        String code,
+        String errorCode,
         String message,
         String path,
-        List<FieldError> fieldErrors
+        String traceId,
+        List<Detail> details
 ) {
-    public record FieldError(String field, String message) {}
 
-    public static ApiErrorResponse of(int status, String code, String message, String path) {
-        return new ApiErrorResponse(Instant.now(), status, code, message, path, null);
+    // Representa um detalhe geral ou associado a uma linha do arquivo.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Detail(
+            Integer row,
+            String field,
+            String code,
+            String message
+    ) {
+        public static Detail ofField(String field, String code, String message) {
+            return new Detail(null, field, code, message);
+        }
+
+        public static Detail ofRow(int row, String field, String code, String message) {
+            return new Detail(row, field, code, message);
+        }
     }
 
-    public static ApiErrorResponse of(int status, String code, String message, String path, List<FieldError> fieldErrors) {
-        return new ApiErrorResponse(Instant.now(), status, code, message, path, fieldErrors);
+    public ApiErrorResponse {
+        details = details == null ? List.of() : List.copyOf(details);
+    }
+
+    public static ApiErrorResponse of(int status, String errorCode, String message, String path) {
+        return of(status, errorCode, message, path, List.of());
+    }
+
+    public static ApiErrorResponse of(int status,
+                                      String errorCode,
+                                      String message,
+                                      String path,
+                                      List<Detail> details) {
+        return new ApiErrorResponse(
+                Instant.now(),
+                status,
+                errorCode,
+                message,
+                path,
+                CorrelationId.current(),
+                details
+        );
     }
 }

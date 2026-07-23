@@ -1,10 +1,14 @@
 package br.com.ecofy.ms_ingestion.core.port.out;
 
-import br.com.ecofy.ms_ingestion.core.domain.ImportFile;
+import java.io.InputStream;
+import java.util.UUID;
 
 public interface StoreFilePort {
 
-    // Persiste o arquivo em storage e devolve o caminho salvo (path).
-    String store(ImportFile file, byte[] content);
+    StoredFile store(UUID fileId, UUID ownerId, String originalFileName, InputStream content, long maxBytes);
 
+    void delete(String storedPath);
+
+    record StoredFile(String storedPath, String contentHash, long sizeBytes) {
+    }
 }

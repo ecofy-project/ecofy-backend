@@ -1,0 +1,76 @@
+# Configura o ambiente de testes automatizados.
+spring:
+  servlet:
+    multipart:
+      # Espelha o limite de ecofy.ingestion.upload.max-file-size, para que o teste de
+      # arquivo grande demais exercite a barreira real do container.
+      max-file-size: 1MB
+      max-request-size: 2MB
+      file-size-threshold: 64KB
+      location: ./data/ms-ingestion-test/tmp
+
+  # Aponta para o banco dedicado de testes, sem senha padrão embutida.
+  datasource:
+    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_ingestion_test}
+    username: ${DB_USER_TEST:ecofy_ingestion_test}
+    password: ${DB_PASS_TEST:}
+
+  jpa:
+    hibernate:
+      # Cria o schema no início e o descarta ao fim da execução.
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+
+  # Desliga as migrations, já que o schema é gerado pelo próprio teste.
+  flyway:
+    enabled: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-ingestion-tx-consumer-test}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWT_JWKS_URI_TEST:http://localhost:8081/auth/.well-known/jwks.json}
+
+# Reduz o nível dos logs durante os testes.
+logging:
+  level:
+    root: WARN
+    br.com.ecofy.ms_ingestion: INFO
+
+ecofy:
+  ingestion:
+    # Reduz os limites para valores pequenos e determinísticos: exercitar o teto real de
+    # linhas em toda build deixaria a suíte lenta demais.
+    max-errors-per-job: 50
+    # Força o processamento em vários lotes mesmo com fixtures pequenas.
+    batch-size: 10
+    # Dispensa autenticação em actuator e swagger; a importação continua exigindo JWT.
+    security:
+      permit-all: true
+    upload:
+      max-file-size: 1MB
+      max-lines: 100
+      max-line-length: 500
+      max-field-length: 200
+      max-columns: 10
+      # Permite exercitar o truncamento de erros sem gerar milhares de registros.
+      max-recorded-errors: 5
+      processing-timeout: 30s
+    pagination:
+      default-size: 20
+      max-size: 50
+    kafka:
+      # Encurta o retry para que o teste não espere os backoffs completos.
+      retry:
+        max-attempts: 2
+        initial-interval: 50ms
+        max-interval: 200ms
+    storage:
+      base-path: ./data/ms-ingestion-test
+      tmp-dir: ./data/ms-ingestion-test/tmp

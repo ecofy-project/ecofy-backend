@@ -8,8 +8,8 @@ import java.util.UUID;
 
 public interface GetImportJobStatusUseCase {
 
-    record ImportJobStatusView(ImportJob job, List<ImportError> errors) {}
+    record ImportJobStatusView(ImportJob job, List<ImportError> errors) {
+    }
 
-    ImportJobStatusView getById(UUID jobId);
-
+    ImportJobStatusView getById(UUID jobId, UUID ownerId);
 }

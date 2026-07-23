@@ -135,10 +135,38 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- H2: banco em memória para o teste de contexto/integração rodar sem Postgres externo -->
+        <!-- H2: apenas para testes LEVES de contexto/segurança (sem Docker). Comportamento
+             específico do PostgreSQL (constraints, índice parcial, concorrência) é coberto
+             pelos testes Testcontainers abaixo — nunca por H2. -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Testcontainers: PostgreSQL e Kafka REAIS nos testes de integração.
+             H2 não reproduz índice único parcial (WHERE ...), tipo UUID nem o comportamento
+             de constraint do PG — que é justamente o que a idempotência depende.
+             Testcontainers 2.x usa os artefatos testcontainers-*; as versões vêm do
+             testcontainers-bom importado pelo BOM do Spring Boot 4. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

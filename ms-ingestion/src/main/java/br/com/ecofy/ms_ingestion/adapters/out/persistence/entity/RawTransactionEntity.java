@@ -52,6 +52,9 @@ public class RawTransactionEntity {
     @Column(name = "raw_payload", columnDefinition = "text")
     private String rawPayload;
 
+    @Column(name = "row_hash", length = 128, nullable = false, updatable = false)
+    private String rowHash;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

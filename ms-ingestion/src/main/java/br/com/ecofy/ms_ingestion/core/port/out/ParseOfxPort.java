@@ -1,14 +1,10 @@
 package br.com.ecofy.ms_ingestion.core.port.out;
 
-
 import br.com.ecofy.ms_ingestion.core.domain.ImportJob;
+
+import java.io.Reader;
 
 public interface ParseOfxPort {
 
-    /**
-     * Faz o parse do OFX retornando transações válidas + erros por bloco.
-     * Blocos inválidos NÃO derrubam o job; erros estruturais lançam exceção.
-     */
-    ParseResult parse(ImportJob job, String ofxContent);
-
+    void parse(ImportJob job, Reader reader, ImportRecordHandler handler);
 }

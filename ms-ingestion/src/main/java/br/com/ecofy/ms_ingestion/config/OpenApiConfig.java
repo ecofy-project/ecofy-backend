@@ -10,11 +10,13 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+// Configura a documentação e a autenticação da API de ingestão.
 @Configuration
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_BEARER = "BearerAuth";
 
+    // Configura os metadados e o esquema de segurança da API.
     @Bean
     public OpenAPI ecofyIngestionOpenAPI() {
         return new OpenAPI()
@@ -66,7 +68,7 @@ public class OpenApiConfig {
                         """);
     }
 
-    // Grupo principal para endpoints REST da ingestão (exclui actuator).
+    // Agrupa os endpoints REST da ingestão.
     @Bean
     public GroupedOpenApi ingestionApiGroup() {
         return GroupedOpenApi.builder()
@@ -76,7 +78,7 @@ public class OpenApiConfig {
                 .build();
     }
 
-    // Grupo separado para actuator, se quiser inspecionar health/metrics via Swagger.
+    // Agrupa os endpoints operacionais do serviço.
     @Bean
     public GroupedOpenApi actuatorGroup() {
         return GroupedOpenApi.builder()

@@ -6,7 +6,7 @@ public class UnsupportedImportFileTypeException extends IngestionException {
 
     public UnsupportedImportFileTypeException(String type, UUID importFileId) {
         super(
-                IngestionErrorCode.UNSUPPORTED_IMPORT_FILE_TYPE,
+                IngestionErrorCode.UNSUPPORTED_FILE_TYPE,
                 "Unsupported ImportFileType",
                 "type=" + type + ", importFileId=" + importFileId
         );

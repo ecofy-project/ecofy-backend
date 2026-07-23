@@ -6,6 +6,5 @@ import java.util.List;
 
 public interface PublishTransactionForCategorizationPort {
 
-    void publish(List<RawTransaction> transactions);
-
+    int publish(List<RawTransaction> transactions, String correlationId);
 }

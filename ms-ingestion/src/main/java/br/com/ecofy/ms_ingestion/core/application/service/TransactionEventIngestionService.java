@@ -1,10 +1,6 @@
 package br.com.ecofy.ms_ingestion.core.application.service;
 
-import br.com.ecofy.ms_ingestion.core.application.exception.EmptyTransactionsPayloadException;
-import br.com.ecofy.ms_ingestion.core.application.exception.IngestionException;
-import br.com.ecofy.ms_ingestion.core.application.exception.IngestionErrorCode;
-import br.com.ecofy.ms_ingestion.core.application.exception.PersistenceException;
-import br.com.ecofy.ms_ingestion.core.application.exception.PublishException;
+import br.com.ecofy.ms_ingestion.core.application.exception.*;
 import br.com.ecofy.ms_ingestion.core.domain.ImportFile;
 import br.com.ecofy.ms_ingestion.core.domain.ImportJob;
 import br.com.ecofy.ms_ingestion.core.domain.RawTransaction;
@@ -17,120 +13,137 @@ import br.com.ecofy.ms_ingestion.core.port.out.SaveRawTransactionPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.*;
 
+// Coordena a ingestão de transações recebidas por eventos.
 @Slf4j
 @Service
 public class TransactionEventIngestionService implements IngestTransactionEventUseCase {
+
+    private static final Duration EVENT_PROCESSING_TIMEOUT = Duration.ofMinutes(5);
 
     private final SaveRawTransactionPort saveRawTransactionPort;
     private final PublishTransactionForCategorizationPort publishTransactionForCategorizationPort;
     private final SaveImportFilePort saveImportFilePort;
     private final SaveImportJobPort saveImportJobPort;
 
-    // Inicializa e valida as dependências do serviço de ingestão via eventos.
-    public TransactionEventIngestionService(SaveRawTransactionPort saveRawTransactionPort,
-                                            PublishTransactionForCategorizationPort publishTransactionForCategorizationPort,
-                                            SaveImportFilePort saveImportFilePort,
-                                            SaveImportJobPort saveImportJobPort) {
-        this.saveRawTransactionPort = Objects.requireNonNull(saveRawTransactionPort, "saveRawTransactionPort must not be null");
-        this.publishTransactionForCategorizationPort =
-                Objects.requireNonNull(publishTransactionForCategorizationPort, "publishTransactionForCategorizationPort must not be null");
+    public TransactionEventIngestionService(
+            SaveRawTransactionPort saveRawTransactionPort,
+            PublishTransactionForCategorizationPort publishTransactionForCategorizationPort,
+            SaveImportFilePort saveImportFilePort,
+            SaveImportJobPort saveImportJobPort) {
+        this.saveRawTransactionPort =
+                Objects.requireNonNull(saveRawTransactionPort, "saveRawTransactionPort must not be null");
+        this.publishTransactionForCategorizationPort = Objects.requireNonNull(
+                publishTransactionForCategorizationPort, "publishTransactionForCategorizationPort must not be null");
         this.saveImportFilePort = Objects.requireNonNull(saveImportFilePort, "saveImportFilePort must not be null");
         this.saveImportJobPort = Objects.requireNonNull(saveImportJobPort, "saveImportJobPort must not be null");
     }
 
-    /**
-     * Persiste transações vindas de evento Kafka e publica para categorização.
-     *
-     * Correção Dia 4: a persistência de RawTransaction exige um ImportJob/ImportFile
-     * válidos (FK no schema). Antes, o mapper gerava um importJobId ALEATÓRIO inexistente,
-     * fazendo o consumer falhar sistematicamente. Agora criamos um ImportFile + ImportJob
-     * SINTÉTICOS (origem EVENT) para o lote e vinculamos as transações a esse job.
-     */
+    // Processa o evento com idempotência, persistência e publicação para categorização.
     @Override
     public void ingest(IngestEventCommand command) {
         if (command == null) {
             throw new IngestionException(IngestionErrorCode.INVALID_COMMAND, "command must not be null");
         }
 
-        List<RawTransaction> incoming = Objects.requireNonNull(
-                command.transactions(),
-                "transactions must not be null"
-        );
+        UUID ownerId = Objects.requireNonNull(command.ownerId(), "ownerId must not be null");
+        List<RawTransaction> incoming = Objects.requireNonNull(command.transactions(), "transactions must not be null");
 
-        log.info(
-                "[TransactionEventIngestionService] - [ingest] -> Ingerindo evento sourceSystem={} payloadId={} totalTx={}",
-                command.sourceSystem(), command.payloadId(), incoming.size()
-        );
+        log.info("[TransactionEventIngestionService] - [ingest] -> Ingerindo evento sourceSystem={} eventId={} totalTx={}",
+                command.sourceSystem(), command.eventId(), incoming.size());
 
         if (incoming.isEmpty()) {
-            throw new EmptyTransactionsPayloadException(command.sourceSystem(), command.payloadId());
+            throw new EmptyTransactionsPayloadException(command.sourceSystem(), command.eventId());
         }
 
-        // 1) ImportFile + ImportJob sintéticos para o lote do evento (satisfaz as FKs).
-        final ImportJob job;
+        ImportFile savedFile;
         try {
-            ImportFile syntheticFile = ImportFile.create(
+            savedFile = saveImportFilePort.save(ImportFile.create(
+                    UUID.randomUUID(),
+                    ownerId,
                     "kafka-event:" + safe(command.sourceSystem()),
                     "kafka-event",
                     ImportFileType.EVENT,
-                    0L
-            );
-            ImportFile savedFile = saveImportFilePort.save(syntheticFile);
-
-            ImportJob newJob = ImportJob.create(savedFile.id());
-            newJob.markRunning();
-            job = saveImportJobPort.save(newJob);
-        } catch (Exception e) {
-            throw new PersistenceException("Failed to create synthetic ImportFile/ImportJob for event ingestion", e);
+                    0L,
+                    eventHash(command.eventId()),
+                    null
+            ));
+        } catch (ImportAlreadyProcessedException e) {
+            log.info("[TransactionEventIngestionService] - [ingest] -> Evento já ingerido, ignorando eventId={}",
+                    command.eventId());
+            return;
         }
 
-        // 2) Reassocia as transações ao job sintético (o importJobId anterior não existia).
+        ImportJob job;
+        try {
+            ImportJob newJob = ImportJob.create(savedFile.id(), ownerId, command.correlationId());
+            newJob.markRunning(EVENT_PROCESSING_TIMEOUT);
+            job = saveImportJobPort.save(newJob);
+        } catch (Exception e) {
+            throw new PersistenceException("Failed to create synthetic ImportJob for event ingestion", e);
+        }
+
         List<RawTransaction> transactions = new ArrayList<>(incoming.size());
         for (RawTransaction tx : incoming) {
-            transactions.add(RawTransaction.create(
+            transactions.add(new RawTransaction(
+                    tx.id(),
                     job.id(),
                     tx.externalId(),
                     tx.description(),
                     tx.date(),
                     tx.amount(),
-                    tx.sourceType()
+                    tx.sourceType(),
+                    tx.rowHash(),
+                    tx.createdAt()
             ));
         }
 
-        // 3) Persiste + publica.
+        List<RawTransaction> inserted;
         try {
-            saveRawTransactionPort.saveAll(transactions);
+            inserted = saveRawTransactionPort.saveBatch(savedFile.id(), transactions);
         } catch (Exception e) {
-            job.markFailed();
+            job.markFailed(IngestionErrorCode.PERSISTENCE_ERROR.getCode(), "Failed to persist transactions");
             trySave(job);
             throw new PersistenceException("Failed to persist raw transactions from event", e);
         }
 
+        int published = 0;
         try {
-            publishTransactionForCategorizationPort.publish(transactions);
+            published = publishTransactionForCategorizationPort.publish(inserted, command.correlationId());
         } catch (Exception e) {
-            job.markFailed();
-            trySave(job);
-            throw new PublishException("Failed to publish transactions for categorization", e);
+            log.error("[TransactionEventIngestionService] - [ingest] -> Falha ao publicar eventId={} error={}",
+                    command.eventId(), e.getMessage());
         }
 
-        // 4) Contadores + status final do job sintético.
-        int count = transactions.size();
-        job.updateCounts(count, count, count, 0);
+        int duplicated = transactions.size() - inserted.size();
+        job.addBatchResult(inserted.size(), 0, duplicated, published, 0);
         job.markCompleted();
         trySave(job);
     }
 
+    // Registra o estado do job sem interromper o fluxo em caso de falha.
     private void trySave(ImportJob job) {
         try {
             saveImportJobPort.save(job);
         } catch (Exception e) {
-            log.warn("[TransactionEventIngestionService] - [ingest] -> Falha ao persistir status do job sintético id={} err={}",
+            log.warn("[TransactionEventIngestionService] - [trySave] -> Falha ao persistir status do job sintético id={} err={}",
                     job.id(), e.getMessage());
+        }
+    }
+
+    // Gera uma chave de idempotência específica para o evento.
+    private static String eventHash(String eventId) {
+        String id = safe(eventId);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return "event:" + HexFormat.of().formatHex(digest.digest(id.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
         }
     }
 

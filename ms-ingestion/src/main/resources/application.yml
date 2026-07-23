@@ -1,32 +1,48 @@
-# BASE / DEV (default)
 server:
-  port: 8082                  # porta do ms-ingestion
+  port: 8082
   servlet:
-    context-path: /ingestion   # base path do serviço
-  shutdown: graceful           # encerra com segurança
+    context-path: /ingestion
+  shutdown: graceful
   compression:
-    enabled: true              # compressão HTTP
+    enabled: true
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024    # só comprime acima disso
-  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
+    min-response-size: 1024
+  # Confia nos cabeçalhos X-Forwarded-* enviados pelo gateway.
+  forward-headers-strategy: framework
 
 spring:
   application:
-    name: ms-ingestion         # nome do serviço
+    name: ms-ingestion
+
+  servlet:
+    multipart:
+      enabled: true
+      # Corta o corpo da requisição antes de o arquivo inteiro ser aceito, como primeira
+      # barreira de tamanho. Mantenha igual a ecofy.ingestion.upload.max-file-size, para que
+      # o comportamento não dependa de qual barreira o arquivo encontra primeiro.
+      max-file-size: ${ECOFY_INGESTION_MAX_FILE_SIZE:10MB}
+      # Reserva folga sobre o arquivo para os demais campos do formulário.
+      max-request-size: ${ECOFY_INGESTION_MAX_REQUEST_SIZE:11MB}
+      # Envia o multipart para disco acima deste tamanho, permitindo que o controller receba
+      # um stream sem manter o arquivo em memória.
+      file-size-threshold: 256KB
+      location: ${ING_STORAGE_TMP_DIR:./data/ms-ingestion/tmp}
 
   main:
     allow-bean-definition-overriding: false
     keep-alive: true
     web-application-type: servlet
     threads:
+      # Habilita threads virtuais para as requisições HTTP.
       virtual:
-        enabled: true          # threads virtuais (Java 21+/Boot 4)
+        enabled: true
 
+  # Aponta para o banco local de desenvolvimento.
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5434/ecofy_ingestion} # dev local
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/ecofy_ingestion}
     username: ${DB_USER:ecofy_ingestion}
     password: ${DB_PASS:ecofy_ingestion}
     driver-class-name: org.postgresql.Driver
@@ -37,12 +53,14 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 30000
-      leak-detection-threshold: 0   # 0 desliga
+      # Desliga a detecção de vazamento de conexão.
+      leak-detection-threshold: 0
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate        # não cria tabelas (usa Flyway)
+      # Valida o schema em vez de criá-lo, já que as tabelas vêm do Flyway.
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -53,16 +71,19 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true   # baseline automático (evite em prod)
+    # Cria a baseline automaticamente; evite manter isso ligado em produção.
+    baseline-on-migrate: true
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
+    # Aponta para o broker local de desenvolvimento.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     client-id: ms-ingestion
 
-    # Propriedades gerais do client Kafka (vale para producer/consumer)
+    # Aplica as propriedades comuns a producer e consumer.
     properties:
-      security.protocol: PLAINTEXT # dev (prod usa SSL/SASL_SSL)
+      # Usa conexão sem criptografia em desenvolvimento; produção sobrescreve o protocolo.
+      security.protocol: PLAINTEXT
 
     consumer:
       group-id: ms-ingestion-tx-consumer
@@ -76,7 +97,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-      # Configuração do JsonSerializer SOMENTE via properties (sem setters no Java)
+      # Mantém a configuração do serializador aqui, e não por código.
       properties:
         spring.json.add.type.headers: false
 
@@ -91,29 +112,83 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
+          # Aponta para o JWKS local do ms-auth.
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 ecofy:
   ingestion:
-    max-errors-per-job: ${ING_MAX_ERRORS_PER_JOB:100}           # limite por job
+    # Considera o arquivo imprestável acima deste total de erros, marcando o job como falho.
+    # O valor precisa ser maior ou igual a upload.max-recorded-errors, o que é validado no boot.
+    max-errors-per-job: ${ING_MAX_ERRORS_PER_JOB:1000}
+    # Define quantos registros são persistidos por transação curta.
+    batch-size: ${ECOFY_INGESTION_BATCH_SIZE:500}
+    max-jobs-per-retry: ${ING_MAX_JOBS_PER_RETRY:10}
 
-    # Segurança da API por ambiente: dev/test/local liberam /api/import/**; prod exige JWT.
+    # Libera apenas actuator e swagger: as rotas de importação exigem JWT em todos os
+    # ambientes, porque sem token não há dono e, portanto, não há idempotência nem ownership.
     security:
-      permit-all: ${ING_SECURITY_PERMIT_ALL:true}              # dev default: true
+      permit-all: ${ING_SECURITY_PERMIT_ALL:true}
 
-    # Prefixo ÚNICO de tópicos Kafka (bind por KafkaConfig via ecofy.ingestion.kafka.topics).
+    # Limita o arquivo recebido em tamanho, linhas, colunas e tempo de processamento.
+    upload:
+      max-file-size: ${ECOFY_INGESTION_MAX_FILE_SIZE:10MB}
+      max-lines: ${ECOFY_INGESTION_MAX_LINES:100000}
+      max-line-length: ${ECOFY_INGESTION_MAX_LINE_LENGTH:10000}
+      max-field-length: ${ECOFY_INGESTION_MAX_FIELD_LENGTH:2048}
+      max-columns: ${ECOFY_INGESTION_MAX_COLUMNS:50}
+      max-recorded-errors: ${ECOFY_INGESTION_MAX_RECORDED_ERRORS:1000}
+      processing-timeout: ${ECOFY_INGESTION_PROCESSING_TIMEOUT:10m}
+      charset: UTF-8
+      allowed-extensions:
+        - csv
+        - ofx
+      # Filtra o MIME declarado como verificação barata; o conteúdo real é quem decide.
+      # Aceita text/plain e application/octet-stream porque navegadores os enviam para .csv.
+      allowed-mime-types:
+        - text/csv
+        - application/csv
+        - text/plain
+        - application/octet-stream
+        - application/x-ofx
+
+    idempotency:
+      algorithm: SHA-256
+      header-name: Idempotency-Key
+      max-key-length: 128
+
+    # Limita o tamanho das páginas e restringe os campos aceitos na ordenação.
+    pagination:
+      default-size: ${ING_PAGE_DEFAULT_SIZE:20}
+      max-size: ${ING_PAGE_MAX_SIZE:100}
+      sortable-fields:
+        - createdAt
+        - finishedAt
+        - status
+        - fileName
+
+    # Concentra os tópicos e a política de retry e DLT do consumo por evento.
     kafka:
-      transaction-event-topic: ${ING_TOPIC_TX_EVENT:eco.tx.raw}   # tópico consumido (ingestão por evento)
+      transaction-event-topic: ${ING_TOPIC_TX_EVENT:eco.tx.raw}
+      dlt-suffix: ${ING_KAFKA_DLT_SUFFIX:.dlt}
+      consumer-group: ${ING_KAFKA_CONSUMER_GROUP:ms-ingestion-tx-consumer}
+      retry:
+        # Conta a entrega original entre as tentativas.
+        max-attempts: ${ING_KAFKA_RETRY_MAX_ATTEMPTS:3}
+        initial-interval: ${ING_KAFKA_RETRY_INITIAL:1s}
+        multiplier: ${ING_KAFKA_RETRY_MULTIPLIER:2}
+        max-interval: ${ING_KAFKA_RETRY_MAX_INTERVAL:10s}
       topics:
         transaction-imported: ${ING_TOPIC_TX_IMPORTED:eco.ingestion.transaction.imported}
         import-job-status-changed: ${ING_TOPIC_JOB_STATUS:eco.ingestion.import-job.status-changed}
-        categorization-request: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}   # publicado p/ ms-categorization
+        categorization-request: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}
 
     storage:
-      base-path: ${ING_STORAGE_BASE_PATH:./data/ms-ingestion}       # pasta base
-      tmp-dir: ${ING_STORAGE_TMP_DIR:./data/ms-ingestion/tmp}       # temporários
-      max-file-size-bytes: ${ING_STORAGE_MAX_FILE_SIZE:10485760}    # 10 MB
+      base-path: ${ING_STORAGE_BASE_PATH:./data/ms-ingestion}
+      tmp-dir: ${ING_STORAGE_TMP_DIR:./data/ms-ingestion/tmp}
+      # Preserva o arquivo após o sucesso, porque o retry precisa relê-lo.
+      delete-on-success: ${ING_STORAGE_DELETE_ON_SUCCESS:false}
 
+# Expõe os endpoints necessários para saúde e métricas.
 management:
   endpoints:
     web:
@@ -139,8 +214,9 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
+# Libera a origem local do frontend durante o desenvolvimento.
 cors:
-  allowed-origins: "http://localhost:3000"  # dev
+  allowed-origins: "http://localhost:3000"
   allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
   allowed-headers: "*"
 
@@ -152,118 +228,3 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
-
-# PROFILE: test
----
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  datasource:
-    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_ingestion_test}
-    username: ${DB_USER_TEST:ecofy_ingestion_test}
-    password: ${DB_PASS_TEST:}   # sem default fraco
-
-  jpa:
-    hibernate:
-      ddl-auto: create-drop       # cria e apaga no fim
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: false
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
-    consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-ingestion-tx-consumer-test}
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${JWT_JWKS_URI_TEST:http://localhost:8081/auth/.well-known/jwks.json} # test/local
-
-logging:
-  level:
-    root: WARN
-    br.com.ecofy.ms_ingestion: INFO
-
-ecofy:
-  ingestion:
-    max-errors-per-job: 10
-    security:
-      permit-all: true            # test: facilita testes locais
-    storage:
-      base-path: ./data/ms-ingestion-test
-      tmp-dir: ./data/ms-ingestion-test/tmp
-      max-file-size-bytes: 5242880 # 5 MB
-
-
-# PROFILE: prod
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-
-  datasource:
-    url: ${DB_URL}               # sem default local
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    hikari:
-      pool-name: MsIngestionHikariPool
-      maximum-pool-size: ${DB_POOL_MAX:20}
-      minimum-idle: ${DB_POOL_MIN:5}
-      idle-timeout: 300000
-      max-lifetime: 1800000
-      connection-timeout: 30000
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: true
-    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
-    properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
-
-logging:
-  level:
-    root: INFO
-    br.com.ecofy.ms_ingestion: INFO
-    org.hibernate.SQL: WARN
-    org.springframework.security: WARN
-    org.springframework.web: WARN
-
-ecofy:
-  ingestion:
-    max-errors-per-job: ${ING_MAX_ERRORS_PER_JOB:500}
-    security:
-      permit-all: ${ING_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/import/**
-    kafka:
-      transaction-event-topic: ${ING_TOPIC_TX_EVENT:eco.tx.raw}
-      topics:
-        transaction-imported: ${ING_TOPIC_TX_IMPORTED:eco.ingestion.transaction.imported}
-        import-job-status-changed: ${ING_TOPIC_JOB_STATUS:eco.ingestion.import-job.status-changed}
-        # Tópico real de categorização preservado (o antigo ecofy.tx.to-categorize era config morta,
-        # nunca lida pelo adapter — ver relatório Dia 4).
-        categorization-request: ${ING_TOPIC_CATEGORIZE:eco.categorization.request}
-    storage:
-      base-path: ${ING_STORAGE_BASE_PATH:/var/lib/ecofy/ms-ingestion/storage}
-      tmp-dir: ${ING_STORAGE_TMP_DIR:/var/lib/ecofy/ms-ingestion/tmp}
-      max-file-size-bytes: ${ING_STORAGE_MAX_FILE_SIZE:20971520} # 20 MB

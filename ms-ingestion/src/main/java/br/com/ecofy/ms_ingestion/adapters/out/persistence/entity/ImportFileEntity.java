@@ -21,6 +21,15 @@ public class ImportFileEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
+
+    @Column(name = "file_hash", length = 128, nullable = false, updatable = false)
+    private String fileHash;
+
+    @Column(name = "idempotency_key", length = 128, updatable = false)
+    private String idempotencyKey;
+
     @Column(name = "original_filename", length = 255, nullable = false)
     private String originalFilename;
 

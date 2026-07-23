@@ -2,6 +2,7 @@ package br.com.ecofy.ms_ingestion.core.domain;
 
 import br.com.ecofy.ms_ingestion.core.domain.enums.TransactionSourceType;
 import br.com.ecofy.ms_ingestion.core.domain.valueobject.Money;
+import br.com.ecofy.ms_ingestion.core.domain.valueobject.RowHash;
 import br.com.ecofy.ms_ingestion.core.domain.valueobject.TransactionDate;
 
 import java.time.Instant;
@@ -18,6 +19,9 @@ public class RawTransaction {
     private final Money amount;
     private final TransactionSourceType sourceType;
 
+    // Guarda a chave estável derivada do conteúdo da linha, base da deduplicação no banco.
+    private final String rowHash;
+
     private final Instant createdAt;
 
     public RawTransaction(UUID id,
@@ -27,6 +31,7 @@ public class RawTransaction {
                           TransactionDate date,
                           Money amount,
                           TransactionSourceType sourceType,
+                          String rowHash,
                           Instant createdAt) {
 
         this.id = Objects.requireNonNull(id, "id must not be null");
@@ -36,6 +41,7 @@ public class RawTransaction {
         this.date = Objects.requireNonNull(date, "date must not be null");
         this.amount = Objects.requireNonNull(amount, "amount must not be null");
         this.sourceType = Objects.requireNonNull(sourceType, "sourceType must not be null");
+        this.rowHash = Objects.requireNonNull(rowHash, "rowHash must not be null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
     }
 
@@ -45,6 +51,9 @@ public class RawTransaction {
                                         TransactionDate date,
                                         Money amount,
                                         TransactionSourceType sourceType) {
+
+        String rowHash = RowHash.of(externalId, description, date, amount);
+
         return new RawTransaction(
                 UUID.randomUUID(),
                 importJobId,
@@ -53,6 +62,7 @@ public class RawTransaction {
                 date,
                 amount,
                 sourceType,
+                rowHash,
                 Instant.now()
         );
     }
@@ -85,8 +95,11 @@ public class RawTransaction {
         return sourceType;
     }
 
+    public String rowHash() {
+        return rowHash;
+    }
+
     public Instant createdAt() {
         return createdAt;
     }
-
 }

@@ -17,24 +17,19 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import java.util.HashMap;
 import java.util.Map;
 
+// Configura os consumidores e os tópicos Kafka do serviço.
 @Configuration
 @Slf4j
 public class KafkaConfig {
 
-    // Expõe as configurações de tópicos via properties (ecofy.ingestion.kafka.topics.*).
+    // Registra as propriedades externas dos tópicos de ingestão.
     @Bean
     @ConfigurationProperties("ecofy.ingestion.kafka.topics")
     public IngestionTopics ingestionTopics() {
         return new IngestionTopics();
     }
 
-    /**
-     * Configura a factory de consumidores Kafka para mensagens String (key/value).
-     *
-     * Observação:
-     * - Producer/KafkaTemplate NÃO são configurados aqui; ficam 100% no application.yaml via autoconfig do Spring Boot.
-     * - Isso evita conflito de configuração (setters vs properties) no JsonSerializer.
-     */
+    // Configura o consumo de mensagens textuais.
     @Bean
     public ConsumerFactory<String, String> consumerFactory(KafkaProperties kafkaProperties) {
 
@@ -52,27 +47,31 @@ public class KafkaConfig {
         );
     }
 
-    // Cria (via AdminClient) o tópico de eventos de transações importadas.
+    private static final int PARTITIONS = 3;
+
+    // Declara o tópico de transações importadas.
     @Bean
     public NewTopic ingestionTransactionImportedTopic(IngestionTopics topics) {
         return TopicBuilder.name(topics.getTransactionImported())
-                .partitions(6)
+                .partitions(PARTITIONS)
                 .replicas(1)
                 .build();
     }
 
-    // Cria (via AdminClient) o tópico de requests para categorização.
+    // Declara o tópico de solicitações de categorização.
     @Bean
     public NewTopic ingestionCategorizationRequestTopic(IngestionTopics topics) {
         return TopicBuilder.name(topics.getCategorizationRequest())
-                .partitions(6)
+                .partitions(PARTITIONS)
                 .replicas(1)
                 .build();
     }
 
+    // Agrupa os nomes dos tópicos utilizados pela ingestão.
     @Getter
     @Setter
     public static class IngestionTopics {
+
         private String transactionImported = "eco.ingestion.transaction.imported";
         private String importJobStatusChanged = "eco.ingestion.import-job.status-changed";
         private String categorizationRequest = "eco.categorization.request";
