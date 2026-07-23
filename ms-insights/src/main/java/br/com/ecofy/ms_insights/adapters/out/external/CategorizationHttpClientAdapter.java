@@ -17,33 +17,51 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+// Integra a consulta de transações categorizadas com o serviço de categorization.
 @Slf4j
 @Component
 public class CategorizationHttpClientAdapter implements LoadCategorizedTransactionsPort {
 
     private final ExternalClientsProperties props;
     private final WebClient webClient;
+    private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
 
-    public CategorizationHttpClientAdapter(ExternalClientsProperties props, WebClient.Builder builder) {
+    public CategorizationHttpClientAdapter(
+            ExternalClientsProperties props,
+            WebClient.Builder builder,
+            io.micrometer.core.instrument.MeterRegistry meterRegistry
+    ) {
         this.props = props;
+        this.meterRegistry = meterRegistry;
         var c = props.categorization();
         this.webClient = HttpClientConfig.build(builder, c.connectTimeoutMs(), c.readTimeoutMs());
     }
 
+    // Carrega as transações categorizadas do usuário no período informado.
     @Override
     public List<CategorizedTxView> loadForUserAndPeriod(UUID userId, Period period, int limit) {
         var c = props.categorization();
-        // Client desabilitado por configuração -> lista vazia LEGÍTIMA (modo sem integração externa).
+
         if (!c.enabled()) {
-            log.debug("[CategorizationHttpClientAdapter] disabled -> returning empty list (legitimate) userId={}", userId);
+            meterRegistry.counter(
+                    "ecofy.insights.fallback.total",
+                    "provider",
+                    "categorization",
+                    "reason",
+                    "disabled"
+            ).increment();
+
+            log.debug(
+                    "[CategorizationHttpClientAdapter] disabled -> returning empty list (legitimate) userId={}",
+                    userId
+            );
+
             return List.of();
         }
 
         try {
-            // Endpoint “placeholder”: ajuste quando seu ms-categorization tiver endpoint real
             String url = c.baseUrl() + "/api/categorization/v1/transactions/categorized";
 
-            // Correção Dia 8 (item #7): sem onErrorResume silencioso — falha externa deve ser observável.
             var response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path(url)
@@ -59,21 +77,30 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
                     .timeout(java.time.Duration.ofMillis(c.readTimeoutMs()))
                     .block();
 
-            // Resposta vazia legítima (200 sem itens) -> lista vazia.
-            if (response == null || response.items() == null) return List.of();
+            if (response == null || response.items() == null) {
+                return List.of();
+            }
 
             return response.items().stream()
                     .map(CategorizationHttpClientAdapter::toView)
                     .toList();
 
         } catch (Exception ex) {
-            // Falha externa (client habilitado) -> NÃO vira "sucesso silencioso"; propaga erro controlado.
-            log.error("[CategorizationHttpClientAdapter] call FAILED (enabled) userId={} reason={}", userId, ex.toString());
-            throw new ExternalDataUnavailableException("categorization",
-                    "Failed to load categorized transactions from ms-categorization", ex);
+            log.error(
+                    "[CategorizationHttpClientAdapter] call FAILED (enabled) userId={} reason={}",
+                    userId,
+                    ex.toString()
+            );
+
+            throw new ExternalDataUnavailableException(
+                    "categorization",
+                    "Failed to load categorized transactions from ms-categorization",
+                    ex
+            );
         }
     }
 
+    // Converte o item externo para a representação utilizada pelo núcleo da aplicação.
     private static CategorizedTxView toView(CategorizedTxItem i) {
         return new CategorizedTxView(
                 i.transactionId(),
@@ -86,28 +113,36 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
         );
     }
 
+    // Propaga os cabeçalhos de rastreamento e autenticação disponíveis no contexto atual.
     private static void applyCommonHeaders(HttpHeaders headers) {
         headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
 
-        // Hooks para integração real: Trace/Correlation/JWT
         String traceId = currentThreadValue("X-Trace-Id");
-        if (StringUtils.hasText(traceId)) headers.set("X-Trace-Id", traceId);
+        if (StringUtils.hasText(traceId)) {
+            headers.set("X-Trace-Id", traceId);
+        }
 
         String correlationId = currentThreadValue("X-Correlation-Id");
-        if (StringUtils.hasText(correlationId)) headers.set("X-Correlation-Id", correlationId);
+        if (StringUtils.hasText(correlationId)) {
+            headers.set("X-Correlation-Id", correlationId);
+        }
 
         String bearer = currentThreadValue("Authorization");
-        if (StringUtils.hasText(bearer)) headers.set(HttpHeaders.AUTHORIZATION, bearer);
+        if (StringUtils.hasText(bearer)) {
+            headers.set(HttpHeaders.AUTHORIZATION, bearer);
+        }
     }
 
+    // Resolve um valor associado ao contexto da thread atual.
     private static String currentThreadValue(String key) {
-        // Placeholder: se você já usa MDC, troque para MDC.get("traceId") etc.
         return null;
     }
 
-    // DTOs internos (não vazam para o core)
-    public record CategorizedTxPageResponse(List<CategorizedTxItem> items) {}
+    // Representa a resposta paginada recebida do serviço de categorization.
+    public record CategorizedTxPageResponse(List<CategorizedTxItem> items) {
+    }
 
+    // Representa uma transação categorizada recebida da integração externa.
     public record CategorizedTxItem(
             UUID transactionId,
             UUID userId,
@@ -116,6 +151,6 @@ public class CategorizationHttpClientAdapter implements LoadCategorizedTransacti
             String currency,
             LocalDate bookingDate,
             boolean income
-    ) { }
-
+    ) {
+    }
 }

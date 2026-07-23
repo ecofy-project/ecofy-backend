@@ -12,20 +12,28 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+// Configura a documentação OpenAPI do serviço de insights.
 @Configuration
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_BEARER = "BearerAuth";
 
+    // Configura os metadados e o esquema de autenticação JWT da API.
     @Bean
     public OpenAPI ecofyInsightsOpenAPI() {
         return new OpenAPI()
                 .info(apiInfo())
                 .externalDocs(externalDocs())
                 .components(new Components()
-                        .addSecuritySchemes(SECURITY_SCHEME_BEARER, bearerSecurityScheme())
+                        .addSecuritySchemes(
+                                SECURITY_SCHEME_BEARER,
+                                bearerSecurityScheme()
+                        )
                 )
-                .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_BEARER));
+                .addSecurityItem(
+                        new SecurityRequirement()
+                                .addList(SECURITY_SCHEME_BEARER)
+                );
     }
 
     private Info apiInfo() {
@@ -72,6 +80,7 @@ public class OpenApiConfig {
                         """);
     }
 
+    // Agrupa os endpoints públicos da API de insights.
     @Bean
     public GroupedOpenApi insightsApiGroup() {
         return GroupedOpenApi.builder()
@@ -81,6 +90,7 @@ public class OpenApiConfig {
                 .build();
     }
 
+    // Agrupa os endpoints operacionais do Actuator.
     @Bean
     public GroupedOpenApi actuatorGroup() {
         return GroupedOpenApi.builder()
@@ -88,5 +98,4 @@ public class OpenApiConfig {
                 .pathsToMatch("/actuator/**")
                 .build();
     }
-
 }

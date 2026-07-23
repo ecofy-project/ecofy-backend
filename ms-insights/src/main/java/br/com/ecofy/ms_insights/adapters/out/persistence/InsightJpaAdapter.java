@@ -133,6 +133,19 @@ public class InsightJpaAdapter implements SaveInsightPort, LoadInsightsPort {
         }
     }
 
+    // Histórico paginado do usuário (ECO-10), ordenado por created_at desc, com userId no predicado.
+    @Override
+    @Transactional(readOnly = true)
+    public br.com.ecofy.ms_insights.core.port.out.PageResult<Insight> findByUserId(UUID userId, int page, int size) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        var pageRequest = org.springframework.data.domain.PageRequest.of(page, size,
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        var result = repository.findByUserId(userId, pageRequest);
+        return new br.com.ecofy.ms_insights.core.port.out.PageResult<>(
+                result.getContent().stream().map(e -> InsightMapper.toDomain(e, objectMapper)).toList(),
+                page, size, result.getTotalElements());
+    }
+
     // Normaliza o limite solicitado para um conjunto suportado (20 ou 50), aplicando fallback seguro quando inválido.
     private static int normalizeLimit(int limit) {
         // Contrato simples: 20 ou 50 (com fallback seguro).

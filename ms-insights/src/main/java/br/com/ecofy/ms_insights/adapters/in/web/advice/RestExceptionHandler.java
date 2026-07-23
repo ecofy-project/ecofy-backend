@@ -5,6 +5,7 @@ import br.com.ecofy.ms_insights.core.domain.exception.ExternalDataUnavailableExc
 import br.com.ecofy.ms_insights.core.domain.exception.GoalNotFoundException;
 import br.com.ecofy.ms_insights.core.domain.exception.IdempotencyViolationException;
 import br.com.ecofy.ms_insights.core.domain.exception.InsightNotFoundException;
+import br.com.ecofy.ms_insights.core.domain.exception.RebuildRunNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -19,35 +20,42 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+// Centraliza o tratamento de erros expostos pela API de insights.
 @Slf4j
 @RestControllerAdvice
 public class RestExceptionHandler {
 
-    // Trata GoalNotFoundException retornando 404 com motivo padronizado para facilitar observabilidade/cliente.
+    // Converte a ausência de uma meta em resposta HTTP 404.
     @ExceptionHandler(GoalNotFoundException.class)
     ResponseEntity<ApiErrorResponse> goalNotFound(GoalNotFoundException ex, HttpServletRequest req) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), req, Map.of("reason", "GOAL_NOT_FOUND"));
     }
 
-    // Trata InsightNotFoundException retornando 404 com motivo padronizado para facilitar observabilidade/cliente.
+    // Converte a ausência de um insight em resposta HTTP 404.
     @ExceptionHandler(InsightNotFoundException.class)
     ResponseEntity<ApiErrorResponse> insightNotFound(InsightNotFoundException ex, HttpServletRequest req) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), req, Map.of("reason", "INSIGHT_NOT_FOUND"));
     }
 
-    // Trata violações de idempotência retornando 409 para indicar conflito/repetição de requisição/operação.
+    // Converte a ausência de uma execução de rebuild em resposta HTTP 404.
+    @ExceptionHandler(RebuildRunNotFoundException.class)
+    ResponseEntity<ApiErrorResponse> rebuildNotFound(RebuildRunNotFoundException ex, HttpServletRequest req) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), req, Map.of("reason", "REBUILD_RUN_NOT_FOUND"));
+    }
+
+    // Converte violações de idempotência em resposta HTTP 409.
     @ExceptionHandler(IdempotencyViolationException.class)
     ResponseEntity<ApiErrorResponse> idem(IdempotencyViolationException ex, HttpServletRequest req) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, Map.of("reason", "IDEMPOTENCY_VIOLATION"));
     }
 
-    // Trata validações de regra de negócio retornando 400 com motivo padronizado para consumo do cliente.
+    // Converte violações de negócio em resposta HTTP 400.
     @ExceptionHandler(BusinessValidationException.class)
     ResponseEntity<ApiErrorResponse> business(BusinessValidationException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("reason", "BUSINESS_VALIDATION"));
     }
 
-    // Trata falhas de validação Bean Validation (DTO) retornando 400 e detalhando erros por campo.
+    // Detalha violações de campos em uma resposta HTTP 400.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> validation(MethodArgumentNotValidException ex, HttpServletRequest req) {
         Map<String, Object> details = new LinkedHashMap<>();
@@ -57,25 +65,25 @@ public class RestExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Invalid payload", req, details);
     }
 
-    // Correção Dia 8 (item #2/#5): violações de constraint em params/headers (@Validated) -> 400.
+    // Converte violações de parâmetros em resposta HTTP 400.
     @ExceptionHandler(ConstraintViolationException.class)
     ResponseEntity<ApiErrorResponse> constraint(ConstraintViolationException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("reason", "CONSTRAINT_VIOLATION"));
     }
 
-    // Correção Dia 8 (item #2/#5): corpo JSON malformado / enum inválido -> 400 (sem vazar detalhe interno).
+    // Converte corpos ilegíveis em resposta HTTP 400.
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiErrorResponse> unreadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, "Malformed or unreadable request body", req, Map.of("reason", "MALFORMED_REQUEST"));
     }
 
-    // Correção Dia 8 (item #2/#5): entradas inválidas de value objects de domínio (Period/Money) -> 400.
+    // Converte argumentos inválidos em resposta HTTP 400.
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ApiErrorResponse> illegalArgument(IllegalArgumentException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, Map.of("reason", "INVALID_ARGUMENT"));
     }
 
-    // Correção Dia 8 (item #7): integração externa habilitada indisponível -> 503 (falha observável, não silenciosa).
+    // Converte indisponibilidade externa em resposta HTTP 503.
     @ExceptionHandler(ExternalDataUnavailableException.class)
     ResponseEntity<ApiErrorResponse> externalUnavailable(ExternalDataUnavailableException ex, HttpServletRequest req) {
         log.warn("[RestExceptionHandler] external data unavailable source={} message={}", ex.getSource(), ex.getMessage());
@@ -83,15 +91,17 @@ public class RestExceptionHandler {
                 Map.of("reason", "EXTERNAL_DATA_UNAVAILABLE", "source", ex.getSource()));
     }
 
-    // Trata exceções não mapeadas retornando 500 genérico para evitar vazamento de detalhes internos.
+    // Converte falhas inesperadas em uma resposta genérica HTTP 500.
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiErrorResponse> generic(Exception ex, HttpServletRequest req) {
         log.error("[RestExceptionHandler] unexpected error path={} type={} message={}",
                 req.getRequestURI(), ex.getClass().getName(), ex.getMessage(), ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error", req, Map.of());
+        return build(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ocorreu um erro interno ao processar a solicitação.",
+                req, Map.of("reason", "INTERNAL_SERVER_ERROR"));
     }
 
-    // Monta o corpo padrão de erro (com traceId quando disponível) e retorna ResponseEntity com o status apropriado.
+    // Centraliza a construção das respostas de erro.
     private ResponseEntity<ApiErrorResponse> build(HttpStatus status, String message, HttpServletRequest req, Map<String, Object> details) {
         String traceId = req.getHeader("X-Trace-Id");
         if (!StringUtils.hasText(traceId)) traceId = req.getHeader("X-Correlation-Id");

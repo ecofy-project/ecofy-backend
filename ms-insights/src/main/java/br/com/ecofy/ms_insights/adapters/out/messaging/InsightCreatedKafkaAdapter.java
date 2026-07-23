@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.util.Objects;
 
+// Publica eventos de criação de insights no Kafka.
 @Slf4j
 @Component
 public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPort {
@@ -21,7 +22,6 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    // Injeta dependências de configuração, KafkaTemplate, ObjectMapper e Clock garantindo que estejam presentes.
     public InsightCreatedKafkaAdapter(InsightsProperties properties,
                                       KafkaTemplate<String, String> kafkaTemplate,
                                       ObjectMapper objectMapper,
@@ -32,7 +32,7 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    // Publica o evento insight.created no Kafka: valida entradas/config, mapeia Insight -> evento, serializa em JSON e envia com chave por userId.
+    // Converte e envia o insight como evento de integração.
     @Override
     public void publish(Insight insight) {
         Objects.requireNonNull(insight, "insight must not be null");
@@ -47,12 +47,10 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
             String payload = objectMapper.writeValueAsString(evt);
 
             log.info(
-                    "[InsightCreatedKafkaAdapter] - [publish] -> Publishing insight.created topic={} key={} insightId={} type={} score={}",
+                    "[InsightCreatedKafkaAdapter] - [publish] -> Publicando insight.created topic={} key={} insightId={} type={} score={}",
                     topic, key, evt.insightId(), insight.getType(), insight.getScore()
             );
 
-            // Correção Dia 8 (item #9): antes o resultado de send(...) era ignorado -> falhas assíncronas
-            // passavam despercebidas. Agora observamos o future com whenComplete (sucesso/erro logados).
             final String logKey = key;
             final int bytes = payload.length();
             kafkaTemplate.send(topic, key, payload).whenComplete((result, ex) -> {
@@ -72,14 +70,14 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
 
         } catch (Exception ex) {
             log.error(
-                    "[InsightCreatedKafkaAdapter] - [publish] -> FAILED publishing insight.created topic={} insightId={}",
+                    "[InsightCreatedKafkaAdapter] - [publish] -> Falha ao publicar insight.created topic={} insightId={}",
                     topic, safeInsightId(insight), ex
             );
             throw new IllegalStateException("Failed to publish insight.created", ex);
         }
     }
 
-    // Garante que um valor String obrigatório esteja preenchido (não nulo/não vazio), normalizando com trim e lançando IllegalArgumentException em caso de falha.
+    // Valida e normaliza valores textuais obrigatórios.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
@@ -87,7 +85,7 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
         return v.trim();
     }
 
-    // Obtém o id do Insight com segurança para logging, evitando falhas caso o objeto esteja inconsistente.
+    // Resolve o identificador do insight sem comprometer o registro da falha.
     private static String safeInsightId(Insight insight) {
         try {
             return insight.getId() != null ? insight.getId().toString() : "null";
@@ -95,5 +93,4 @@ public class InsightCreatedKafkaAdapter implements PublishInsightCreatedEventPor
             return "unavailable";
         }
     }
-
 }

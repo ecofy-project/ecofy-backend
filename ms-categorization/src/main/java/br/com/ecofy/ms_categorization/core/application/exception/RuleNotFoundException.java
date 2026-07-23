@@ -4,6 +4,6 @@ import java.util.UUID;
 
 public class RuleNotFoundException extends RuntimeException {
 
-    public RuleNotFoundException(UUID id) { super("Rule not found id=" + id); }
+    public RuleNotFoundException(UUID id) { super("Categorization rule not found for id: " + id); }
 
 }

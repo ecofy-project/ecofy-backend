@@ -1,20 +1,20 @@
-# BASE / DEV (default)
 server:
-  port: 8085                 # porta do ms-insights
+  port: 8085
   servlet:
-    context-path: /insights   # base path do serviço
-  shutdown: graceful          # encerra com segurança
+    context-path: /insights
+  shutdown: graceful
   compression:
-    enabled: true             # compressão HTTP
+    enabled: true
     mime-types: >
       text/html,text/xml,text/plain,text/css,
       text/javascript,application/javascript,
       application/json,application/xml
-    min-response-size: 1024   # só comprime acima disso
-  forward-headers-strategy: framework  # lê X-Forwarded-* (proxy/gateway)
+    min-response-size: 1024
+  # Confia nos cabeçalhos X-Forwarded-* enviados pelo gateway.
+  forward-headers-strategy: framework
 
+  # Omite stacktrace e classe de exceção nas respostas de erro, para não vazar detalhe interno.
   error:
-    # Correção Dia 8 (item #5): não expor stacktrace/exception ao cliente (evita vazamento de detalhes internos).
     include-message: always
     include-exception: false
     include-binding-errors: always
@@ -26,18 +26,20 @@ spring:
     log-resolved-exception: true
 
   application:
-    name: ms-insights         # nome do serviço
+    name: ms-insights
 
   main:
     allow-bean-definition-overriding: false
     keep-alive: true
     web-application-type: servlet
     threads:
+      # Habilita threads virtuais para as requisições HTTP.
       virtual:
-        enabled: true         # threads virtuais (Java 21+/Boot 4)
+        enabled: true
 
+  # Aponta para o banco local de desenvolvimento.
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5437/ecofy_insights} # dev local
+    url: ${DB_URL:jdbc:postgresql://localhost:5437/ecofy_insights}
     username: ${DB_USER:ecofy_insights}
     password: ${DB_PASS:ecofy_insights}
     driver-class-name: org.postgresql.Driver
@@ -48,12 +50,14 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 30000
-      leak-detection-threshold: 0   # 0 desliga
+      # Desliga a detecção de vazamento de conexão.
+      leak-detection-threshold: 0
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate        # não cria tabelas (usa Flyway)
+      # Valida o schema em vez de criá-lo, já que as tabelas vêm do Flyway.
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -64,15 +68,18 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true   # baseline automático (evite em prod)
+    # Cria a baseline automaticamente; evite manter isso ligado em produção.
+    baseline-on-migrate: true
     default-schema: ${DB_SCHEMA:ecofy_insights}
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092} # dev local
+    # Aponta para o broker local de desenvolvimento.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     client-id: ms-insights
     properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}     # dev (prod usa SSL/SASL_SSL)
+      # Usa conexão sem criptografia em desenvolvimento; produção sobrescreve o protocolo.
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
 
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:${spring.application.name}}
@@ -90,13 +97,22 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        enable.idempotence: true   # evita duplicar publish
+        # Evita duplicar mensagens em caso de reenvio do producer.
+        enable.idempotence: true
 
     listener:
-      ack-mode: record             # commit por mensagem
+      # Confirma o offset por mensagem processada.
+      ack-mode: record
 
   jackson:
     time-zone: UTC
+
+  data:
+    # Aponta para a instância de Redis dedicada ao serviço, usada apenas quando o cache está ligado.
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      timeout: ${REDIS_TIMEOUT:2s}
 
   sql:
     init:
@@ -106,19 +122,20 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json} # dev local
+          # Aponta para o JWKS local do ms-auth.
+          jwk-set-uri: ${JWT_JWKS_URI:http://localhost:8081/auth/.well-known/jwks.json}
 
 ecofy:
   insights:
-    # Segurança da API por ambiente: dev/test/local liberam /api/insights/**; prod exige JWT.
+    # Libera a API em desenvolvimento e testes; produção exige JWT.
     security:
-      permit-all: ${INS_SECURITY_PERMIT_ALL:true}   # dev default: true
+      permit-all: ${INS_SECURITY_PERMIT_ALL:true}
 
     topics:
       categorized-transaction-topic: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
       budget-alert-topic: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
       insight-created-topic: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
-      report-ready-topic: ${INS_TOPIC_REPORT_READY:eco.report.ready} # opcional
+      report-ready-topic: ${INS_TOPIC_REPORT_READY:eco.report.ready}
 
     idempotency:
       ttl-seconds: ${INS_IDEMPOTENCY_TTL_SECONDS:86400}
@@ -127,6 +144,51 @@ ecofy:
       max-transactions-to-analyze: ${INS_MAX_TX_TO_ANALYZE:2000}
       min-score-to-publish: ${INS_MIN_SCORE_TO_PUBLISH:60}
       publish-reports: ${INS_PUBLISH_REPORTS:false}
+
+    # Espelha a unidade monetária oficial do domínio; a persistência e o wire seguem em cents,
+    # com a conversão explícita nas fronteiras.
+    money:
+      scale: ${ECOFY_INSIGHTS_MONEY_SCALE:2}
+      rounding-mode: ${ECOFY_INSIGHTS_ROUNDING_MODE:HALF_EVEN}
+      default-currency: ${ECOFY_INSIGHTS_DEFAULT_CURRENCY:BRL}
+
+    # Limita o tamanho das páginas, com max-size como teto obrigatório.
+    pagination:
+      default-size: ${ECOFY_INSIGHTS_DEFAULT_PAGE_SIZE:20}
+      max-size: ${ECOFY_INSIGHTS_MAX_PAGE_SIZE:100}
+
+    # Configura o cache distribuído das leituras, invalidado por usuário a cada insight ou rebuild.
+    cache:
+      enabled: ${ECOFY_INSIGHTS_CACHE_ENABLED:true}
+      dashboard-ttl: ${ECOFY_INSIGHTS_DASHBOARD_CACHE_TTL:5m}
+      metrics-ttl: ${ECOFY_INSIGHTS_METRICS_CACHE_TTL:5m}
+
+    # Define a concorrência dos consumers e documenta a chave de partição usada pelo producer.
+    kafka:
+      concurrency: ${ECOFY_INSIGHTS_KAFKA_CONCURRENCY:3}
+      partition-key-field: ${ECOFY_INSIGHTS_PARTITION_KEY:userId}
+
+    # Limita o rebuild ao processamento em lotes e a um intervalo máximo por execução.
+    rebuild:
+      batch-size: ${ECOFY_INSIGHTS_REBUILD_BATCH_SIZE:500}
+      max-period-days: ${ECOFY_INSIGHTS_REBUILD_MAX_PERIOD_DAYS:365}
+
+    # Configura a Transactional Outbox de eventos de insight.
+    outbox:
+      batch-size: ${ECOFY_INSIGHTS_OUTBOX_BATCH_SIZE:100}
+      poll-interval: ${ECOFY_INSIGHTS_OUTBOX_POLL_INTERVAL:1s}
+      max-attempts: ${ECOFY_INSIGHTS_OUTBOX_MAX_ATTEMPTS:10}
+      initial-backoff: ${ECOFY_INSIGHTS_OUTBOX_INITIAL_BACKOFF:1s}
+      backoff-multiplier: ${ECOFY_INSIGHTS_OUTBOX_BACKOFF_MULTIPLIER:2}
+      max-backoff: ${ECOFY_INSIGHTS_OUTBOX_MAX_BACKOFF:5m}
+      processing-timeout: ${ECOFY_INSIGHTS_OUTBOX_PROCESSING_TIMEOUT:5m}
+      published-retention: ${ECOFY_INSIGHTS_OUTBOX_RETENTION:7d}
+      cleanup-batch-size: ${ECOFY_INSIGHTS_OUTBOX_CLEANUP_BATCH:500}
+      publish-timeout: ${ECOFY_INSIGHTS_OUTBOX_PUBLISH_TIMEOUT:10s}
+
+    # Liga o publisher da Outbox e as demais rotinas agendadas.
+    scheduling:
+      enabled: ${ECOFY_INSIGHTS_SCHEDULING_ENABLED:true}
 
     generation:
       max-transactions-per-period: ${INS_MAX_TX_PER_PERIOD:2000}
@@ -140,18 +202,20 @@ ecofy:
       rebuild-cron: ${INS_REBUILD_CRON:0 0 2 * * *}
 
     clients:
+      # Aponta para os serviços locais de desenvolvimento, desligados por padrão.
       categorization:
         enabled: ${INS_CLIENT_CATEGORIZATION_ENABLED:false}
-        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL:http://localhost:8083/categorization} # dev
+        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL:http://localhost:8083/categorization}
         connect-timeout-ms: ${INS_CLIENT_CATEGORIZATION_CONNECT_TIMEOUT_MS:800}
         read-timeout-ms: ${INS_CLIENT_CATEGORIZATION_READ_TIMEOUT_MS:1500}
 
       budgeting:
         enabled: ${INS_CLIENT_BUDGETING_ENABLED:false}
-        base-url: ${INS_CLIENT_BUDGETING_BASE_URL:http://localhost:8084/budgeting} # dev
+        base-url: ${INS_CLIENT_BUDGETING_BASE_URL:http://localhost:8084/budgeting}
         connect-timeout-ms: ${INS_CLIENT_BUDGETING_CONNECT_TIMEOUT_MS:800}
         read-timeout-ms: ${INS_CLIENT_BUDGETING_READ_TIMEOUT_MS:1500}
 
+# Expõe os endpoints necessários para saúde e métricas.
 management:
   endpoints:
     web:
@@ -160,11 +224,24 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+      probes:
+        enabled: true
+      # Mantém o health da Outbox fora de liveness e readiness: backlog represado não deve
+      # reiniciar nem despejar o pod.
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
   health:
     db:
       enabled: true
     kafka:
       enabled: true
+  metrics:
+    # Identifica o serviço nas métricas com uma tag de baixa cardinalidade.
+    tags:
+      application: ${spring.application.name}
 
 springdoc:
   api-docs:
@@ -185,136 +262,3 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
-
-# PROFILE: test
----
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  datasource:
-    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_insights_test}
-    username: ${DB_USER_TEST:ecofy_insights_test}
-    password: ${DB_PASS_TEST:}   # sem default fraco
-
-  jpa:
-    hibernate:
-      ddl-auto: create-drop       # cria e apaga no fim
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: false
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
-    consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-insights-test}
-
-logging:
-  level:
-    org.springframework.web: DEBUG
-    org.springframework.http.converter: DEBUG
-    org.springframework.validation: DEBUG
-    org.springframework.boot.autoconfigure.web.servlet.error: DEBUG
-
-ecofy:
-  insights:
-    security:
-      permit-all: true            # test: facilita testes locais
-    idempotency:
-      ttl: PT1M
-    schedulers:
-      rebuild-enabled: false
-    clients:
-      categorization:
-        enabled: false
-      budgeting:
-        enabled: false
-
-
-# PROFILE: prod
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-
-  datasource:
-    url: ${DB_URL}               # sem default local
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    hikari:
-      pool-name: MsInsightsHikariPool
-      maximum-pool-size: ${DB_POOL_MAX:20}
-      minimum-idle: ${DB_POOL_MIN:5}
-      idle-timeout: 300000
-      max-lifetime: 1800000
-      connection-timeout: 30000
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    open-in-view: false
-
-  flyway:
-    enabled: true
-    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false} # default false
-    default-schema: ${DB_SCHEMA:ecofy_insights}
-    locations: classpath:db/migration
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}            # sem default local
-    properties:
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL} # default seguro
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${JWT_JWKS_URI}                       # obrigatório
-
-logging:
-  level:
-    root: INFO
-    br.com.ecofy.ms_insights: INFO
-    org.hibernate.SQL: WARN
-    org.springframework.security: WARN
-    org.springframework.web: WARN
-
-ecofy:
-  insights:
-    security:
-      permit-all: ${INS_SECURITY_PERMIT_ALL:false}   # prod: exige JWT em /api/insights/**
-
-    topics:
-      categorized-transaction-topic: ${INS_TOPIC_TX_CATEGORIZED:eco.transaction.categorized}
-      budget-alert-topic: ${INS_TOPIC_BUDGET_ALERT:eco.budget.alert}
-      insight-created-topic: ${INS_TOPIC_INSIGHT_CREATED:eco.insight.created}
-      report-ready-topic: ${INS_TOPIC_REPORT_READY:eco.report.ready}
-
-    idempotency:
-      ttl: ${INS_IDEMPOTENCY_TTL:PT24H}
-
-    generation:
-      max-transactions-per-period: ${INS_MAX_TX_PER_PERIOD:2000}
-      default-lookback-days: ${INS_DEFAULT_LOOKBACK_DAYS:30}
-      min-anomaly-score: ${INS_MIN_ANOMALY_SCORE:75}
-      persist-metric-snapshots: ${INS_PERSIST_METRICS:true}
-      persist-trends: ${INS_PERSIST_TRENDS:true}
-
-    clients:
-      categorization:
-        enabled: ${INS_CLIENT_CATEGORIZATION_ENABLED:false}
-        base-url: ${INS_CLIENT_CATEGORIZATION_BASE_URL}      # obrigatório se enabled=true
-        connect-timeout-ms: ${INS_CLIENT_CATEGORIZATION_CONNECT_TIMEOUT_MS:800}
-        read-timeout-ms: ${INS_CLIENT_CATEGORIZATION_READ_TIMEOUT_MS:1500}
-
-      budgeting:
-        enabled: ${INS_CLIENT_BUDGETING_ENABLED:false}
-        base-url: ${INS_CLIENT_BUDGETING_BASE_URL}            # obrigatório se enabled=true
-        connect-timeout-ms: ${INS_CLIENT_BUDGETING_CONNECT_TIMEOUT_MS:800}
-        read-timeout-ms: ${INS_CLIENT_BUDGETING_READ_TIMEOUT_MS:1500}

@@ -5,10 +5,13 @@ import br.com.ecofy.ms_insights.adapters.in.web.dto.response.InsightsBundleRespo
 import br.com.ecofy.ms_insights.adapters.in.web.dto.response.InsightResponse;
 import br.com.ecofy.ms_insights.adapters.in.web.dto.response.MetricSnapshotResponse;
 import br.com.ecofy.ms_insights.adapters.in.web.dto.response.GoalResponse;
+import br.com.ecofy.ms_insights.adapters.in.web.dto.response.PageResponse;
+import br.com.ecofy.ms_insights.config.InsightsProperties;
 import br.com.ecofy.ms_insights.core.application.command.GenerateInsightsCommand;
 import br.com.ecofy.ms_insights.core.application.result.InsightsBundleResult;
 import br.com.ecofy.ms_insights.core.port.in.GenerateInsightsUseCase;
 import br.com.ecofy.ms_insights.core.port.in.GetDashboardInsightsUseCase;
+import br.com.ecofy.ms_insights.core.port.in.ListInsightsUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+// Expõe a geração e a consulta de insights do usuário.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -40,6 +44,8 @@ public class InsightsController {
 
     private final GenerateInsightsUseCase generateInsightsUseCase;
     private final GetDashboardInsightsUseCase getDashboardInsightsUseCase;
+    private final ListInsightsUseCase listInsightsUseCase;
+    private final InsightsProperties properties;
 
     @Operation(
             summary = "Dashboard de insights por usuário",
@@ -48,7 +54,7 @@ public class InsightsController {
                     - insights (cards)
                     - métricas (snapshot)
                     - goals
-                    
+                                        
                     Resposta:
                     - 200 (OK) com o bundle do dashboard.
                     """
@@ -75,10 +81,10 @@ public class InsightsController {
             summary = "Gera insights para um período",
             description = """
                     Gera (ou recalcula) insights para um usuário no período informado.
-                    
+                                        
                     Idempotência:
                     - Envie o header `Idempotency-Key` para garantir operação segura em retries.
-                    
+                                        
                     Resposta:
                     - 200 (OK) com o bundle gerado.
                     """
@@ -102,7 +108,7 @@ public class InsightsController {
             @Valid @RequestBody GenerateInsightsRequest request
     ) {
         log.info(
-                "[InsightsController] - [generate] -> Generating insights userId={} start={} end={} granularity={} hasIdempotencyKey={}",
+                "[InsightsController] - [generate] -> Gerando insights userId={} start={} end={} granularity={} hasIdempotencyKey={}",
                 request.userId(), request.start(), request.end(), request.granularity(), idempotencyKey != null
         );
 
@@ -117,6 +123,40 @@ public class InsightsController {
         return ResponseEntity.ok(toResponse(result));
     }
 
+    @Operation(
+            summary = "Histórico paginado de insights do usuário",
+            description = "Lista insights por usuário (ECO-10). `userId` entra no predicado da query (não filtra em memória)."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Página de insights"),
+            @ApiResponse(responseCode = "400", description = "Parâmetros inválidos"),
+            @ApiResponse(responseCode = "401", description = "Não autenticado")
+    })
+    @GetMapping("/insights")
+    public ResponseEntity<PageResponse<InsightResponse>> list(
+            @RequestParam("userId") @NotNull UUID userId,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size
+    ) {
+        int resolvedPage = (page == null || page < 0) ? 0 : page;
+        int resolvedSize = resolveSize(size);
+
+        var pageResult = listInsightsUseCase.listByUser(userId, resolvedPage, resolvedSize);
+        var response = PageResponse.from(pageResult, i -> new InsightResponse(
+                i.id(), i.userId(), i.type(), i.score(), i.title(), i.summary(), i.payload(), i.createdAt()));
+        return ResponseEntity.ok(response);
+    }
+
+    // Limita o tamanho solicitado aos valores configurados para paginação.
+    private int resolveSize(Integer size) {
+        int def = properties.pagination() != null ? properties.pagination().defaultSize() : 20;
+        int max = properties.pagination() != null ? properties.pagination().maxSize() : 100;
+        if (size == null) return def;
+        if (size < 1) return 1;
+        return Math.min(size, max);
+    }
+
+    // Converte o resultado consolidado para o contrato da API.
     private static InsightsBundleResponse toResponse(InsightsBundleResult bundle) {
         List<InsightResponse> insights = bundle.insights().stream()
                 .map(i -> new InsightResponse(
@@ -131,8 +171,6 @@ public class InsightsController {
                 ))
                 .toList();
 
-        // Correção Dia 8 (item #3): mapeamento direto List<MetricSnapshotResult> -> List<MetricSnapshotResponse>,
-        // sem aninhamento artificial (antes era lista de lista de lista via singletonList duplo).
         List<MetricSnapshotResponse> metrics = bundle.metrics().stream()
                 .map(m -> new MetricSnapshotResponse(
                         m.id(),

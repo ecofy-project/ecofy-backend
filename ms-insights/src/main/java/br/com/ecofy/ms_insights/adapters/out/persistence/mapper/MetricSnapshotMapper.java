@@ -65,7 +65,7 @@ public final class MetricSnapshotMapper {
                 granularity
         );
 
-        var value = new Money(
+        var value = Money.ofCents(
                 e.getValueCents(),
                 requireCurrency3(e.getCurrency(), "entity.currency")
         );

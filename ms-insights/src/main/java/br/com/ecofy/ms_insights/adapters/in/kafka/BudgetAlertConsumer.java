@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.Objects;
 import java.util.UUID;
 
+// Consome alertas de orçamento e aciona a geração de insights.
 @Slf4j
 @Component
 public class BudgetAlertConsumer {
@@ -19,7 +20,6 @@ public class BudgetAlertConsumer {
     private final ObjectMapper objectMapper;
     private final InsightEventIngestionService ingestionService;
 
-    // Injeta configurações, ObjectMapper e o serviço de ingestão garantindo que dependências essenciais não sejam nulas.
     public BudgetAlertConsumer(
             InsightsProperties properties,
             ObjectMapper objectMapper,
@@ -30,25 +30,17 @@ public class BudgetAlertConsumer {
         this.ingestionService = Objects.requireNonNull(ingestionService, "ingestionService must not be null");
     }
 
-    /**
-     * Preferir placeholder de property ao invés de SpEL por nome de bean.
-     * Isso evita o erro: "bean named 'insightsProperties' could not be found".
-     *
-     * Requer no application.yml:
-     * ecofy.insights.topics.budget-alert-topic: eco.budget.alert
-     */
+    // Valida o evento recebido e aciona o processamento para o usuário.
     @KafkaListener(
             topics = "${ecofy.insights.topics.budget-alert-topic}",
             containerFactory = "kafkaListenerContainerFactory"
     )
-    // Consome eventos de alerta de budget do Kafka, valida payload, faz parsing do JSON e dispara a geração de insights para o usuário.
     public void consume(String payload) {
         if (payload == null || payload.isBlank()) {
-            log.warn("[BudgetAlertConsumer] - [consume] -> empty payload received; skipping");
+            log.warn("[BudgetAlertConsumer] - [consume] -> Payload vazio recebido; ignorando");
             return;
         }
 
-        // Correção Dia 8 (item #6): diferencia payload irrecuperável (poison) de falha transitória.
         final UUID userId;
         try {
             JsonNode root = objectMapper.readTree(payload);
@@ -62,10 +54,8 @@ public class BudgetAlertConsumer {
                     userId, budgetId, severity, status
             );
         } catch (Exception poison) {
-            // Payload malformado/invalido: reprocessar não resolve. Loga em WARN e ACK (evita loop infinito
-            // sem DLT). Publicação em Dead Letter Topic fica como próximo passo documentado.
             log.warn(
-                    "[BudgetAlertConsumer] - [consume] -> POISON payload skipped (no retry) payloadSize={} error={}",
+                    "[BudgetAlertConsumer] - [consume] -> Payload inválido (poison) descartado sem retentativa payloadSize={} error={}",
                     payload.length(), poison.getMessage()
             );
             return;
@@ -74,16 +64,15 @@ public class BudgetAlertConsumer {
         try {
             ingestionService.onSignalGenerate(userId);
         } catch (Exception transient_) {
-            // Falha transitória (ex.: downstream/DB): NÃO engole; relança para o DefaultErrorHandler (retry).
             log.error(
-                    "[BudgetAlertConsumer] - [consume] -> TRANSIENT failure -> rethrow for retry userId={} error={}",
+                    "[BudgetAlertConsumer] - [consume] -> Falha transitória; relançando para nova tentativa userId={} error={}",
                     userId, transient_.getMessage()
             );
             throw new RuntimeException("Transient failure processing budget-alert event", transient_);
         }
     }
 
-    // Faz parse e valida um UUID obrigatório do JSON, lançando IllegalArgumentException quando ausente/vazio/inválido.
+    // Valida e converte um identificador obrigatório do evento.
     private static UUID parseRequiredUuid(JsonNode root, String field) {
         if (root == null || root.get(field) == null) {
             throw new IllegalArgumentException("Missing required field: " + field);
@@ -95,7 +84,7 @@ public class BudgetAlertConsumer {
         return UUID.fromString(v.trim());
     }
 
-    // Faz parse de um UUID opcional do JSON, retornando null quando ausente/vazio e lançando erro apenas se o formato for inválido.
+    // Converte um identificador opcional do evento.
     private static UUID parseOptionalUuid(JsonNode root, String field) {
         if (root == null || root.get(field) == null) return null;
         String v = root.get(field).asText(null);
@@ -103,7 +92,7 @@ public class BudgetAlertConsumer {
         return UUID.fromString(v.trim());
     }
 
-    // Faz parse de um campo texto opcional do JSON, normalizando whitespace e retornando null quando ausente/vazio.
+    // Normaliza um campo textual opcional do evento.
     private static String parseOptionalText(JsonNode root, String field) {
         if (root == null || root.get(field) == null) return null;
         String v = root.get(field).asText(null);

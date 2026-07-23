@@ -30,6 +30,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
+// Expõe as operações de criação, atualização e consulta de metas.
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -42,9 +43,6 @@ public class GoalsController {
     private final ListGoalsUseCase listGoalsUseCase;
     private final GetGoalUseCase getGoalUseCase;
 
-    /**
-     * Create é “recomendado”; aqui permanece via GoalService (padrão atual do projeto).
-     */
     private final GoalService goalService;
 
     @Operation(
@@ -116,7 +114,7 @@ public class GoalsController {
             @Valid @RequestBody UpdateGoalRequest request
     ) {
         log.info(
-                "[GoalsController] - [update] -> Updating goal goalId={} name={} currency={} status={}",
+                "[GoalsController] - [update] -> Atualizando goal goalId={} name={} currency={} status={}",
                 goalId, request.name(), request.currency(), request.status()
         );
 

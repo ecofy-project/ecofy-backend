@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface LoadInsightsPort {
     List<Insight> findRecentForUser(UUID userId, int limit);
     List<Insight> findForUserTypePeriod(UUID userId, InsightType type, Period period);
+
+    PageResult<Insight> findByUserId(UUID userId, int page, int size);
 }

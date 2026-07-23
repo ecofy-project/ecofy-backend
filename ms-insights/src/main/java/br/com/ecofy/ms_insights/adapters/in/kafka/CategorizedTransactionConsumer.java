@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.Objects;
 import java.util.UUID;
 
+// Consome transações categorizadas e aciona a geração de insights.
 @Slf4j
 @Component
 public class CategorizedTransactionConsumer {
@@ -19,7 +20,6 @@ public class CategorizedTransactionConsumer {
     private final ObjectMapper objectMapper;
     private final InsightEventIngestionService ingestionService;
 
-    // Injeta as dependências do consumer (properties, parser JSON e serviço de ingestão) garantindo que não sejam nulas.
     public CategorizedTransactionConsumer(
             InsightsProperties properties,
             ObjectMapper objectMapper,
@@ -30,18 +30,17 @@ public class CategorizedTransactionConsumer {
         this.ingestionService = Objects.requireNonNull(ingestionService, "ingestionService must not be null");
     }
 
-    // Consome eventos de transação categorizada do Kafka, valida o payload, extrai campos principais e sinaliza geração de insights por usuário.
+    // Valida o evento recebido e aciona o processamento para o usuário.
     @KafkaListener(
             topics = "${ecofy.insights.topics.categorized-transaction-topic}",
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(String payload) {
         if (payload == null || payload.isBlank()) {
-            log.warn("[CategorizedTransactionConsumer] - [consume] -> empty payload received; skipping");
+            log.warn("[CategorizedTransactionConsumer] - [consume] -> Payload vazio recebido; ignorando");
             return;
         }
 
-        // Correção Dia 8 (item #6): diferencia payload irrecuperável (poison) de falha transitória.
         final UUID userId;
         try {
             JsonNode root = objectMapper.readTree(payload);
@@ -55,10 +54,8 @@ public class CategorizedTransactionConsumer {
                     userId, transactionId, categoryId
             );
         } catch (Exception poison) {
-            // Payload malformado/invalido: reprocessar não resolve. Loga em WARN e ACK (evita loop infinito
-            // sem DLT). Publicação em Dead Letter Topic fica como próximo passo documentado.
             log.warn(
-                    "[CategorizedTransactionConsumer] - [consume] -> POISON payload skipped (no retry) topic={} payloadSize={} error={}",
+                    "[CategorizedTransactionConsumer] - [consume] -> Payload inválido (poison) descartado sem retentativa topic={} payloadSize={} error={}",
                     properties.topics().categorizedTransactionTopic(), payload.length(), poison.getMessage()
             );
             return;
@@ -67,16 +64,15 @@ public class CategorizedTransactionConsumer {
         try {
             ingestionService.onSignalGenerate(userId);
         } catch (Exception transient_) {
-            // Falha transitória (ex.: downstream/DB): NÃO engole; relança para o DefaultErrorHandler (retry).
             log.error(
-                    "[CategorizedTransactionConsumer] - [consume] -> TRANSIENT failure -> rethrow for retry userId={} error={}",
+                    "[CategorizedTransactionConsumer] - [consume] -> Falha transitória; relançando para nova tentativa userId={} error={}",
                     userId, transient_.getMessage()
             );
             throw new RuntimeException("Transient failure processing categorized-transaction event", transient_);
         }
     }
 
-    // Faz parse e valida um UUID obrigatório do JSON, lançando IllegalArgumentException quando ausente/vazio/inválido.
+    // Valida e converte um identificador obrigatório do evento.
     private static UUID parseRequiredUuid(JsonNode root, String field) {
         if (root == null || root.get(field) == null || root.get(field).asText().isBlank()) {
             throw new IllegalArgumentException("Missing required field: " + field);
@@ -84,7 +80,7 @@ public class CategorizedTransactionConsumer {
         return UUID.fromString(root.get(field).asText().trim());
     }
 
-    // Faz parse de um UUID opcional do JSON, retornando null quando ausente/vazio e lançando erro apenas se o formato for inválido.
+    // Converte um identificador opcional do evento.
     private static UUID parseOptionalUuid(JsonNode root, String field) {
         if (root == null || root.get(field) == null) return null;
         String v = root.get(field).asText();

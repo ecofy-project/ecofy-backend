@@ -24,22 +24,38 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+// Gerencia a criação, atualização e consulta de metas financeiras.
 @Slf4j
 @Service
-public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoalUseCase {
+public class GoalService implements
+        UpdateGoalUseCase,
+        ListGoalsUseCase,
+        GetGoalUseCase {
 
     private final LoadGoalsPort loadGoalsPort;
     private final SaveGoalPort saveGoalPort;
     private final Clock clock;
 
-    // Injeta as portas de leitura/escrita de goals e um Clock para padronizar timestamps e facilitar testes determinísticos.
-    public GoalService(LoadGoalsPort loadGoalsPort, SaveGoalPort saveGoalPort, Clock clock) {
-        this.loadGoalsPort = Objects.requireNonNull(loadGoalsPort, "loadGoalsPort must not be null");
-        this.saveGoalPort = Objects.requireNonNull(saveGoalPort, "saveGoalPort must not be null");
-        this.clock = Objects.requireNonNull(clock, "clock must not be null");
+    public GoalService(
+            LoadGoalsPort loadGoalsPort,
+            SaveGoalPort saveGoalPort,
+            Clock clock
+    ) {
+        this.loadGoalsPort = Objects.requireNonNull(
+                loadGoalsPort,
+                "loadGoalsPort must not be null"
+        );
+        this.saveGoalPort = Objects.requireNonNull(
+                saveGoalPort,
+                "saveGoalPort must not be null"
+        );
+        this.clock = Objects.requireNonNull(
+                clock,
+                "clock must not be null"
+        );
     }
 
-    // Cria um novo Goal a partir do comando, validando campos, aplicando defaults e persistindo via port, retornando um GoalResult.
+    // Cria e persiste uma meta com os valores validados.
     @Transactional
     public GoalResult create(CreateGoalCommand cmd) {
         Objects.requireNonNull(cmd, "cmd must not be null");
@@ -47,16 +63,21 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         UUID userId = requireNonNull(cmd.userId(), "userId");
         String name = requireNonBlank(cmd.name(), "name");
         String currency = requireCurrency(cmd.currency());
-        long targetCents = requireNonNegative(cmd.targetCents(), "targetCents");
+        long targetCents = requireNonNegative(
+                cmd.targetCents(),
+                "targetCents"
+        );
 
-        GoalStatus status = (cmd.status() == null) ? GoalStatus.ACTIVE : cmd.status();
+        GoalStatus status = cmd.status() == null
+                ? GoalStatus.ACTIVE
+                : cmd.status();
         Instant now = Instant.now(clock);
 
         Goal goal = new Goal(
                 UUID.randomUUID(),
                 new UserId(userId),
                 name,
-                new Money(targetCents, currency),
+                Money.ofCents(targetCents, currency),
                 status,
                 now,
                 now
@@ -64,13 +85,19 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
 
         var saved = saveGoalPort.save(goal);
 
-        log.info("[GoalService] - [create] -> goalId={} userId={} status={} targetCents={} currency={}",
-                saved.getId(), saved.getUserId().value(), saved.getStatus(), saved.getTarget().cents(), saved.getTarget().currency());
+        log.info(
+                "[GoalService] - [create] -> goalId={} userId={} status={} targetCents={} currency={}",
+                saved.getId(),
+                saved.getUserId().value(),
+                saved.getStatus(),
+                saved.getTarget().cents(),
+                saved.getTarget().currency()
+        );
 
         return toResult(saved);
     }
 
-    // Atualiza um Goal existente aplicando merge de campos (name/status/target), validando regras de negócio e persistindo o estado atualizado.
+    // Atualiza os campos informados de uma meta existente.
     @Override
     @Transactional
     public GoalResult update(UpdateGoalCommand cmd) {
@@ -80,40 +107,62 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
 
         Goal current = loadGoalsPort.findById(goalId);
         if (current == null) {
-            throw new GoalNotFoundException("Goal not found: " + goalId);
+            throw new GoalNotFoundException(
+                    "Goal not found for id: " + goalId
+            );
         }
 
-        String name = (cmd.name() == null) ? current.getName() : requireNonBlank(cmd.name(), "name");
-        GoalStatus status = (cmd.status() == null) ? current.getStatus() : cmd.status();
+        String name = cmd.name() == null
+                ? current.getName()
+                : requireNonBlank(cmd.name(), "name");
+        GoalStatus status = cmd.status() == null
+                ? current.getStatus()
+                : cmd.status();
 
         Money target = mergeTarget(current, cmd);
 
         Instant now = Instant.now(clock);
 
-        Goal updatedDomain = current.withUpdate(name, target, status, now);
+        Goal updatedDomain = current.withUpdate(
+                name,
+                target,
+                status,
+                now
+        );
         var saved = saveGoalPort.save(updatedDomain);
 
-        log.info("[GoalService] - [update] -> goalId={} userId={} status={} targetCents={} currency={}",
-                saved.getId(), saved.getUserId().value(), saved.getStatus(), saved.getTarget().cents(), saved.getTarget().currency());
+        log.info(
+                "[GoalService] - [update] -> goalId={} userId={} status={} targetCents={} currency={}",
+                saved.getId(),
+                saved.getUserId().value(),
+                saved.getStatus(),
+                saved.getTarget().cents(),
+                saved.getTarget().currency()
+        );
 
         return toResult(saved);
     }
 
-    // Lista os goals de um usuário, convertendo domínio para GoalResult e registrando quantidade retornada.
+    // Lista as metas pertencentes ao usuário.
     @Override
     @Transactional(readOnly = true)
     public List<GoalResult> list(UUID userId) {
         Objects.requireNonNull(userId, "userId must not be null");
 
-        var list = loadGoalsPort.findByUserId(userId).stream()
+        var list = loadGoalsPort.findByUserId(userId)
+                .stream()
                 .map(GoalService::toResult)
                 .toList();
 
-        log.debug("[GoalService] - [list] -> userId={} returned={}", userId, list.size());
+        log.debug(
+                "[GoalService] - [list] -> userId={} returned={}",
+                userId,
+                list.size()
+        );
         return list;
     }
 
-    // Busca um goal por id, lançando GoalNotFoundException quando inexistente e retornando o GoalResult quando encontrado.
+    // Resolve a meta pelo identificador ou informa sua ausência.
     @Override
     @Transactional(readOnly = true)
     public GoalResult get(UUID goalId) {
@@ -121,15 +170,24 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
 
         Goal g = loadGoalsPort.findById(goalId);
         if (g == null) {
-            throw new GoalNotFoundException("Goal not found: " + goalId);
+            throw new GoalNotFoundException(
+                    "Goal not found for id: " + goalId
+            );
         }
 
-        log.debug("[GoalService] - [get] -> goalId={} userId={}", g.getId(), g.getUserId().value());
+        log.debug(
+                "[GoalService] - [get] -> goalId={} userId={}",
+                g.getId(),
+                g.getUserId().value()
+        );
         return toResult(g);
     }
 
-    // Faz o merge do target garantindo regra de negócio: para atualizar target é obrigatório enviar targetCents e currency juntos.
-    private static Money mergeTarget(Goal current, UpdateGoalCommand cmd) {
+    // Resolve a atualização conjunta do valor e da moeda da meta.
+    private static Money mergeTarget(
+            Goal current,
+            UpdateGoalCommand cmd
+    ) {
         Long newCents = cmd.targetCents();
         String newCurrency = cmd.currency();
 
@@ -138,16 +196,18 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         }
 
         if (newCents == null || newCurrency == null) {
-            throw new BusinessValidationException("To update target you must provide both targetCents and currency");
+            throw new BusinessValidationException(
+                    "To update target you must provide both targetCents and currency"
+            );
         }
 
         long cents = requireNonNegative(newCents, "targetCents");
         String currency = requireCurrency(newCurrency);
 
-        return new Money(cents, currency);
+        return Money.ofCents(cents, currency);
     }
 
-    // Converte o Goal (domínio) em GoalResult (DTO) para exposição nas camadas de entrada (web/kafka).
+    // Converte a meta para o resultado exposto pelo caso de uso.
     public static GoalResult toResult(Goal g) {
         return new GoalResult(
                 g.getId(),
@@ -161,34 +221,49 @@ public class GoalService implements UpdateGoalUseCase, ListGoalsUseCase, GetGoal
         );
     }
 
-    // Valida campo obrigatório não-nulo e lança BusinessValidationException com mensagem padronizada.
+    // Valida valores obrigatórios.
     private static <T> T requireNonNull(T v, String field) {
-        if (v == null) throw new BusinessValidationException(field + " must not be null");
+        if (v == null) {
+            throw new BusinessValidationException(
+                    field + " must not be null"
+            );
+        }
         return v;
     }
 
-    // Valida String obrigatória não-vazia/não-branca e retorna valor normalizado (trim).
+    // Valida e normaliza valores textuais obrigatórios.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
-            throw new BusinessValidationException(field + " must not be blank");
+            throw new BusinessValidationException(
+                    field + " must not be blank"
+            );
         }
         return v.trim();
     }
 
-    // Valida código de moeda em formato ISO (3 caracteres), normaliza para uppercase e lança BusinessValidationException quando inválido.
+    // Valida e normaliza o código da moeda.
     private static String requireCurrency(String currency) {
         String c = requireNonBlank(currency, "currency").toUpperCase();
         if (c.length() != 3) {
-            throw new BusinessValidationException("currency must have length 3");
+            throw new BusinessValidationException(
+                    "Field 'currency' must contain a valid ISO 4217 currency code"
+            );
         }
         return c;
     }
 
-    // Valida número obrigatório e não-negativo (>= 0), convertendo Long para long e lançando BusinessValidationException quando inválido.
+    // Valida valores numéricos obrigatórios e não negativos.
     private static long requireNonNegative(Long v, String field) {
-        if (v == null) throw new BusinessValidationException(field + " must not be null");
-        if (v < 0) throw new BusinessValidationException(field + " must be >= 0");
+        if (v == null) {
+            throw new BusinessValidationException(
+                    field + " must not be null"
+            );
+        }
+        if (v < 0) {
+            throw new BusinessValidationException(
+                    field + " must be >= 0"
+            );
+        }
         return v;
     }
-
 }

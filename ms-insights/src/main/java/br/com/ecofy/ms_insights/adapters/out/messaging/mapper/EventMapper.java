@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+// Converte insights do domínio em eventos de integração.
 public final class EventMapper {
 
     private static final String EVENT_TYPE = "insight.created";
@@ -17,29 +18,44 @@ public final class EventMapper {
     private EventMapper() {
     }
 
-    // Converte um Insight em InsightCreatedEvent usando o Clock padrão (UTC).
     public static InsightCreatedEvent toCreatedEvent(Insight insight) {
         return toCreatedEvent(insight, Clock.systemUTC());
     }
 
-    // Converte um Insight em InsightCreatedEvent compatível com o ms-notification (userId/insightId/insightType/período/metadata).
     public static InsightCreatedEvent toCreatedEvent(Insight insight, Clock clock) {
         Objects.requireNonNull(insight, "insight must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
 
-        var key = Objects.requireNonNull(insight.getKey(), "insight.key must not be null");
+        var key = Objects.requireNonNull(
+                insight.getKey(),
+                "insight.key must not be null"
+        );
         String userId = key.userId().value().toString();
-        String insightId = Objects.requireNonNull(insight.getId(), "insight.id must not be null").toString();
+        String insightId = Objects.requireNonNull(
+                insight.getId(),
+                "insight.id must not be null"
+        ).toString();
 
         Period period = key.period();
-        String periodStart = period != null && period.start() != null ? period.start().toString() : null;
-        String periodEnd = period != null && period.end() != null ? period.end().toString() : null;
-        String insightType = insight.getType() != null ? insight.getType().name() : null;
+        String periodStart = period != null && period.start() != null
+                ? period.start().toString()
+                : null;
+        String periodEnd = period != null && period.end() != null
+                ? period.end().toString()
+                : null;
+        String insightType = insight.getType() != null
+                ? insight.getType().name()
+                : null;
 
         Instant occurredAt = Instant.now(clock);
         String eventId = UUID.randomUUID().toString();
 
-        var metadata = new InsightCreatedEvent.EventMetadata(eventId, null, occurredAt, SOURCE);
+        var metadata = new InsightCreatedEvent.EventMetadata(
+                eventId,
+                null,
+                occurredAt,
+                SOURCE
+        );
 
         return new InsightCreatedEvent(
                 eventId,
@@ -55,5 +71,4 @@ public final class EventMapper {
                 metadata
         );
     }
-
 }

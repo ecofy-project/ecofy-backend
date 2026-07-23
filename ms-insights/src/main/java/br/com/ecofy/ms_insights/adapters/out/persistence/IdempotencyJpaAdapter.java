@@ -44,7 +44,7 @@ public class IdempotencyJpaAdapter implements IdempotencyPort {
                     .expiresAt(now.plusSeconds(ttlSeconds))
                     .build());
 
-            log.debug("[IdempotencyJpaAdapter] - [tryAcquire] -> ACQUIRED key={} ttlSeconds={}", k, ttlSeconds);
+            log.debug("[IdempotencyJpaAdapter] - [tryAcquire] -> Chave de idempotência adquirida key={} ttlSeconds={}", k, ttlSeconds);
             return true;
 
         } catch (DataIntegrityViolationException ex) {

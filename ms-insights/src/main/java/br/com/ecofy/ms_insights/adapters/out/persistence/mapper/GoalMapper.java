@@ -11,13 +11,13 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+// Converte metas entre os modelos de domínio e persistência.
 public final class GoalMapper {
 
-    // Impede instanciação e reforça o uso estático (classe utilitária de mapeamento domain <-> persistence).
     private GoalMapper() {
     }
 
-    // Converte Goal (domínio) em GoalEntity (persistência), validando campos obrigatórios e normalizando strings.
+    // Converte a meta do domínio para persistência.
     public static GoalEntity toEntity(Goal d) {
         Objects.requireNonNull(d, "goal must not be null");
         Objects.requireNonNull(d.getUserId(), "goal.userId must not be null");
@@ -41,12 +41,12 @@ public final class GoalMapper {
                 .build();
     }
 
-    // Converte GoalEntity em Goal (domínio) usando Clock padrão UTC para timestamps de fallback.
+    // Converte a entidade para o domínio usando o relógio UTC.
     public static Goal toDomain(GoalEntity e) {
         return toDomain(e, Clock.systemUTC());
     }
 
-    // Converte GoalEntity em Goal (domínio) validando campos e aplicando fallback de timestamps via Clock injetável.
+    // Converte a entidade para o domínio e normaliza timestamps ausentes.
     public static Goal toDomain(GoalEntity e, Clock clock) {
         Objects.requireNonNull(e, "entity must not be null");
         Objects.requireNonNull(clock, "clock must not be null");
@@ -55,7 +55,7 @@ public final class GoalMapper {
         UUID userId = Objects.requireNonNull(e.getUserId(), "entity.userId must not be null");
         String name = requireNonBlank(e.getName(), "entity.name");
 
-        long targetCents = e.getTargetCents(); // BIGINT NOT NULL no DB, mas mantemos simples aqui
+        long targetCents = e.getTargetCents();
         String currency = requireNonBlank(e.getCurrency(), "entity.currency");
 
         GoalStatus status = parseStatus(e.getStatus());
@@ -68,30 +68,28 @@ public final class GoalMapper {
                 id,
                 new UserId(userId),
                 name,
-                new Money(targetCents, currency),
+                Money.ofCents(targetCents, currency),
                 status,
                 createdAt,
                 updatedAt
         );
     }
 
-    // Faz parse do status persistido para enum GoalStatus com fallback seguro (ACTIVE) quando o dado é inválido/legado.
+    // Resolve o status persistido com fallback para o estado ativo.
     private static GoalStatus parseStatus(String status) {
         String v = requireNonBlank(status, "entity.status");
         try {
             return GoalStatus.valueOf(v);
         } catch (IllegalArgumentException ex) {
-            // fallback seguro: não explode o read por um dado legado/inválido
             return GoalStatus.ACTIVE;
         }
     }
 
-    // Garante que uma String obrigatória esteja preenchida (não nula/não vazia), normalizando com trim e lançando IllegalArgumentException em caso de falha.
+    // Valida e normaliza valores textuais obrigatórios.
     private static String requireNonBlank(String v, String field) {
         if (v == null || v.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
         return v.trim();
     }
-
 }

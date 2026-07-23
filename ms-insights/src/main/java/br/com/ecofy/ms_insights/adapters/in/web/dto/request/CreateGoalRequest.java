@@ -8,10 +8,7 @@ import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
-/**
- * Correção Dia 8 (item #2): Bean Validation. targetCents deve ser positivo (rejeita 0/ausente);
- * currency ISO de 3 letras; name obrigatório com tamanho máximo. status é opcional (default ACTIVE no service).
- */
+// Transporta os dados de criação de uma meta, validados na borda da API.
 public record CreateGoalRequest(
 
         @NotNull(message = "userId is required")

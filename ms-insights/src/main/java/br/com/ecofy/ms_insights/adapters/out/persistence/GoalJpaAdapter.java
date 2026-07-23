@@ -28,7 +28,7 @@ public class GoalJpaAdapter implements SaveGoalPort, LoadGoalsPort {
         Objects.requireNonNull(goal.getUserId(), "goal.userId must not be null");
 
         log.debug(
-                "[GoalJpaAdapter] - [save] -> Saving goal id={} userId={} status={}",
+                "[GoalJpaAdapter] - [save] -> Salvando goal id={} userId={} status={}",
                 goal.getId(),
                 goal.getUserId().value(),
                 goal.getStatus()
@@ -54,11 +54,11 @@ public class GoalJpaAdapter implements SaveGoalPort, LoadGoalsPort {
 
         return repository.findById(goalId)
                 .map(entity -> {
-                    log.debug("[GoalJpaAdapter] - [findById] -> FOUND goalId={}", goalId);
+                    log.debug("[GoalJpaAdapter] - [findById] -> Goal encontrado goalId={}", goalId);
                     return GoalMapper.toDomain(entity);
                 })
                 .orElseGet(() -> {
-                    log.debug("[GoalJpaAdapter] - [findById] -> NOT FOUND goalId={}", goalId);
+                    log.debug("[GoalJpaAdapter] - [findById] -> Goal não encontrado goalId={}", goalId);
                     return null;
                 });
     }

@@ -12,12 +12,12 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import java.util.Objects;
 
+// Configura a segurança HTTP e a autenticação JWT do serviço.
 @Configuration
 @EnableMethodSecurity
 @Slf4j
 public class SecurityConfig {
 
-    // Facilita testes locais (dev/test); em prod deve ser false para exigir JWT em /api/categorization/**.
     private static final String PROP_PERMIT_ALL = "ecofy.categorization.security.permit-all";
 
     private static final String[] PUBLIC_ENDPOINTS = {
@@ -32,6 +32,7 @@ public class SecurityConfig {
             "/api/categorization/**"
     };
 
+    // Configura autenticação stateless e acesso conforme o ambiente.
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, Environment env) throws Exception {
         Objects.requireNonNull(env, "env must not be null");
@@ -48,16 +49,13 @@ public class SecurityConfig {
                     auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll();
 
                     if (devPermitAll) {
-                        // DEV/TEST/LOCAL: facilita testes locais sem token.
                         auth.requestMatchers(CATEGORIZATION_API_ENDPOINTS).permitAll();
                         auth.anyRequest().permitAll();
                     } else {
-                        // PROD: exige JWT em /api/categorization/** e demais endpoints.
                         auth.requestMatchers(CATEGORIZATION_API_ENDPOINTS).authenticated();
                         auth.anyRequest().authenticated();
                     }
                 })
-                // Resource Server JWT sempre disponível (usado quando não é permit-all).
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
@@ -66,5 +64,4 @@ public class SecurityConfig {
 
         return http.build();
     }
-
 }

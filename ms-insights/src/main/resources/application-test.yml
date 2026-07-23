@@ -1,0 +1,54 @@
+# Configura o ambiente de testes automatizados.
+spring:
+  # Aponta para o banco dedicado de testes, sem senha padrão embutida.
+  datasource:
+    url: ${DB_URL_TEST:jdbc:postgresql://localhost:5433/ecofy_insights_test}
+    username: ${DB_USER_TEST:ecofy_insights_test}
+    password: ${DB_PASS_TEST:}
+
+  jpa:
+    hibernate:
+      # Cria o schema no início e o descarta ao fim da execução.
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+
+  # Desliga as migrations, já que o schema é gerado pelo próprio teste.
+  flyway:
+    enabled: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS_TEST:localhost:19092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID_TEST:ms-insights-test}
+
+# Detalha os logs de requisição e validação para facilitar o diagnóstico dos testes.
+logging:
+  level:
+    org.springframework.web: DEBUG
+    org.springframework.http.converter: DEBUG
+    org.springframework.validation: DEBUG
+    org.springframework.boot.autoconfigure.web.servlet.error: DEBUG
+
+ecofy:
+  insights:
+    # Dispensa autenticação para simplificar os testes.
+    security:
+      permit-all: true
+    # Encurta o TTL de idempotência para não prender chaves entre cenários.
+    idempotency:
+      ttl: PT1M
+    # Impede que o publisher da Outbox e as rotinas agendadas disparem nos testes.
+    scheduling:
+      enabled: false
+    # Desliga o cache para não exigir Redis nos testes.
+    cache:
+      enabled: false
+    schedulers:
+      rebuild-enabled: false
+    # Desliga as integrações externas para isolar os testes.
+    clients:
+      categorization:
+        enabled: false
+      budgeting:
+        enabled: false
